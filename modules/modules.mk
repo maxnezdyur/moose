@@ -333,24 +333,11 @@ ifeq ($(LINEAR_ELASTICITY),yes)
   APPLICATION_NAME   := linear_elasticity
   include $(FRAMEWORK_DIR)/app.mk
   libmesh_CXXFLAGS   += -DLINEAR_ELASTICITY
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 endif
 
 ifeq ($(MISC),yes)
   APPLICATION_DIR    := $(MOOSE_DIR)/modules/misc
   APPLICATION_NAME   := misc
-<<<<<<< HEAD
-  SUFFIX             := misc
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(PERIDYNAMICS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/peridynamics
-  APPLICATION_NAME   := peridynamics
-  DEPEND_MODULES     := tensor_mechanics
-  SUFFIX             := pd
-  include $(FRAMEWORK_DIR)/app.mk
-=======
   include $(FRAMEWORK_DIR)/app.mk
   libmesh_CXXFLAGS   += -DMISC
 endif
@@ -360,71 +347,11 @@ ifeq ($(NAVIER_STOKES),yes)
   APPLICATION_NAME   := navier_stokes
   include $(FRAMEWORK_DIR)/app.mk
   libmesh_CXXFLAGS   += -DNAVIER_STOKES
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 endif
 
 ifeq ($(PHASE_FIELD),yes)
   APPLICATION_DIR    := $(MOOSE_DIR)/modules/phase_field
   APPLICATION_NAME   := phase_field
-<<<<<<< HEAD
-  DEPEND_MODULES     := tensor_mechanics
-  SUFFIX             := pf
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(POROUS_FLOW),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/porous_flow
-  APPLICATION_NAME   := porous_flow
-  DEPEND_MODULES     := tensor_mechanics fluid_properties chemical_reactions
-  SUFFIX             := pflow
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(THERMAL_HYDRAULICS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/thermal_hydraulics
-  APPLICATION_NAME   := thermal_hydraulics
-  DEPEND_MODULES     := navier_stokes fluid_properties heat_conduction rdg ray_tracing solid_properties misc
-  SUFFIX             := th
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(SCALAR_TRANSPORT),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/scalar_transport
-  APPLICATION_NAME   := scalar_transport
-  DEPEND_MODULES     := chemical_reactions navier_stokes thermal_hydraulics fluid_properties heat_conduction rdg ray_tracing solid_properties misc
-  SUFFIX             := st
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(XFEM),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/xfem
-  APPLICATION_NAME   := xfem
-  DEPEND_MODULES     := tensor_mechanics
-  SUFFIX             := xfem
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-ifeq ($(ALL_MODULES),yes)
-  ifneq ($(INCLUDE_COMBINED),no)
-    APPLICATION_DIR    := $(MOOSE_DIR)/modules/combined
-    APPLICATION_NAME   := combined
-    SUFFIX             := comb
-    include $(FRAMEWORK_DIR)/app.mk
-  endif
-endif
-
-# The loader should be used for all applications. We
-# only skip it when compiling individual modules
-ifneq ($(SKIP_LOADER),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/module_loader
-  APPLICATION_NAME   := module_loader
-  LIBRARY_SUFFIX     := yes
-  include $(FRAMEWORK_DIR)/app.mk
-endif
-
-# Default to Generating revision for most applications
-GEN_REVISION := yes
-=======
   include $(FRAMEWORK_DIR)/app.mk
   libmesh_CXXFLAGS   += -DPHASE_FIELD
 endif
@@ -456,4 +383,3 @@ ifeq ($(WATER_STEAM_EOS),yes)
   include $(FRAMEWORK_DIR)/app.mk
   libmesh_CXXFLAGS   += -DWATER_STEAM_EOS
 endif
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

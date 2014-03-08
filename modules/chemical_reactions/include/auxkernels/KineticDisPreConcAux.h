@@ -1,28 +1,3 @@
-<<<<<<< HEAD
-//* This file is part of the MOOSE framework
-//* https://www.mooseframework.org
-//*
-//* All rights reserved, see COPYRIGHT for full restrictions
-//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
-//*
-//* Licensed under LGPL 2.1, please see LICENSE for details
-//* https://www.gnu.org/licenses/lgpl-2.1.html
-
-#pragma once
-
-#include "KineticDisPreRateAux.h"
-
-/**
- * Calculate the kinetic mineral species concentrations according to
- * transient state theory rate law.
- */
-class KineticDisPreConcAux : public KineticDisPreRateAux
-{
-public:
-  static InputParameters validParams();
-
-  KineticDisPreConcAux(const InputParameters & parameters);
-=======
 #ifndef KINETICDISPRECONCAUX_H
 #define KINETICDISPRECONCAUX_H
 
@@ -52,17 +27,10 @@ public:
    * constructor.
    */
   KineticDisPreConcAux(const std::string & name, InputParameters parameters);
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   virtual ~KineticDisPreConcAux() {}
 
 protected:
-<<<<<<< HEAD
-  virtual Real computeValue() override;
-
-  const VariableValue & _u_old;
-};
-=======
   /**
    * Conputes the kinetic mineral sepecies concentration.
    * @return The concentration of a kinetic mineral species.
@@ -91,4 +59,3 @@ protected:
 };
 
 #endif //KINETICDISPRECONCAUX_H
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

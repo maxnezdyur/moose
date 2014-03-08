@@ -1,19 +1,3 @@
-<<<<<<< HEAD
-//* This file is part of the MOOSE framework
-//* https://www.mooseframework.org
-//*
-//* All rights reserved, see COPYRIGHT for full restrictions
-//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
-//*
-//* Licensed under LGPL 2.1, please see LICENSE for details
-//* https://www.gnu.org/licenses/lgpl-2.1.html
-
-#pragma once
-
-#include "IntegratedBC.h"
-
-// Forward Declarations
-=======
 #ifndef CHEMICALOUTFLOWBC_H
 #define CHEMICALOUTFLOWBC_H
 
@@ -28,7 +12,6 @@ class ChemicalOutFlowBC;
 
 template<>
 InputParameters validParams<ChemicalOutFlowBC>();
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * Implements a simple constant VectorNeumann BC where grad(u)=value on the boundary.
@@ -37,22 +20,6 @@ InputParameters validParams<ChemicalOutFlowBC>();
 class ChemicalOutFlowBC : public IntegratedBC
 {
 public:
-<<<<<<< HEAD
-  static InputParameters validParams();
-
-  ChemicalOutFlowBC(const InputParameters & parameters);
-
-protected:
-  virtual Real computeQpResidual() override;
-  virtual Real computeQpJacobian() override;
-
-private:
-  /// Diffusivity
-  const MaterialProperty<Real> & _diff;
-  /// Porosity
-  const MaterialProperty<Real> & _porosity;
-};
-=======
 
   /**
    * Factory constructor, takes parameters so that all derived classes can be built using the same
@@ -78,4 +45,3 @@ private:
 };
 
 #endif //NEUMANNBC_H
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

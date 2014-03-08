@@ -1,22 +1,3 @@
-<<<<<<< HEAD
-//* This file is part of the MOOSE framework
-//* https://www.mooseframework.org
-//*
-//* All rights reserved, see COPYRIGHT for full restrictions
-//* https://github.com/idaholab/moose/blob/master/COPYRIGHT
-//*
-//* Licensed under LGPL 2.1, please see LICENSE for details
-//* https://www.gnu.org/licenses/lgpl-2.1.html
-
-#pragma once
-#include "Diffusion.h"
-
-// Forward Declarations
-
-/**
- * Define the Kernel for a CoupledConvectionReactionSub operator that looks like:
- * grad (diff * grad_u)
-=======
 #include "Diffusion.h"
 
 #ifndef PRIMARYDIFFUSION_H
@@ -38,24 +19,10 @@ InputParameters validParams<PrimaryDiffusion>();
  * grad (diff * grad_u)
  *
  * This first line is defining the name and inheriting from Kernel.
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
  */
 class PrimaryDiffusion : public Diffusion
 {
 public:
-<<<<<<< HEAD
-  static InputParameters validParams();
-
-  PrimaryDiffusion(const InputParameters & parameters);
-
-protected:
-  virtual Real computeQpResidual() override;
-  virtual Real computeQpJacobian() override;
-
-  /// Material property of dispersion-diffusion coefficient.
-  const MaterialProperty<Real> & _diffusivity;
-};
-=======
 
   PrimaryDiffusion(const std::string & name, InputParameters parameters);
 
@@ -85,4 +52,3 @@ protected:
   MaterialProperty<Real> & _diffusivity;
 };
 #endif //PRIMARYDIFFUSION_H
->>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
