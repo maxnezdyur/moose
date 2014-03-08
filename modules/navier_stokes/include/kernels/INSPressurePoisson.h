@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,21 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef INSPRESSUREPOISSON_H
+#define INSPRESSUREPOISSON_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "Kernel.h"
 
 // Forward Declarations
+<<<<<<< HEAD
+=======
+class INSPressurePoisson;
+
+template<>
+InputParameters validParams<INSPressurePoisson>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class computes the pressure Poisson solve which is part of
@@ -23,11 +35,17 @@
 class INSPressurePoisson : public Kernel
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   INSPressurePoisson(const InputParameters & parameters);
 
   virtual ~INSPressurePoisson() {}
+=======
+  INSPressurePoisson(const std::string & name, InputParameters parameters);
+
+  virtual ~INSPressurePoisson(){}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
@@ -35,9 +53,15 @@ protected:
   virtual Real computeQpOffDiagJacobian(unsigned jvar);
 
   // Gradients of the accleration vector, 'a'
+<<<<<<< HEAD
   const VariableGradient & _grad_a1;
   const VariableGradient & _grad_a2;
   const VariableGradient & _grad_a3;
+=======
+  VariableGradient& _grad_a1;
+  VariableGradient& _grad_a2;
+  VariableGradient& _grad_a3;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // Variable numberings
   unsigned _a1_var_number;
@@ -45,5 +69,13 @@ protected:
   unsigned _a3_var_number;
 
   // Material properties
+<<<<<<< HEAD
   const MaterialProperty<Real> & _rho;
 };
+=======
+  Real _rho;
+};
+
+
+#endif // INSPRESSUREPOISSON_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

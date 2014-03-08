@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -22,11 +23,42 @@ public:
   static InputParameters validParams();
 
   PolycrystalRandomICAction(const InputParameters & params);
+=======
+#ifndef POLYCRYSTALRANDOMICACTION_H
+#define POLYCRYSTALRANDOMICACTION_H
+
+#include "InputParameters.h"
+#include "Action.h"
+/**
+ * Automatically generates all variables to model a polycrystal with crys_num orderparameters
+ */
+
+class PolycrystalRandomICAction: public Action
+{
+public:
+  PolycrystalRandomICAction(const std::string & name, InputParameters params);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   virtual void act();
 
 private:
+<<<<<<< HEAD
   const unsigned int _op_num;
   const std::string _var_name_base;
   const MooseEnum _random_type;
 };
+=======
+  static const Real _abs_zero_tol;
+
+  unsigned int _crys_num;
+  //unsigned int _grain_num;
+  std::string _var_name_base;
+  MooseEnum _random_type;
+
+};
+
+template<>
+InputParameters validParams<PolycrystalRandomICAction>();
+
+#endif //POLYCRYSTALRANDOMICACTION_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

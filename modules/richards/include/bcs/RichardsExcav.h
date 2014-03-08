@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,20 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSEXCAV
+#define RICHARDSEXCAV
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NodalBC.h"
 
 // Forward Declarations
+<<<<<<< HEAD
 class Function;
 
 /**
@@ -26,10 +37,25 @@ public:
   static InputParameters validParams();
 
   RichardsExcav(const InputParameters & parameters);
+=======
+class RichardsExcav;
+class Function;
+
+template<>
+InputParameters validParams<RichardsExcav>();
+
+class RichardsExcav : public NodalBC
+{
+public:
+
+  RichardsExcav(const std::string & name,
+                        InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
 
+<<<<<<< HEAD
   /**
    * if excav_geom_function is != 0 at the point on
    * the boundary then apply the dirichlet BC
@@ -50,3 +76,13 @@ protected:
    */
   const Function & _func;
 };
+=======
+  virtual bool shouldApply();
+
+  Real _p_excav;
+  Function & _func;
+};
+
+#endif //RICHARDSEXCAV
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

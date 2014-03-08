@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,22 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSPENALIZEDNORMALFLOWBC_H
+#define NSPENALIZEDNORMALFLOWBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSIntegratedBC.h"
 
 // Forward Declarations
+<<<<<<< HEAD
+=======
+class NSPenalizedNormalFlowBC;
+
+template<>
+InputParameters validParams<NSPenalizedNormalFlowBC>();
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class penalizes the the value of u.n on the boundary
@@ -19,10 +32,18 @@
  */
 class NSPenalizedNormalFlowBC : public NSIntegratedBC
 {
+<<<<<<< HEAD
 public:
   static InputParameters validParams();
 
   NSPenalizedNormalFlowBC(const InputParameters & parameters);
+=======
+
+public:
+  NSPenalizedNormalFlowBC(const std::string & name, InputParameters parameters);
+
+  virtual ~NSPenalizedNormalFlowBC(){}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   /**
@@ -33,6 +54,15 @@ protected:
   virtual Real computeQpOffDiagJacobian(unsigned jvar);
 
   // Required parameters
+<<<<<<< HEAD
   const Real _penalty;
   const Real _specified_udotn;
 };
+=======
+  Real _penalty;
+  Real _specified_udotn;
+};
+
+
+#endif // NSPENALIZEDNORMALFLOWBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

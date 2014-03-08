@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -29,6 +30,35 @@ NSEnergyInviscidUnspecifiedBC::NSEnergyInviscidUnspecifiedBC(const InputParamete
 
 Real
 NSEnergyInviscidUnspecifiedBC::computeQpResidual()
+=======
+#include "NSEnergyInviscidUnspecifiedBC.h"
+
+template<>
+InputParameters validParams<NSEnergyInviscidUnspecifiedBC>()
+{
+  InputParameters params = validParams<NSEnergyInviscidBC>();
+
+  // Coupled variables
+  params.addRequiredCoupledVar("pressure", "");
+
+  return params;
+}
+
+
+
+NSEnergyInviscidUnspecifiedBC::NSEnergyInviscidUnspecifiedBC(const std::string & name, InputParameters parameters)
+    : NSEnergyInviscidBC(name, parameters),
+
+      // Aux Variables
+      _pressure(coupledValue("pressure"))
+{
+}
+
+
+
+
+Real NSEnergyInviscidUnspecifiedBC::computeQpResidual()
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // Velocity vector object
   RealVectorValue vel(_u_vel[_qp], _v_vel[_qp], _w_vel[_qp]);
@@ -36,6 +66,7 @@ NSEnergyInviscidUnspecifiedBC::computeQpResidual()
   // Normal component
   Real un = vel * _normals[_qp];
 
+<<<<<<< HEAD
   return qpResidualHelper(_pressure[_qp], un);
 }
 
@@ -56,6 +87,31 @@ NSEnergyInviscidUnspecifiedBC::computeQpOffDiagJacobian(unsigned jvar)
 
 Real
 NSEnergyInviscidUnspecifiedBC::computeJacobianHelper(unsigned var_number)
+=======
+  return this->qp_residual(_pressure[_qp], un);
+}
+
+
+
+
+Real NSEnergyInviscidUnspecifiedBC::computeQpJacobian()
+{
+  return this->compute_jacobian(/*on-diagonal variable is energy=*/4);
+}
+
+
+
+
+Real NSEnergyInviscidUnspecifiedBC::computeQpOffDiagJacobian(unsigned jvar)
+{
+  return this->compute_jacobian( this->map_var_number(jvar) );
+}
+
+
+
+
+Real NSEnergyInviscidUnspecifiedBC::compute_jacobian(unsigned var_number)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // Velocity vector object
   RealVectorValue vel(_u_vel[_qp], _v_vel[_qp], _w_vel[_qp]);
@@ -65,6 +121,13 @@ NSEnergyInviscidUnspecifiedBC::computeJacobianHelper(unsigned var_number)
 
   // When both u.n and pressure are unspecified, all 3 Jacobian terms apply.
   // See base class for details.
+<<<<<<< HEAD
   return qpJacobianTermA(var_number, _pressure[_qp]) + qpJacobianTermB(var_number, un) +
          qpJacobianTermC(var_number, un);
+=======
+  return
+    this->qp_jacobian_termA(var_number, _pressure[_qp]) +
+    this->qp_jacobian_termB(var_number, un) +
+    this->qp_jacobian_termC(var_number, un);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

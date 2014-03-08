@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -54,6 +55,52 @@ ContactApp::registerAll(Factory & f, ActionFactory & af, Syntax & s)
   associateSyntaxInner(s, af);
 
   TensorMechanicsApp::registerAll(f, af, s);
+=======
+#include "ContactApp.h"
+#include "Moose.h"
+#include "AppFactory.h"
+
+#include "ContactAction.h"
+#include "ContactMaster.h"
+#include "ContactPenetrationAuxAction.h"
+#include "ContactPenetrationVarAction.h"
+#include "ContactPressureAux.h"
+#include "ContactPressureAuxAction.h"
+#include "ContactPressureVarAction.h"
+#include "NodalAreaAction.h"
+#include "SlaveConstraint.h"
+#include "OneDContactConstraint.h"
+#include "MultiDContactConstraint.h"
+#include "GluedContactConstraint.h"
+#include "SparsityBasedGluedContactConstraint.h"
+#include "FrictionalContactProblem.h"
+#include "ReferenceResidualProblem.h"
+#include "NodalArea.h"
+#include "NodalAreaAction.h"
+#include "NodalAreaVarAction.h"
+
+template<>
+InputParameters validParams<ContactApp>()
+{
+  InputParameters params = validParams<MooseApp>();
+  return params;
+}
+
+ContactApp::ContactApp(const std::string & name, InputParameters parameters) :
+    MooseApp(name, parameters)
+{
+  srand(libMesh::processor_id());
+
+  Moose::registerObjects(_factory);
+  ContactApp::registerObjects(_factory);
+
+  Moose::associateSyntax(_syntax, _action_factory);
+  ContactApp::associateSyntax(_syntax, _action_factory);
+}
+
+ContactApp::~ContactApp()
+{
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 void
@@ -65,13 +112,27 @@ ContactApp::registerApps()
 void
 ContactApp::registerObjects(Factory & factory)
 {
+<<<<<<< HEAD
   mooseDeprecated("use registerAll instead of registerObjects");
   Registry::registerObjectsTo(factory, {"ContactApp"});
+=======
+  registerDiracKernel(ContactMaster);
+  registerDiracKernel(SlaveConstraint);
+  registerConstraint(OneDContactConstraint);
+  registerConstraint(MultiDContactConstraint);
+  registerConstraint(GluedContactConstraint);
+  registerConstraint(SparsityBasedGluedContactConstraint);
+  registerProblem(FrictionalContactProblem);
+  registerProblem(ReferenceResidualProblem);
+  registerUserObject(NodalArea);
+  registerAux(ContactPressureAux);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 void
 ContactApp::associateSyntax(Syntax & syntax, ActionFactory & action_factory)
 {
+<<<<<<< HEAD
   mooseDeprecated("use registerAll instead of associateSyntax");
   Registry::registerActionsTo(action_factory, {"ContactApp"});
   associateSyntaxInner(syntax, action_factory);
@@ -100,4 +161,27 @@ extern "C" void
 ContactApp__registerApps()
 {
   ContactApp::registerApps();
+=======
+  syntax.registerActionSyntax("ContactAction", "Contact/*");
+
+  syntax.registerActionSyntax("ContactPenetrationAuxAction", "Contact/*");
+  syntax.registerActionSyntax("ContactPenetrationVarAction", "Contact/*");
+
+  syntax.registerActionSyntax("ContactPressureAuxAction", "Contact/*");
+  syntax.registerActionSyntax("ContactPressureVarAction", "Contact/*");
+
+  syntax.registerActionSyntax("NodalAreaAction", "Contact/*");
+  syntax.registerActionSyntax("NodalAreaVarAction", "Contact/*");
+
+  registerAction(ContactAction, "add_dg_kernel");
+
+  registerAction(ContactPenetrationAuxAction, "add_aux_bc");
+  registerAction(ContactPenetrationVarAction, "add_aux_variable");
+
+  registerAction(ContactPressureAuxAction, "add_aux_bc");
+  registerAction(ContactPressureVarAction, "add_aux_variable");
+
+  registerAction(NodalAreaAction, "add_user_object");
+  registerAction(NodalAreaVarAction, "add_aux_variable");
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

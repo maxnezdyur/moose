@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,12 +9,24 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSENERGYVISCOUSBC_H
+#define NSENERGYVISCOUSBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSIntegratedBC.h"
 #include "NSViscStressTensorDerivs.h"
 #include "NSTemperatureDerivs.h"
 
 // Forward Declarations
+<<<<<<< HEAD
+=======
+class NSEnergyViscousBC;
+
+template<>
+InputParameters validParams<NSEnergyViscousBC>();
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class corresponds to the viscous part of the "natural"
@@ -28,12 +41,23 @@
  */
 class NSEnergyViscousBC : public NSIntegratedBC
 {
+<<<<<<< HEAD
 public:
   static InputParameters validParams();
 
   NSEnergyViscousBC(const InputParameters & parameters);
 
 protected:
+=======
+
+public:
+  NSEnergyViscousBC(const std::string & name, InputParameters parameters);
+
+  virtual ~NSEnergyViscousBC(){}
+
+protected:
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   /**
    * Just like other kernels, we must overload the Residual and Jacobian contributions...
    */
@@ -42,10 +66,17 @@ protected:
   virtual Real computeQpOffDiagJacobian(unsigned jvar);
 
   // Coupled gradients
+<<<<<<< HEAD
   const VariableGradient & _grad_temperature;
 
   // Material properties
   const MaterialProperty<Real> & _thermal_conductivity;
+=======
+  VariableGradient& _grad_temperature;
+
+  // Material properties
+  MaterialProperty<Real>& _thermal_conductivity;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // An object for computing viscous stress tensor derivatives.
   // Constructed via a reference to ourself so we can access all of our data.
@@ -65,5 +96,13 @@ protected:
 
   // Single vector to refer to all gradients.  Initialized in
   // the ctor.
+<<<<<<< HEAD
   std::vector<const VariableGradient *> _gradU;
 };
+=======
+  std::vector<VariableGradient*> _gradU;
+};
+
+
+#endif // NSENERGYVISCOUSBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

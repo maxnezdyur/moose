@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,3 +27,26 @@ private:
   /// Variable scaling
   const std::vector<Real> _scaling;
 };
+=======
+#ifndef ADDPRIMARYSPECIESACTION_H
+#define ADDPRIMARYSPECIESACTION_H
+
+#include "Action.h"
+
+class AddPrimarySpeciesAction;
+
+template<>
+InputParameters validParams<AddPrimarySpeciesAction>();
+
+
+class AddPrimarySpeciesAction : public Action
+{
+public:
+  AddPrimarySpeciesAction(const std::string & name, InputParameters params);
+
+  virtual void act();
+
+};
+
+#endif // ADDPRIMARYSPECIESACTION_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

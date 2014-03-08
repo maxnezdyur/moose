@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -13,11 +14,26 @@ InputParameters
 SplitCHBase::validParams()
 {
   InputParameters params = Kernel::validParams();
+=======
+#include "SplitCHBase.h"
+// The couple, SplitCHBase and SplitCHWRes, splits the CH equation by replacing chemical potential with 'w'.
+template<>
+InputParameters validParams<SplitCHBase>()
+{
+  InputParameters params = validParams<Kernel>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   return params;
 }
 
+<<<<<<< HEAD
 SplitCHBase::SplitCHBase(const InputParameters & parameters) : Kernel(parameters) {}
+=======
+SplitCHBase::SplitCHBase(const std::string & name, InputParameters parameters)
+  :Kernel(name, parameters)
+{
+}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /*Real //Example of what the virtual function should look like
 SplitCHBase::computeDFDC(PFFunctionType type)
@@ -33,7 +49,11 @@ SplitCHBase::computeDFDC(PFFunctionType type)
   }
 
   mooseError("Invalid type passed in");
+<<<<<<< HEAD
 }*/
+=======
+  }*/
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Real
 SplitCHBase::computeQpResidual()
@@ -41,9 +61,16 @@ SplitCHBase::computeQpResidual()
   Real f_prime_zero = computeDFDC(Residual);
   Real e_prime = computeDEDC(Residual);
 
+<<<<<<< HEAD
   Real residual = (f_prime_zero + e_prime) * _test[_i][_qp];
 
   return residual;
+=======
+  Real residual = (f_prime_zero + e_prime) *_test[_i][_qp];
+
+  return residual;
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 Real
@@ -52,17 +79,43 @@ SplitCHBase::computeQpJacobian()
   Real df_prime_zero_dc = computeDFDC(Jacobian);
   Real de_prime_dc = computeDEDC(Jacobian);
 
+<<<<<<< HEAD
   Real jacobian = (df_prime_zero_dc + de_prime_dc) * _test[_i][_qp];
 
   return jacobian;
+=======
+  Real jacobian = (df_prime_zero_dc + de_prime_dc) *_test[_i][_qp];
+
+  return jacobian;
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 Real
 SplitCHBase::computeQpOffDiagJacobian(unsigned int /*jvar*/)
 {
+<<<<<<< HEAD
   return 0.0;
 }
 
 Real SplitCHBase::computeDFDC(PFFunctionType /*type*/) { return 0.0; }
 
 Real SplitCHBase::computeDEDC(PFFunctionType /*type*/) { return 0.0; }
+=======
+
+  return 0.0;
+}
+
+Real
+SplitCHBase::computeDFDC(PFFunctionType /*type*/)
+{
+  return 0.0;
+}
+
+Real
+SplitCHBase::computeDEDC(PFFunctionType /*type*/)
+{
+  return 0.0;
+}
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

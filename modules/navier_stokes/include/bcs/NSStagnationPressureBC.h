@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,12 +9,26 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSSTAGNATIONPRESSUREBC_H
+#define NSSTAGNATIONPRESSUREBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSStagnationBC.h"
 
 // Forward Declarations
+<<<<<<< HEAD
 
 // Specialization required of all user-level Moose objects
+=======
+class NSStagnationPressureBC;
+
+
+// Specialization required of all user-level Moose objects
+template<>
+InputParameters validParams<NSStagnationPressureBC>();
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This Dirichlet condition imposes the condition p_0 = p_0_desired,
@@ -23,19 +38,41 @@
 class NSStagnationPressureBC : public NSStagnationBC
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   NSStagnationPressureBC(const InputParameters & parameters);
 
 protected:
+=======
+  // Constructor
+  NSStagnationPressureBC(const std::string & name, InputParameters parameters);
+
+  // Destructor, better be virtual
+  virtual ~NSStagnationPressureBC(){}
+
+protected:
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   // NodalBC's can (currently) only specialize the computeQpResidual function,
   // the computeQpJacobian() function automatically assembles a "1" onto the main
   // diagonal for this DoF.
   virtual Real computeQpResidual();
 
   // Coupled variables
+<<<<<<< HEAD
   const VariableValue & _pressure;
 
   // Required paramters
   const Real _desired_stagnation_pressure;
 };
+=======
+  VariableValue& _pressure;
+
+  // Required paramters
+  Real _desired_stagnation_pressure;
+};
+
+
+#endif // NSSTAGNATIONPRESSUREBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

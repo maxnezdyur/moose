@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,20 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSPOLYLINESINK_H
+#define RICHARDSPOLYLINESINK_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "DiracKernel.h"
 #include "LinearInterpolation.h"
 #include "RichardsSumQuantity.h"
+<<<<<<< HEAD
 #include "RichardsVarNames.h"
 
 // Forward Declarations
@@ -27,11 +38,25 @@ public:
   static InputParameters validParams();
 
   RichardsPolyLineSink(const InputParameters & parameters);
+=======
+
+//Forward Declarations
+class RichardsPolyLineSink;
+
+template<>
+InputParameters validParams<RichardsPolyLineSink>();
+
+class RichardsPolyLineSink : public DiracKernel
+{
+public:
+  RichardsPolyLineSink(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   virtual void addPoints();
   virtual Real computeQpResidual();
   virtual Real computeQpJacobian();
 
+<<<<<<< HEAD
   /**
    * Computes the off-diagonal part of the jacobian
    * Note: at March2014 this is never called since
@@ -82,3 +107,24 @@ protected:
    */
   bool parseNextLineReals(std::ifstream & ifs, std::vector<Real> & myvec);
 };
+=======
+
+protected:
+  RichardsSumQuantity & _total_outflow_mass;
+  LinearInterpolation _sink_func;
+  std::string _point_file;
+
+  bool _mesh_adaptivity;
+
+  std::vector<Real> _xs;
+  std::vector<Real> _ys;
+  std::vector<Real> _zs;
+
+  std::vector<const Elem *> _elemental_info;
+  bool _have_constructed_elemental_info;
+
+  bool parseNextLineReals(std::ifstream & ifs, std::vector<Real> &myvec);
+};
+
+#endif //RICHARDSPOLYLINESINK_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

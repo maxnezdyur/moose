@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,16 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef DESORPTIONTOPORESPACE
+#define DESORPTIONTOPORESPACE
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "Kernel.h"
 #include "LangmuirMaterial.h"
 
 // Forward Declarations
+<<<<<<< HEAD
 
 /**
  * Mass flow rate of fluid to the porespace from the matrix
@@ -43,3 +49,35 @@ protected:
   /// derivative of mass flow rate from matrix wrt pressure
   const MaterialProperty<Real> & _dmass_rate_from_matrix_dp;
 };
+=======
+class DesorptionToPorespace;
+
+template<>
+InputParameters validParams<DesorptionToPorespace>();
+
+class DesorptionToPorespace : public Kernel
+{
+public:
+
+  DesorptionToPorespace(const std::string & name,
+                        InputParameters parameters);
+
+protected:
+  virtual Real computeQpResidual();
+
+  virtual Real computeQpJacobian();
+
+  virtual Real computeQpOffDiagJacobian(unsigned int jvar);
+
+  VariableValue * _conc_val;
+  unsigned int _conc_var;
+
+  MaterialProperty<Real> &_desorption_time_const;
+  MaterialProperty<Real> &_adsorption_time_const;
+  MaterialProperty<Real> &_equilib_conc;
+  MaterialProperty<Real> &_equilib_conc_prime;
+
+};
+
+#endif //DESORPTIONTOPORESPACE
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

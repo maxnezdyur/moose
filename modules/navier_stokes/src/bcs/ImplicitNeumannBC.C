@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,10 +27,32 @@ ImplicitNeumannBC::ImplicitNeumannBC(const InputParameters & parameters) : Integ
 
 Real
 ImplicitNeumannBC::computeQpResidual()
+=======
+#include "ImplicitNeumannBC.h"
+
+template<>
+InputParameters validParams<ImplicitNeumannBC>()
+{
+  InputParameters params = validParams<IntegratedBC>();
+  return params;
+}
+
+
+
+ImplicitNeumannBC::ImplicitNeumannBC(const std::string & name, InputParameters parameters) :
+  IntegratedBC(name, parameters)
+{
+}
+
+
+
+Real ImplicitNeumannBC::computeQpResidual()
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   return _grad_u[_qp] * _normals[_qp] * _test[_i][_qp];
 }
 
+<<<<<<< HEAD
 Real
 ImplicitNeumannBC::computeQpJacobian()
 {
@@ -38,6 +61,20 @@ ImplicitNeumannBC::computeQpJacobian()
 
 Real
 ImplicitNeumannBC::computeQpOffDiagJacobian(unsigned /*jvar*/)
+=======
+
+
+
+Real ImplicitNeumannBC::computeQpJacobian()
+{
+  return (_grad_phi[_j][_qp]*_normals[_qp]) * _test[_i][_qp];
+}
+
+
+
+
+Real ImplicitNeumannBC::computeQpOffDiagJacobian(unsigned /*jvar*/)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // off-diagonal derivatives are all zero.
   return 0.;

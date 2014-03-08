@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -29,6 +30,36 @@ NSMomentumInviscidSpecifiedPressureBC::NSMomentumInviscidSpecifiedPressureBC(
 
 Real
 NSMomentumInviscidSpecifiedPressureBC::computeQpResidual()
+=======
+#include "NSMomentumInviscidSpecifiedPressureBC.h"
+
+template<>
+InputParameters validParams<NSMomentumInviscidSpecifiedPressureBC>()
+{
+  InputParameters params = validParams<NSMomentumInviscidBC>();
+
+  // Required parameters.
+  params.addRequiredParam<Real>("specified_pressure", "The specified pressure for this boundary");
+
+  return params;
+}
+
+
+
+
+NSMomentumInviscidSpecifiedPressureBC::NSMomentumInviscidSpecifiedPressureBC(const std::string & name, InputParameters parameters)
+    : NSMomentumInviscidBC(name, parameters),
+
+      // Parameters to be specified in input file block...
+      _specified_pressure(getParam<Real>("specified_pressure"))
+{
+}
+
+
+
+
+Real NSMomentumInviscidSpecifiedPressureBC::computeQpResidual()
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // Velocity vector object
   RealVectorValue vel(_u_vel[_qp], _v_vel[_qp], _w_vel[_qp]);
@@ -39,16 +70,28 @@ NSMomentumInviscidSpecifiedPressureBC::computeQpResidual()
   // The current value of the vector (rho*u)(u.n)
   RealVectorValue rhou_udotn = u_dot_n * _rho[_qp] * vel;
 
+<<<<<<< HEAD
   return pressureQpResidualHelper(_specified_pressure) +
          convectiveQpResidualHelper(rhou_udotn(_component));
 }
 
 Real
 NSMomentumInviscidSpecifiedPressureBC::computeQpJacobian()
+=======
+  return
+    this->pressure_qp_residual(_specified_pressure) +
+    this->convective_qp_residual( rhou_udotn(_component) );
+}
+
+
+
+Real NSMomentumInviscidSpecifiedPressureBC::computeQpJacobian()
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // There is no Jacobian for the pressure term when the pressure is specified,
   // so all we have left is the convective part.  The on-diagonal variable number
   // is _component+1
+<<<<<<< HEAD
   return convectiveQpJacobianHelper(_component + 1);
 }
 
@@ -59,4 +102,14 @@ NSMomentumInviscidSpecifiedPressureBC::computeQpOffDiagJacobian(unsigned jvar)
     return convectiveQpJacobianHelper(mapVarNumber(jvar));
   else
     return 0.0;
+=======
+  return this->convective_qp_jacobian(_component+1);
+}
+
+
+
+Real NSMomentumInviscidSpecifiedPressureBC::computeQpOffDiagJacobian(unsigned jvar)
+{
+  return this->convective_qp_jacobian( this->map_var_number(jvar) );
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

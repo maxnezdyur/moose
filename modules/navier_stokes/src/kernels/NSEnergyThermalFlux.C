@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -40,6 +41,49 @@ NSEnergyThermalFlux::NSEnergyThermalFlux(const InputParameters & parameters)
   _gradU[4] = &_grad_rho_et;
 }
 
+=======
+#include "NSEnergyThermalFlux.h"
+
+template<>
+InputParameters validParams<NSEnergyThermalFlux>()
+{
+  InputParameters params = validParams<NSKernel>();
+
+  // Required coupled variables for residual terms
+  params.addRequiredCoupledVar("temperature", "");
+
+  return params;
+}
+
+
+
+
+
+NSEnergyThermalFlux::NSEnergyThermalFlux(const std::string & name, InputParameters parameters)
+    : NSKernel(name, parameters),
+
+      // Gradients
+      _grad_temp(coupledGradient("temperature")),
+
+      // material properties and parameters
+      _thermal_conductivity(getMaterialProperty<Real>("thermal_conductivity")),
+
+      // Temperature derivative computing object
+      _temp_derivs(*this)
+{
+  // Store pointers to all variable gradients in a single vector.
+  _gradU.resize(5);
+  _gradU[0] = &_grad_rho  ;
+  _gradU[1] = &_grad_rho_u;
+  _gradU[2] = &_grad_rho_v;
+  _gradU[3] = &_grad_rho_w;
+  _gradU[4] = &_grad_rho_e;
+}
+
+
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 Real
 NSEnergyThermalFlux::computeQpResidual()
 {
@@ -47,11 +91,19 @@ NSEnergyThermalFlux::computeQpResidual()
   return _thermal_conductivity[_qp] * (_grad_temp[_qp] * _grad_test[_i][_qp]);
 }
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 Real
 NSEnergyThermalFlux::computeQpJacobian()
 {
   // The "on-diagonal" Jacobian for the energy equation
   // corresponds to variable number 4.
+<<<<<<< HEAD
   return computeJacobianHelper_value(/*var_number=*/4);
 }
 
@@ -73,11 +125,41 @@ NSEnergyThermalFlux::computeJacobianHelper_value(unsigned var_number)
   // I used "ell" here as the loop counter since it matches the
   // "\ell" used in my LaTeX notes.
   for (unsigned int ell = 0; ell < 3; ++ell)
+=======
+  return this->compute_jacobian_value(/*var_number=*/4);
+}
+
+
+
+
+Real
+NSEnergyThermalFlux::computeQpOffDiagJacobian(unsigned int jvar)
+{
+  // Map jvar into the numbering expected by this->compute_jacobain_value()
+  unsigned var_number = this->map_var_number(jvar);
+
+  return this->compute_jacobian_value(var_number);
+}
+
+
+
+
+
+Real NSEnergyThermalFlux::compute_jacobian_value(unsigned var_number)
+{
+  // The value to return
+  Real result = 0.;
+
+  // I used "ell" here as the loop counter since it matches the
+  // "\ell" used in my LaTeX notes.
+  for (unsigned int ell=0; ell<3; ++ell)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   {
     // Accumulate the first dot product term
     Real intermediate_result = _temp_derivs.get_grad(var_number) * _grad_phi[_j][_qp](ell);
 
     // Now accumulate the Hessian term
+<<<<<<< HEAD
     Real hess_term = 0.0;
     for (unsigned n = 0; n < 5; ++n)
     {
@@ -85,6 +167,13 @@ NSEnergyThermalFlux::computeJacobianHelper_value(unsigned var_number)
       // vector<VariableGradient&> :-(
       hess_term += _temp_derivs.get_hess(var_number, n) *
                    (*_gradU[n])[_qp](ell); // dereference pointer to get value
+=======
+    Real hess_term = 0.;
+    for (unsigned n=0; n<5; ++n)
+    {
+      // hess_term += get_hess(m,n) * gradU[n](ell); // ideally... but you can't have a vector<VariableGradient&> :-(
+      hess_term += _temp_derivs.get_hess(var_number,n) * (*_gradU[n])[_qp](ell); // dereference pointer to get value
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
     }
 
     // Accumulate the second dot product term
@@ -97,3 +186,9 @@ NSEnergyThermalFlux::computeJacobianHelper_value(unsigned var_number)
   // Return result, don't forget to multiply by "k"!
   return _thermal_conductivity[_qp] * result;
 }
+<<<<<<< HEAD
+=======
+
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,6 +27,31 @@ public:
   static InputParameters validParams();
 
   RichardsMassChange(const InputParameters & parameters);
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSMASSCHANGE
+#define RICHARDSMASSCHANGE
+
+#include "TimeDerivative.h"
+#include "RichardsPorepressureNames.h"
+
+// Forward Declarations
+class RichardsMassChange;
+
+template<>
+InputParameters validParams<RichardsMassChange>();
+
+class RichardsMassChange : public TimeDerivative
+{
+public:
+
+  RichardsMassChange(const std::string & name,
+                        InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
@@ -34,6 +60,7 @@ protected:
 
   virtual Real computeQpOffDiagJacobian(unsigned int jvar);
 
+<<<<<<< HEAD
   /// holds info on the Richards variables
   const RichardsVarNames & _richards_name_UO;
 
@@ -72,3 +99,32 @@ protected:
    */
   Real computeQpJac(unsigned int wrt_num);
 };
+=======
+  const RichardsPorepressureNames & _pp_name_UO;
+  unsigned int _pvar;
+
+  bool _use_supg;
+
+  MaterialProperty<Real> &_porosity;
+  MaterialProperty<Real> &_porosity_old;
+
+  MaterialProperty<std::vector<Real> > &_sat_old;
+
+  MaterialProperty<std::vector<Real> > &_sat;
+  MaterialProperty<std::vector<std::vector<Real> > > &_dsat;
+  MaterialProperty<std::vector<std::vector<std::vector<Real> > > > &_d2sat;
+
+  MaterialProperty<std::vector<Real> > &_density_old;
+
+  MaterialProperty<std::vector<Real> > &_density;
+  MaterialProperty<std::vector<Real> > &_ddensity;
+  MaterialProperty<std::vector<Real> > &_d2density;
+
+  MaterialProperty<std::vector<RealVectorValue> >&_tauvel_SUPG;
+  MaterialProperty<std::vector<RealTensorValue> >&_dtauvel_SUPG_dgradp;
+  MaterialProperty<std::vector<RealVectorValue> >&_dtauvel_SUPG_dp;
+
+};
+
+#endif //RICHARDSMASSCHANGE
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

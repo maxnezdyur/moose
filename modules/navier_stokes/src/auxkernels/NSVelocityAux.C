@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -27,6 +28,23 @@ NSVelocityAux::validParams()
 
 NSVelocityAux::NSVelocityAux(const InputParameters & parameters)
   : AuxKernel(parameters), _rho(coupledValue(NS::density)), _momentum(coupledValue("momentum"))
+=======
+#include "NSVelocityAux.h"
+
+template<>
+InputParameters validParams<NSVelocityAux>()
+{
+  InputParameters params = validParams<AuxKernel>();
+  params.addRequiredCoupledVar("rho", "Density (conserved form)");
+  params.addRequiredCoupledVar("momentum", "Momentum (conserved form)");
+  return params;
+}
+
+NSVelocityAux::NSVelocityAux(const std::string & name, InputParameters parameters) :
+    AuxKernel(name, parameters),
+    _rho(coupledValue("rho")),
+    _momentum(coupledValue("momentum"))
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
 }
 

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -22,10 +23,36 @@ public:
   static InputParameters validParams();
 
   BndsCalcAux(const InputParameters & parameters);
+=======
+#ifndef BndsCalcAux_H
+#define BndsCalcAux_H
+
+#include "AuxKernel.h"
+
+//Forward Declarations
+class BndsCalcAux;
+
+template<>
+InputParameters validParams<BndsCalcAux>();
+
+class BndsCalcAux : public AuxKernel
+{
+public:
+
+  BndsCalcAux(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeValue();
 
+<<<<<<< HEAD
   const unsigned int _op_num;
   const std::vector<const VariableValue *> _vals;
 };
+=======
+  std::vector<VariableValue *> _vals;
+  unsigned int _ncrys;
+
+};
+#endif //BndsCalcAux_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

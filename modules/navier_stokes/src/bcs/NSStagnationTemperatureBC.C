@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -39,8 +40,53 @@ NSStagnationTemperatureBC::computeQpResidual()
   // T_0 = T*(1 + 0.5*(gam-1)*M^2)
   Real computed_stagnation_temperature =
       _temperature[_qp] * (1. + 0.5 * (_fp.gamma() - 1.) * _mach[_qp] * _mach[_qp]);
+=======
+#include "NSStagnationTemperatureBC.h"
+
+// Full specialization of the validParams function for this object
+template<>
+InputParameters validParams<NSStagnationTemperatureBC>()
+{
+  // Initialize the params object from the base class
+  InputParameters params = validParams<NSStagnationBC>();
+
+  // Required parameters
+  params.addRequiredParam<Real>("desired_stagnation_temperature", "");
+
+  return params;
+}
+
+
+
+
+// Constructor, be sure to call the base class constructor first!
+NSStagnationTemperatureBC::NSStagnationTemperatureBC(const std::string & name, InputParameters parameters)
+    : NSStagnationBC(name, parameters),
+
+      // Required parameters
+      _desired_stagnation_temperature(getParam<Real>("desired_stagnation_temperature"))
+{}
+
+
+
+// Specialization of the computeQpResidual() function for this class.
+Real NSStagnationTemperatureBC::computeQpResidual()
+{
+  // The velocity vector
+  RealVectorValue vel(_u_vel[_qp], _v_vel[_qp], _w_vel[_qp]);
+
+  // Mach number, squared
+  Real M2 = vel.size_sq() / (_gamma * _R * _temperature[_qp]);
+
+  // T_0 = T*(1 + 0.5*(gam-1)*M^2)
+  Real computed_stagnation_temperature = _temperature[_qp] * (1. + 0.5*(_gamma-1.)*M2);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // Return the difference between the current solution's stagnation temperature
   // and the desired.  The Dirichlet condition asserts that these should be equal.
   return computed_stagnation_temperature - _desired_stagnation_temperature;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

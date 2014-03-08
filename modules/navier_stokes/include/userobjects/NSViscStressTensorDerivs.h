@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,6 +9,10 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSVISCSTRESSTENSORDERIVS_H
+#define NSVISCSTRESSTENSORDERIVS_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * Class outside the Moose hierarchy that contains common
@@ -21,7 +26,13 @@ template <class T>
 class NSViscStressTensorDerivs
 {
 public:
+<<<<<<< HEAD
   NSViscStressTensorDerivs(T & x);
+=======
+  NSViscStressTensorDerivs(T& x)
+      : _data(x)
+    {}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   /**
    * The primary interface for computing viscous stress
@@ -32,6 +43,7 @@ public:
   Real dtau(unsigned k, unsigned ell, unsigned m);
 
 private:
+<<<<<<< HEAD
   T & _data;
 };
 
@@ -44,17 +56,38 @@ template <class T>
 Real
 NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
 {
+=======
+  T& _data;
+};
+
+
+
+template <class T>
+Real NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
+{
+  //  Moose::out << "k=" << k << ", ell=" << ell << ", m=" << m << std::endl;
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   // Try to access underlying data.  Since this class is a friend, we can
   // directly access _qp and other protected data.  This only works if the
   // individual variables have the **same names** in all types T which may
   // be used to construct this class.
 
+<<<<<<< HEAD
+=======
+  //  Moose::out << "_data._qp=" << _data._qp << std::endl;
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   //
   // Some error checking on input indices...
   //
 
   // 0 <= k,ell <= 2
+<<<<<<< HEAD
   if (k > 2 || ell > 2)
+=======
+  if ( (k>2) || (ell>2) )
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
     mooseError("Error, 0 <= k,ell <= 2 violated!");
 
   // 0 <= m <= 4
@@ -65,6 +98,7 @@ NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
   // Convenience variables
   //
 
+<<<<<<< HEAD
   const Real rho = _data._rho[_data._qp];
   const Real rho2 = rho * rho;
   const Real phij = _data._phi[_data._j][_data._qp];
@@ -77,6 +111,23 @@ NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
 
   const Real divU = _data._grad_rho_u[_data._qp](0) + _data._grad_rho_v[_data._qp](1) +
                     _data._grad_rho_w[_data._qp](2);
+=======
+  Real rho  = _data._rho[_data._qp];
+  Real rho2 = rho*rho;
+  Real phij = _data._phi[_data._j][_data._qp];
+
+  Real mu = _data._dynamic_viscosity[_data._qp];
+  Real nu = mu / rho;
+
+  RealVectorValue U(_data._rho_u[_data._qp],
+                    _data._rho_v[_data._qp],
+                    _data._rho_w[_data._qp]);
+
+  Real divU =
+    _data._grad_rho_u[_data._qp](0) +
+    _data._grad_rho_v[_data._qp](1) +
+    _data._grad_rho_w[_data._qp](2);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // This makes a copy...but the resulting code is cleaner
   std::vector<RealVectorValue> gradU(3);
@@ -85,6 +136,7 @@ NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
   gradU[2] = _data._grad_rho_w[_data._qp];
 
   // So we can refer to gradients without repeated indexing.
+<<<<<<< HEAD
   const RealVectorValue & grad_phij = _data._grad_phi[_data._j][_data._qp];
   const RealVectorValue & grad_rho = _data._grad_rho[_data._qp];
 
@@ -142,3 +194,73 @@ NSViscStressTensorDerivs<T>::dtau(unsigned k, unsigned ell, unsigned m)
 
   return 0.;
 }
+=======
+  const RealVectorValue& grad_phij = _data._grad_phi[_data._j][_data._qp];
+  const RealVectorValue& grad_rho  = _data._grad_rho[_data._qp];
+
+  switch ( m )
+  {
+  case 0: // density
+  {
+    Real term1 =  2./rho2 * (U(k)*grad_rho(ell) + U(ell)*grad_rho(k)) * phij;
+    Real term2 = -1./rho*( (gradU[k](ell) + gradU[ell](k))*phij + (U(k)*grad_phij(ell) + U(ell)*grad_phij(k)) );
+
+    // Kronecker delta terms
+    Real term3 = 0.;
+    Real term4 = 0.;
+    if (k==ell)
+    {
+      term3 = -4./3./rho2 * (U*grad_rho) * phij;
+      term4 = 2./3./rho * (U*grad_phij + divU*phij);
+    }
+
+    //Moose::out << term1 << ", " << term2 << ", " << term3 << ", " << term4 << std::endl;
+
+    // Sum up result and return
+    return nu*(term1 + term2 + term3 + term4);
+  }
+
+  case 1: // momentums
+  case 2:
+  case 3:
+  {
+    // note: when comparing m to k or ell, or indexing into Points,
+    // must map m -> 0, 1, 2 by subtracting 1.
+    const unsigned m_local = m-1;
+
+    // Kronecker delta terms
+    Real delta_km   = (k   == m_local ? 1. : 0.);
+    Real delta_ellm = (ell == m_local ? 1. : 0.);
+    Real delta_kell = (k   == ell     ? 1. : 0.);
+
+    return nu *
+      (
+       /*     */ delta_km   * (grad_phij(ell)     - (phij/rho)*grad_rho(ell)) +
+       /*     */ delta_ellm * (grad_phij(k)       - (phij/rho)*grad_rho(k)) -
+       (2./3.) * delta_kell * (grad_phij(m_local) - (phij/rho)*grad_rho(m_local))
+      );
+  } // end case 1,2,3
+
+  case 4:
+  {
+    // Derivative wrt to energy variable is zero.
+    return 0.;
+  }
+
+  default:
+  {
+    mooseError("Invalid variable requested.");
+    break;
+  }
+
+  } // end switch(m)
+
+  return 0.;
+}
+
+
+
+
+
+#endif // NSVISCSTRESSTENSORDERIVS_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

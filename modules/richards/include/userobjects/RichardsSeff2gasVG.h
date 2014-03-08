@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,22 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+//  van-Genuchten gaseffective saturation as a function of (Pwater, Pgas), and its derivs wrt to that pressure
+//
+#ifndef RICHARDSSEFF2GASVG_H
+#define RICHARDSSEFF2GASVG_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "RichardsSeff.h"
 #include "RichardsSeffVG.h"
 
+<<<<<<< HEAD
 /**
  * van-Genuchten gas effective saturation as a function of (Pwater, Pgas),
  * and its derivs wrt to those pressures.  Note that the water pressure appears
@@ -60,3 +73,28 @@ protected:
   /// van Genuchten m parameter
   Real _m;
 };
+=======
+class RichardsSeff2gasVG;
+
+
+template<>
+InputParameters validParams<RichardsSeff2gasVG>();
+
+class RichardsSeff2gasVG : public RichardsSeff
+{
+ public:
+  RichardsSeff2gasVG(const std::string & name, InputParameters parameters);
+
+  Real seff(std::vector<VariableValue *> p, unsigned int qp) const;
+  std::vector<Real> dseff(std::vector<VariableValue *> p, unsigned int qp) const;
+  std::vector<std::vector<Real> > d2seff(std::vector<VariableValue *> p, unsigned int qp) const;
+
+ protected:
+
+  Real _al;
+  Real _m;
+
+};
+
+#endif // RICHARDSSEFF2GASVG_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

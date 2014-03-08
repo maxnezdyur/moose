@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -24,3 +25,30 @@ public:
 protected:
   virtual Real computeDFDC(PFFunctionType type);
 };
+=======
+#ifndef SPLITCHMath_H
+#define SPLITCHMath_H
+
+#include "SplitCHCRes.h"
+
+
+//Forward Declarations
+class SplitCHMath;
+
+template<>
+InputParameters validParams<SplitCHMath>();
+
+class SplitCHMath : public SplitCHCRes
+{
+public:
+
+  SplitCHMath(const std::string & name, InputParameters parameters);
+
+protected:
+  virtual Real computeDFDC(PFFunctionType type);
+
+private:
+
+};
+#endif //SPLITCHMath_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

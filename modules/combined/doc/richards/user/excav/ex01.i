@@ -89,7 +89,11 @@
   [./mass_final]
     type = RichardsMass
     variable = pressure
+<<<<<<< HEAD
     execute_on = timestep_end
+=======
+    execute_on = timestep
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   [../]
 
 # this is what calculates the mass flux to the excavation
@@ -104,7 +108,11 @@
 
 # mass_bal just outputs the result to screen
   [./mass_bal]
+<<<<<<< HEAD
     type = FunctionValuePostprocessor
+=======
+    type = PlotFunction
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
     function = mass_bal_fcn
   [../]
 []
@@ -231,9 +239,20 @@
   solve_type = NEWTON
 []
 
+<<<<<<< HEAD
 [Outputs]
   execute_on = 'timestep_end'
   file_base = ex01
   exodus = true
   csv = true
+=======
+[Output]
+  file_base = ex01
+  output_initial = true
+  interval = 1
+  exodus = true
+  perf_log = true
+  linear_residuals = false
+  postprocessor_csv = false
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 []

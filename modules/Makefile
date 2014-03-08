@@ -16,16 +16,25 @@ ADDITIONAL_CPPFLAGS += -Wall -Wextra
 include $(FRAMEWORK_DIR)/build.mk
 include $(FRAMEWORK_DIR)/moose.mk
 
+<<<<<<< HEAD
 ################################## MODULES ####################################
 ALL_MODULES       := yes
 INCLUDE_COMBINED  := no
 USE_TEST_LIBS     := yes
+=======
+################################## ELK MODULES ################################
+ALL_MODULES := yes
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 include modules.mk
 ###############################################################################
 
 # Build the Module executable
 APPLICATION_DIR    := $(MOOSE_DIR)/modules/combined
+<<<<<<< HEAD
 APPLICATION_NAME   := combined
+=======
+APPLICATION_NAME   := modules
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 BUILD_EXEC         := yes
 GEN_REVISION       := no
 include            $(FRAMEWORK_DIR)/app.mk

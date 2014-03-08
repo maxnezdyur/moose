@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -27,3 +28,27 @@ public:
   static void registerObjectDepends(Factory & factory);
   static void associateSyntaxDepends(Syntax & syntax, ActionFactory & action_factory);
 };
+=======
+#ifndef CONTACTAPP_H
+#define CONTACTAPP_H
+
+#include "MooseApp.h"
+
+class ContactApp;
+
+template<>
+InputParameters validParams<ContactApp>();
+
+class ContactApp : public MooseApp
+{
+public:
+  ContactApp(const std::string & name, InputParameters parameters);
+  virtual ~ContactApp();
+
+  static void registerApps();
+  static void registerObjects(Factory & factory);
+  static void associateSyntax(Syntax & syntax, ActionFactory & action_factory);
+};
+
+#endif /* CONTACTAPP_H */
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

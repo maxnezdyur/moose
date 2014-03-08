@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,20 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSEXCAVGEOM
+#define RICHARDSEXCAVGEOM
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "Function.h"
 
 // Forward Declarations
+<<<<<<< HEAD
 
 /**
  * Defines excavation geometry.  It is used to enforce
@@ -76,3 +87,35 @@ protected:
   /// norm of retreat velocity
   Real _norm_retreat_vel;
 };
+=======
+class RichardsExcavGeom;
+
+template<>
+InputParameters validParams<RichardsExcavGeom>();
+
+class RichardsExcavGeom : public Function
+{
+public:
+
+  RichardsExcavGeom(const std::string & name,
+                        InputParameters parameters);
+
+  virtual Real value(Real t, const Point & p);
+
+protected:
+
+  RealVectorValue _start_posn;
+  Real _start_time;
+  RealVectorValue _end_posn;
+  Real _end_time;
+  Real _active_length;
+  Real _true_value;
+  RealVectorValue _retreat_vel;
+  Real _norm_retreat_vel;
+
+
+};
+
+#endif //RICHARDSEXCAVGEOM
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

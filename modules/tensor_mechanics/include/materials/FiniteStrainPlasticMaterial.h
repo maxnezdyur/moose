@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,10 +27,29 @@ public:
   static InputParameters validParams();
 
   FiniteStrainPlasticMaterial(const InputParameters & parameters);
+=======
+// Original class author: A.M. Jokisaari,  O. Heinonen
+
+#ifndef FINITESTRAINPLASTICMATERIAL_H
+#define FINITESTRAINPLASTICMATERIAL_H
+
+#include "FiniteStrainMaterial.h"
+
+class FiniteStrainPlasticMaterial;
+
+template<>
+InputParameters validParams<FiniteStrainPlasticMaterial>();
+
+class FiniteStrainPlasticMaterial : public FiniteStrainMaterial
+{
+public:
+  FiniteStrainPlasticMaterial(const std:: string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual void computeQpStress();
   virtual void initQpStatefulProperties();
+<<<<<<< HEAD
   std::vector<Real> _yield_stress_vector;
   MaterialProperty<RankTwoTensor> & _plastic_strain;
   const MaterialProperty<RankTwoTensor> & _plastic_strain_old;
@@ -43,10 +63,19 @@ protected:
   const std::string _elasticity_tensor_name;
   /// Elasticity tensor material property
   const MaterialProperty<RankFourTensor> & _elasticity_tensor;
+=======
+
+  std::vector<Real> _yield_stress_vector;
+  MaterialProperty<RankTwoTensor> & _plastic_strain;
+  MaterialProperty<RankTwoTensor> & _plastic_strain_old;
+  MaterialProperty<Real> & _eqv_plastic_strain;
+  MaterialProperty<Real> & _eqv_plastic_strain_old;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   Real _rtol;
   Real _ftol;
   Real _eptol;
 
+<<<<<<< HEAD
   // outer and mixed product of the delta function tensors
   RankFourTensor _deltaOuter, _deltaMixed;
 
@@ -138,3 +167,25 @@ protected:
   /// make i,j,k,l available as tensor indices for mixedProduct
   usingTensorIndices(i_, j_, k_, l_);
 };
+=======
+  virtual void solveStressResid(RankTwoTensor,RankTwoTensor,RankFourTensor,RankTwoTensor*,RankTwoTensor*);
+  void getJac(RankTwoTensor,RankFourTensor,Real,RankFourTensor*);
+  void getFlowTensor(RankTwoTensor,RankTwoTensor*);
+
+
+  unsigned int isPlastic(RankTwoTensor,Real);
+
+  Real getSigEqv(RankTwoTensor);
+  RankTwoTensor getSigDev(RankTwoTensor);
+
+  Real deltaFunc(int,int);
+  Real getYieldStress(Real);
+  Real getdYieldStressdPlasticStrain(Real);
+
+
+private:
+
+};
+
+#endif //FINITESTRAINPLASTICMATERIAL_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

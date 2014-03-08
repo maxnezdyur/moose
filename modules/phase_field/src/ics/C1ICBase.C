@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -31,6 +32,32 @@ InputParameters
 C1ICBase::validParams()
 {
   InputParameters params = InitialCondition::validParams();
+=======
+#include "C1ICBase.h"
+
+//Portions of this code Copyright 2007-2009 Roy Stogner
+//
+//Permission is hereby granted, free of charge, to any person obtaining
+//a copy of this software and associated documentation files (the
+//"Software"), to deal in the Software without restriction, including
+//without limitation the rights to use, copy, modify, merge, publish,
+//distribute, sublicense, and/or sell copies of the Software, and to
+//permit persons to whom the Software is furnished to do so, subject to
+//the following conditions:
+//
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+//EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+//MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+//CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+//TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+template<>
+InputParameters validParams<C1ICBase>()
+{
+  InputParameters params = validParams<InitialCondition>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   params.addParam<Real>("average", 0, "The average value");
   params.addParam<Real>("amplitude", 1., "The amplitude");
@@ -42,6 +69,7 @@ C1ICBase::validParams()
   return params;
 }
 
+<<<<<<< HEAD
 C1ICBase::C1ICBase(const InputParameters & parameters)
   : InitialCondition(parameters),
     _average(parameters.get<Real>("average")),
@@ -52,18 +80,38 @@ C1ICBase::C1ICBase(const InputParameters & parameters)
     _interface(parameters.get<Real>("interface"))
 {
 }
+=======
+C1ICBase::C1ICBase(const std::string & name,
+                   InputParameters parameters)
+  :InitialCondition(name, parameters),
+   _average(parameters.get<Real>("average")),
+   _amplitude(parameters.get<Real>("amplitude")),
+   _length(parameters.get<Real>("length")),
+   _width(parameters.get<Real>("width")),
+   _buffer(parameters.get<Real>("buffer")),
+   _interface(parameters.get<Real>("interface"))
+{}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Number
 C1ICBase::interfaceValue(Real r)
 {
   Real x = (r - _buffer) / _interface;
 
+<<<<<<< HEAD
   if (x < 0.0)
     return (_average + _amplitude);
   if (x > 1.0)
     return (_average - _amplitude);
 
   return ((1.0 + 4.0 * x * x * x - 6.0 * x * x) * _amplitude + _average);
+=======
+  if (x < 0.) return (_average + _amplitude);
+  if (x > 1.) return (_average - _amplitude);
+
+  return ((1. + 4.*x*x*x - 6.*x*x) * _amplitude +
+          _average);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 Number
@@ -71,6 +119,7 @@ C1ICBase::interfaceDerivative(Real r)
 {
   Real x = (r - _buffer) / _interface;
 
+<<<<<<< HEAD
   if (x < 0.0)
     return 0.0;
   if (x > 1.0)
@@ -78,3 +127,13 @@ C1ICBase::interfaceDerivative(Real r)
 
   return ((12.0 * x * x - 12.0 * x) * _amplitude);
 }
+=======
+  if (x < 0.) return 0.;
+  if (x > 1.) return 0.;
+
+  return ((12.*x*x - 12.*x) * _amplitude);
+}
+
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

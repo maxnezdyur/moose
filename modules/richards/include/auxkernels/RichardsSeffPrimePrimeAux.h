@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,21 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSSEFFPRIMEPRIMEAUX_H
+#define RICHARDSSEFFPRIMEPRIMEAUX_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "AuxKernel.h"
 
 #include "RichardsSeff.h"
 
+<<<<<<< HEAD
 // Forward Declarations
 
 /**
@@ -24,10 +35,23 @@ public:
   static InputParameters validParams();
 
   RichardsSeffPrimePrimeAux(const InputParameters & parameters);
+=======
+//Forward Declarations
+class RichardsSeffPrimePrimeAux;
+
+template<>
+InputParameters validParams<RichardsSeffPrimePrimeAux>();
+
+class RichardsSeffPrimePrimeAux: public AuxKernel
+{
+public:
+  RichardsSeffPrimePrimeAux(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeValue();
 
+<<<<<<< HEAD
   /**
    * The user object that defines effective saturation
    * as function of porepressure (or porepressures in the
@@ -57,3 +81,15 @@ protected:
   /// matrix of 2nd derivtives: This auxkernel returns _mat[_wrt1][_wrt2];
   std::vector<std::vector<Real>> _mat;
 };
+=======
+  const RichardsSeff & _seff_UO;
+
+  int _wrt1;
+  int _wrt2;
+
+  std::vector<unsigned int> _pressure_vars;
+  std::vector<VariableValue *> _pressure_vals;
+};
+
+#endif // RICHARDSSEFFPRIMEPRIMEAUX_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -28,12 +29,37 @@ public:
   static InputParameters validParams();
 
   RichardsHalfGaussianSink(const InputParameters & parameters);
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSHALFGAUSSIANSINK
+#define RICHARDSHALFGAUSSIANSINK
+
+#include "IntegratedBC.h"
+
+// Forward Declarations
+class RichardsHalfGaussianSink;
+
+template<>
+InputParameters validParams<RichardsHalfGaussianSink>();
+
+class RichardsHalfGaussianSink : public IntegratedBC
+{
+public:
+
+  RichardsHalfGaussianSink(const std::string & name,
+                        InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
 
   virtual Real computeQpJacobian();
 
+<<<<<<< HEAD
   virtual Real computeQpOffDiagJacobian(unsigned int jvar);
 
   /// maximum of the Gaussian sink
@@ -69,3 +95,12 @@ protected:
   /// d(porepressure_i)/dvariable_j
   const MaterialProperty<std::vector<std::vector<Real>>> & _dpp_dv;
 };
+=======
+  Real _maximum;
+  Real _sd;
+  Real _centre;
+  Function * const _m_func;
+};
+
+#endif //RICHARDSHALFGAUSSIANSINK
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,10 +27,36 @@ public:
   RankFourAuxTempl(const InputParameters & parameters);
 
   virtual ~RankFourAuxTempl() {}
+=======
+#ifndef RANKFOURAUX_H
+#define RANKFOURAUX_H
+
+#include "AuxKernel.h"
+#include "ElasticityTensorR4.h"
+
+class RankFourAux;
+
+/**
+ * RankFourAux is designed to take the data in the ElasticityTensorR4 material
+ * property, for example stiffness, and output the value for the
+ * supplied indices.
+ */
+
+template<>
+InputParameters validParams<RankFourAux>();
+
+class RankFourAux : public AuxKernel
+{
+public:
+  RankFourAux(const std::string & name, InputParameters parameters);
+
+  virtual ~ RankFourAux() {}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeValue();
 
+<<<<<<< HEAD
 private:
   const GenericMaterialProperty<RankFourTensor, is_ad> & _tensor;
   const unsigned int _i;
@@ -40,3 +67,13 @@ private:
 
 typedef RankFourAuxTempl<false> RankFourAux;
 typedef RankFourAuxTempl<true> ADRankFourAux;
+=======
+private:  MaterialProperty<ElasticityTensorR4> & _tensor;
+  const int _i;
+  const int _j;
+  const int _k;
+  const int _l;
+};
+
+#endif //RANKFOURAUX_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

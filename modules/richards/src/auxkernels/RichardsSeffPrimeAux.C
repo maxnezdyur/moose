@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -6,11 +7,18 @@
 //*
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 //  This post processor returns the effective saturation of a region.
 //
 #include "RichardsSeffPrimeAux.h"
 
+<<<<<<< HEAD
 registerMooseObject("RichardsApp", RichardsSeffPrimeAux);
 
 InputParameters
@@ -23,10 +31,20 @@ RichardsSeffPrimeAux::validParams()
       "This aux kernel will return d(seff)/dP_wrtnum.  0<=wrtnum<number_of_pressure_vars.");
   params.addRequiredParam<UserObjectName>("seff_UO",
                                           "Name of user object that defines effective saturation.");
+=======
+template<>
+InputParameters validParams<RichardsSeffPrimeAux>()
+{
+  InputParameters params = validParams<AuxKernel>();
+  params.addRequiredCoupledVar("pressure_vars", "List of variables that represent the pressure");
+  params.addRequiredParam<int>("wrtnum", "This aux kernel will return d(seff)/dP_wrtnum.  0<=wrtnum<number_of_pressure_vars.");
+  params.addRequiredParam<UserObjectName>("seff_UO", "Name of user object that defines effective saturation.");
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   params.addClassDescription("auxillary variable which is effective saturation");
   return params;
 }
 
+<<<<<<< HEAD
 RichardsSeffPrimeAux::RichardsSeffPrimeAux(const InputParameters & parameters)
   : AuxKernel(parameters),
     _seff_UO(getUserObject<RichardsSeff>("seff_UO")),
@@ -45,4 +63,29 @@ RichardsSeffPrimeAux::computeValue()
 {
   _seff_UO.dseff(_pressure_vals, _qp, _mat);
   return _mat[_wrt1];
+=======
+RichardsSeffPrimeAux::RichardsSeffPrimeAux(const std::string & name, InputParameters parameters) :
+  AuxKernel(name, parameters),
+  _seff_UO(getUserObject<RichardsSeff>("seff_UO")),
+  _wrt1(getParam<int>("wrtnum"))
+{
+  int n = coupledComponents("pressure_vars");
+  if (_wrt1 < 0 || _wrt1 >= n)
+    mooseError("Your wrtnum is " << _wrt1 << " but it must obey 0 <= wrtnum < " << n << ".");
+  _pressure_vars.resize(n);
+  _pressure_vals.resize(n);
+
+  for (int i=0 ; i<n; ++i)
+    {
+      _pressure_vars[i] = coupled("pressure_vars", i);
+      _pressure_vals[i] = &coupledValue("pressure_vars", i);
+    }
+}
+
+
+Real
+RichardsSeffPrimeAux::computeValue()
+{
+  return _seff_UO.dseff(_pressure_vals, _qp)[_wrt1];
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

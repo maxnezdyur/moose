@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -21,11 +22,36 @@ public:
   static InputParameters validParams();
 
   RichardsSeff(const InputParameters & parameters);
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+//  Base class for effective saturation as a function of pressure(s)
+//
+#ifndef RICHARDSSEFF_H
+#define RICHARDSSEFF_H
+
+#include "GeneralUserObject.h"
+
+class RichardsSeff;
+
+
+template<>
+InputParameters validParams<RichardsSeff>();
+
+class RichardsSeff : public GeneralUserObject
+{
+ public:
+  RichardsSeff(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   void initialize();
   void execute();
   void finalize();
 
+<<<<<<< HEAD
   /**
    * effective saturation as a function of porepressure(s) at given quadpoint of the element
    * @param p the porepressure(s).  Eg (*p[0])[qp] is the zeroth pressure evaluated at quadpoint qp
@@ -60,3 +86,14 @@ public:
                       unsigned int qp,
                       std::vector<std::vector<Real>> & result) const = 0;
 };
+=======
+  // These functions must be over-ridden in the derived class
+  // to provide the actual values of seff and its derivatives
+  virtual Real seff(std::vector<VariableValue *> p, unsigned int qp) const = 0;
+  virtual std::vector<Real> dseff(std::vector<VariableValue *> p, unsigned int qp) const = 0;
+  virtual std::vector<std::vector<Real> > d2seff(std::vector<VariableValue *> p, unsigned int qp) const = 0;
+
+};
+
+#endif // RICHARDSSEFF_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

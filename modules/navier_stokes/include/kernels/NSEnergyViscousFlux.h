@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,25 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSENERGYVISCOUSFLUX_H
+#define NSENERGYVISCOUSFLUX_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSKernel.h"
 #include "NSViscStressTensorDerivs.h"
 
+<<<<<<< HEAD
 // Forward Declarations
+=======
+
+// Forward Declarations
+class NSEnergyViscousFlux;
+
+template<>
+InputParameters validParams<NSEnergyViscousFlux>();
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * Viscous flux terms in energy equation.
@@ -20,9 +35,14 @@
 class NSEnergyViscousFlux : public NSKernel
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   NSEnergyViscousFlux(const InputParameters & parameters);
+=======
+
+  NSEnergyViscousFlux(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
@@ -37,3 +57,8 @@ protected:
   template <class U>
   friend class NSViscStressTensorDerivs;
 };
+<<<<<<< HEAD
+=======
+
+#endif //  NSENERGYVISCOUSFLUX_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

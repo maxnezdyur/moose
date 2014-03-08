@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,24 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSMOMENTUMINVISCIDBC_H
+#define NSMOMENTUMINVISCIDBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSIntegratedBC.h"
 #include "NSPressureDerivs.h"
 
+<<<<<<< HEAD
 // Forward Declarations
+=======
+
+// Forward Declarations
+class NSMomentumInviscidBC;
+
+template<>
+InputParameters validParams<NSMomentumInviscidBC>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class corresponds to the inviscid part of the "natural"
@@ -55,6 +69,7 @@
 class NSMomentumInviscidBC : public NSIntegratedBC
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   NSMomentumInviscidBC(const InputParameters & parameters);
@@ -63,6 +78,25 @@ protected:
   // Which spatial component of the momentum equations (0,1, or 2) is this
   // kernel applied in?
   const unsigned _component;
+=======
+
+  NSMomentumInviscidBC(const std::string & name, InputParameters parameters);
+
+  virtual ~NSMomentumInviscidBC(){}
+
+protected:
+
+  /**
+   * Must be implemented in derived classes.
+   */
+//  virtual Real computeQpResidual();
+//  virtual Real computeQpJacobian();
+//  virtual Real computeQpOffDiagJacobian(unsigned jvar);
+
+  // Which spatial component of the momentum equations (0,1, or 2) is this
+  // kernel applied in?
+  unsigned _component;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // An object for computing pressure derivatives.
   // Constructed via a reference to ourself
@@ -77,6 +111,7 @@ protected:
   // .) Fully unspecified (both (rho*u)(u.n) and p computed implicitly, is this valid?)
   // .) Specified pressure/unspecified (rho*u)(u.n)
   // .) Unspecified pressure/specified (rho*u)(u.n)
+<<<<<<< HEAD
   // .) Fully specified (both pressure and (rho*u)(u.n) given, this may not be physically
   // meaningful?)
 
@@ -87,14 +122,36 @@ protected:
   // If the pressure is fixed, the Jacobian of the pressure term is zero, otherwise
   // we return the Jacobian value for the passed-in variable number.
   Real pressureQpJacobianHelper(unsigned var_number);
+=======
+  // .) Fully specified (both pressure and (rho*u)(u.n) given, this may not be physically meaningful?)
+
+  // Depending on the passed-in value, will compute the residual for either a specified
+  // pressure value or the residual at the current value of the pressure.
+  Real pressure_qp_residual(Real pressure);
+
+  // If the pressure is fixed, the Jacobian of the pressure term is zero, otherwise
+  // we return the Jacobian value for the passed-in variable number.
+  Real pressure_qp_jacobian(unsigned var_number);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // Depending on the passed-in vector, will compute the residual for either a specified
   // value of (rho*u)(u.n) or the residual at the current value of (rho*u)(u.n).
   // The passed-in value is the _component'th entry of the (rho*u)(u.n) vector.
+<<<<<<< HEAD
   Real convectiveQpResidualHelper(Real rhou_udotn);
+=======
+  Real convective_qp_residual(Real rhou_udotn);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // If the value of (rho*u)(u.n) is fixed, the Jacobian of the
   // convective term is zero, otherwise we return the correct value
   // based on the passed-in variable number.
+<<<<<<< HEAD
   Real convectiveQpJacobianHelper(unsigned var_number);
 };
+=======
+  Real convective_qp_jacobian(unsigned var_number);
+};
+
+#endif // NSMOMENTUMINVISCIDBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

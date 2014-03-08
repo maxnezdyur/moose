@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -29,14 +30,46 @@ PFMobility::PFMobility(const InputParameters & parameters)
     _kappa(getParam<Real>("kappa"))
 {
 }
+=======
+#include "PFMobility.h"
+
+template<>
+InputParameters validParams<PFMobility>()
+{
+  InputParameters params = validParams<Material>();
+
+  params.addRequiredParam<Real>("mob", "The mobility value");
+  params.addParam<Real>("kappa",1.0, "The kappa parameter for the vacancy concentration");
+
+  return params;
+}
+
+PFMobility::PFMobility(const std::string & name,
+                 InputParameters parameters)
+  :Material(name, parameters),
+   _M(declareProperty<Real>("M")),
+   _grad_M(declareProperty<RealGradient>("grad_M")),
+   _kappa_c(declareProperty<Real>("kappa_c")),
+   _mob(getParam<Real>("mob")),
+   _kappa(getParam<Real>("kappa"))
+{}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 void
 PFMobility::computeProperties()
 {
+<<<<<<< HEAD
   for (unsigned int qp = 0; qp < _qrule->n_points(); ++qp)
+=======
+  for(unsigned int qp=0; qp<_qrule->n_points(); qp++)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   {
     _M[qp] = _mob;
     _grad_M[qp] = 0.0;
     _kappa_c[qp] = _kappa;
   }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

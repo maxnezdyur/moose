@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,24 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSMOMENTUMVISCOUSBC_H
+#define NSMOMENTUMVISCOUSBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSIntegratedBC.h"
 #include "NSViscStressTensorDerivs.h"
 
+<<<<<<< HEAD
 // Forward Declarations
+=======
+
+// Forward Declarations
+class NSMomentumViscousBC;
+
+template<>
+InputParameters validParams<NSMomentumViscousBC>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class corresponds to the viscous part of the "natural"
@@ -28,11 +42,21 @@
 class NSMomentumViscousBC : public NSIntegratedBC
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   NSMomentumViscousBC(const InputParameters & parameters);
 
 protected:
+=======
+
+  NSMomentumViscousBC(const std::string & name, InputParameters parameters);
+
+  virtual ~NSMomentumViscousBC(){}
+
+protected:
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   /**
    * Just like other kernels, we must overload the Residual and Jacobian contributions...
    */
@@ -42,7 +66,11 @@ protected:
 
   // Which spatial component of the momentum equations (0,1, or 2) is this
   // kernel applied in?
+<<<<<<< HEAD
   const unsigned _component;
+=======
+  unsigned _component;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // An object for computing viscous stress tensor derivatives.
   // Constructed via a reference to ourself so we can access all of our data.
@@ -52,3 +80,8 @@ protected:
   template <class U>
   friend class NSViscStressTensorDerivs;
 };
+<<<<<<< HEAD
+=======
+
+#endif // NSMOMENTUMVISCOUSBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

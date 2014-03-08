@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -16,12 +17,28 @@ DoubleWellPotential::validParams()
   params.addClassDescription(
       "Simple demonstration Allen-Cahn Kernel using an algebraic double-well potential");
   params.addParam<MaterialPropertyName>("mob_name", "L", "The mobility used with the kernel");
+=======
+#include "DoubleWellPotential.h"
+
+// Algebraic double well potential.
+
+template<>
+InputParameters validParams<DoubleWellPotential>()
+{
+  InputParameters params = validParams<KernelValue>();
+  params.addParam<std::string>("mob_name","L","The mobility used with the kernel");
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   return params;
 }
 
+<<<<<<< HEAD
 DoubleWellPotential::DoubleWellPotential(const InputParameters & parameters)
   : ACBulk<Real>(parameters)
+=======
+DoubleWellPotential::DoubleWellPotential(const std::string & name, InputParameters parameters) :
+  ACBulk( name, parameters )
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
 }
 
@@ -30,6 +47,7 @@ DoubleWellPotential::computeDFDOP(PFFunctionType type)
 {
   switch (type)
   {
+<<<<<<< HEAD
     case Residual:
       return _u[_qp] * _u[_qp] * _u[_qp] - _u[_qp];
 
@@ -39,3 +57,17 @@ DoubleWellPotential::computeDFDOP(PFFunctionType type)
 
   mooseError("Invalid type passed in");
 }
+=======
+  case Residual:
+    return _u[_qp]*_u[_qp]*_u[_qp] - _u[_qp] ;
+
+  case Jacobian:
+    return _phi[_j][_qp]*(3*_u[_qp]*_u[_qp] - 1. );
+  }
+
+  mooseError("Invalid type passed in");
+
+}
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

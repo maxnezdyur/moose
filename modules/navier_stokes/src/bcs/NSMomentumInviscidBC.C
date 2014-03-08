@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -30,6 +31,40 @@ NSMomentumInviscidBC::NSMomentumInviscidBC(const InputParameters & parameters)
 
 Real
 NSMomentumInviscidBC::pressureQpResidualHelper(Real pressure)
+=======
+#include "NSMomentumInviscidBC.h"
+
+template<>
+InputParameters validParams<NSMomentumInviscidBC>()
+{
+  InputParameters params = validParams<NSIntegratedBC>();
+
+  // Required parameters
+  params.addRequiredParam<unsigned>("component", "(0,1,2) = (x,y,z) for which momentum component this BC is applied to");
+
+  return params;
+}
+
+
+
+
+NSMomentumInviscidBC::NSMomentumInviscidBC(const std::string & name, InputParameters parameters)
+    : NSIntegratedBC(name, parameters),
+
+      // Parameters to be specified in input file block...
+      _component(getParam<unsigned>("component")),
+
+      // Object for computing deriviatives of pressure
+      _pressure_derivs(*this)
+{
+}
+
+
+
+
+
+Real NSMomentumInviscidBC::pressure_qp_residual(Real pressure)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // n . (Ip) . v
 
@@ -40,6 +75,7 @@ NSMomentumInviscidBC::pressureQpResidualHelper(Real pressure)
   return press_term;
 }
 
+<<<<<<< HEAD
 Real
 NSMomentumInviscidBC::pressureQpJacobianHelper(unsigned var_number)
 {
@@ -49,6 +85,21 @@ NSMomentumInviscidBC::pressureQpJacobianHelper(unsigned var_number)
 
 Real
 NSMomentumInviscidBC::convectiveQpResidualHelper(Real rhou_udotn)
+=======
+
+
+
+
+Real NSMomentumInviscidBC::pressure_qp_jacobian(unsigned var_number)
+{
+  return _normals[_qp](_component) * _pressure_derivs.get_grad(var_number) * _phi[_j][_qp] * _test[_i][_qp];
+}
+
+
+
+
+Real NSMomentumInviscidBC::convective_qp_residual(Real rhou_udotn)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // n . (rho*uu) . v = rho*(u.n)*(u.v) = (rho*u)(u.n) . v
 
@@ -59,13 +110,21 @@ NSMomentumInviscidBC::convectiveQpResidualHelper(Real rhou_udotn)
   return conv_term;
 }
 
+<<<<<<< HEAD
 Real
 NSMomentumInviscidBC::convectiveQpJacobianHelper(unsigned var_number)
+=======
+
+
+
+Real NSMomentumInviscidBC::convective_qp_jacobian(unsigned var_number)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // Velocity vector object
   RealVectorValue vel(_u_vel[_qp], _v_vel[_qp], _w_vel[_qp]);
 
   // Variable to store convective contribution to boundary integral.
+<<<<<<< HEAD
   Real conv_term = 0.0;
 
   // Inviscid components
@@ -98,6 +157,49 @@ NSMomentumInviscidBC::convectiveQpJacobianHelper(unsigned var_number)
     default:
       mooseError("Shouldn't get here!");
       break;
+=======
+  Real conv_term = 0.;
+
+  // Inviscid components
+  switch ( var_number )
+  {
+
+  case 0: // density
+  {
+    // Note: the minus sign here is correct, it comes from differentiating wrt U_0
+    // (rho) which is in the denominator.
+    conv_term = -vel(_component) * (vel * _normals[_qp]) * _phi[_j][_qp] * _test[_i][_qp];
+    break;
+  }
+
+  case 1:
+  case 2:
+  case 3:  // momentums
+  {
+    if (var_number-1 == _component)
+    {
+      // See Eqn. (68) from the notes for the inviscid boundary terms
+      conv_term = ((vel * _normals[_qp]) + vel(_component)*_normals[_qp](_component)) * _phi[_j][_qp] * _test[_i][_qp];
+    }
+    else
+    {
+      // off-diagonal
+      conv_term = vel(_component) * _normals[_qp](var_number-1) * _phi[_j][_qp] * _test[_i][_qp];
+    }
+    break;
+  }
+
+  case 4: // energy
+  {
+    // No derivative wrt energy
+    conv_term = 0.;
+    break;
+  }
+
+  default:
+    mooseError("Shouldn't get here!");
+    break;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   }
 
   // Return the result.  We could return it directly from the switch statement, but this is

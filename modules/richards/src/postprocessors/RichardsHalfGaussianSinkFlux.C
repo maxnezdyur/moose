@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -53,13 +54,50 @@ RichardsHalfGaussianSinkFlux::RichardsHalfGaussianSinkFlux(const InputParameters
     _pp(getMaterialProperty<std::vector<Real>>("porepressure"))
 {
 }
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+//  This post processor returns the mass due to a half-gaussian sink flux from the boundary of a volume.
+//
+#include "RichardsHalfGaussianSinkFlux.h"
+
+template<>
+InputParameters validParams<RichardsHalfGaussianSinkFlux>()
+{
+  InputParameters params = validParams<SideIntegralVariablePostprocessor>();
+  params.addRequiredParam<Real>("max", "Maximum of the flux (measured in kg.m^-2.s^-1).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.  Note, to make this a source rather than a sink, let max<0");
+  params.addRequiredParam<Real>("sd", "Standard deviation of the Gaussian (measured in Pa).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.");
+  params.addRequiredParam<Real>("centre", "Centre of the Gaussian (measured in Pa).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.");
+  return params;
+}
+
+RichardsHalfGaussianSinkFlux::RichardsHalfGaussianSinkFlux(const std::string & name, InputParameters parameters) :
+    SideIntegralVariablePostprocessor(name, parameters),
+    _feproblem(dynamic_cast<FEProblem &>(_subproblem)),
+    _maximum(getParam<Real>("max")),
+    _sd(getParam<Real>("sd")),
+    _centre(getParam<Real>("centre"))
+{}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Real
 RichardsHalfGaussianSinkFlux::computeQpIntegral()
 {
+<<<<<<< HEAD
   if (_pp[_qp][_pvar] >= _centre)
     return _maximum * _dt * _m_func.value(_t, _q_point[_qp]);
   else
     return _maximum * exp(-0.5 * std::pow((_pp[_qp][_pvar] - _centre) / _sd, 2)) * _dt *
            _m_func.value(_t, _q_point[_qp]);
+=======
+  if (_u[_qp] >= _centre) {
+    return _maximum*_feproblem.dt();
+  }
+  else {
+    return _maximum*exp(-0.5*std::pow((_u[_qp] - _centre)/_sd, 2))*_feproblem.dt();
+  }
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

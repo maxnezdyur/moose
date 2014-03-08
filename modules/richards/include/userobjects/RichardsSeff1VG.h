@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,22 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+//  van-Genuchten effective saturation as a function of single pressure, and its derivs wrt to that pressure
+//
+#ifndef RICHARDSSEFF1VG_H
+#define RICHARDSSEFF1VG_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "RichardsSeff.h"
 #include "RichardsSeffVG.h"
 
+<<<<<<< HEAD
 /**
  * Effective saturation as a function of porepressure
  * using the van Genuchten formula.  Note this is not a function
@@ -61,3 +74,28 @@ protected:
   /// van Genuchten m parameter
   Real _m;
 };
+=======
+class RichardsSeff1VG;
+
+
+template<>
+InputParameters validParams<RichardsSeff1VG>();
+
+class RichardsSeff1VG : public RichardsSeff
+{
+ public:
+  RichardsSeff1VG(const std::string & name, InputParameters parameters);
+
+  Real seff(std::vector<VariableValue *> p, unsigned int qp) const;
+  std::vector<Real> dseff(std::vector<VariableValue *> p, unsigned int qp) const;
+  std::vector<std::vector<Real> > d2seff(std::vector<VariableValue *> p, unsigned int qp) const;
+
+ protected:
+
+  Real _al;
+  Real _m;
+
+};
+
+#endif // RICHARDSSEFF1VG_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

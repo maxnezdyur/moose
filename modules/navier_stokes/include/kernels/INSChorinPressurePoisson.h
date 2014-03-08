@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,10 +9,21 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef INSCHORINPRESSUREPOISSON_H
+#define INSCHORINPRESSUREPOISSON_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "Kernel.h"
 
 // Forward Declarations
+<<<<<<< HEAD
+=======
+class INSChorinPressurePoisson;
+
+template<>
+InputParameters validParams<INSChorinPressurePoisson>();
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class computes the pressure Poisson solve which is part of
@@ -21,11 +33,17 @@
 class INSChorinPressurePoisson : public Kernel
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   INSChorinPressurePoisson(const InputParameters & parameters);
 
   virtual ~INSChorinPressurePoisson() {}
+=======
+  INSChorinPressurePoisson(const std::string & name, InputParameters parameters);
+
+  virtual ~INSChorinPressurePoisson(){}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpResidual();
@@ -33,9 +51,15 @@ protected:
   virtual Real computeQpOffDiagJacobian(unsigned jvar);
 
   // Gradients of the "star" velocity
+<<<<<<< HEAD
   const VariableGradient & _grad_u_star;
   const VariableGradient & _grad_v_star;
   const VariableGradient & _grad_w_star;
+=======
+  VariableGradient& _grad_u_star;
+  VariableGradient& _grad_v_star;
+  VariableGradient& _grad_w_star;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // Variable numberings
   unsigned _u_vel_star_var_number;
@@ -43,5 +67,13 @@ protected:
   unsigned _w_vel_star_var_number;
 
   // Material properties
+<<<<<<< HEAD
   const MaterialProperty<Real> & _rho;
 };
+=======
+  Real _rho;
+};
+
+
+#endif // INSCHORINPRESSUREPOISSON_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

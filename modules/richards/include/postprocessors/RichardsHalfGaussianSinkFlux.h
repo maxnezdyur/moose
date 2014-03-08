@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -29,10 +30,33 @@ public:
   static InputParameters validParams();
 
   RichardsHalfGaussianSinkFlux(const InputParameters & parameters);
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSHALFGAUSSIANSINKFLUX_H
+#define RICHARDSHALFGAUSSIANSINKFLUX_H
+
+#include "SideIntegralVariablePostprocessor.h"
+
+//Forward Declarations
+class RichardsHalfGaussianSinkFlux;
+
+template<>
+InputParameters validParams<RichardsHalfGaussianSinkFlux>();
+
+class RichardsHalfGaussianSinkFlux: public SideIntegralVariablePostprocessor
+{
+public:
+  RichardsHalfGaussianSinkFlux(const std::string & name, InputParameters parameters);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 protected:
   virtual Real computeQpIntegral();
 
+<<<<<<< HEAD
   FEProblemBase & _feproblem;
 
   /// flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and flux out = max otherwise
@@ -65,3 +89,12 @@ protected:
   /// porepressure (or porepressure vector for multiphase problems)
   const MaterialProperty<std::vector<Real>> & _pp;
 };
+=======
+  FEProblem & _feproblem;
+  Real _maximum;
+  Real _sd;
+  Real _centre;
+};
+
+#endif
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

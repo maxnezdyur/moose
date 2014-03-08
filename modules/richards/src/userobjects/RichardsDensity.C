@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -6,11 +7,18 @@
 //*
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 //  Fluid density base class.
 //
 #include "RichardsDensity.h"
 
+<<<<<<< HEAD
 InputParameters
 RichardsDensity::validParams()
 {
@@ -38,3 +46,27 @@ void
 RichardsDensity::finalize()
 {
 }
+=======
+template<>
+InputParameters validParams<RichardsDensity>()
+{
+  InputParameters params = validParams<GeneralUserObject>();
+  params.addClassDescription("Fluid density base class.  Override density, ddensity and d2density in your class");
+  return params;
+}
+
+RichardsDensity::RichardsDensity(const std::string & name, InputParameters parameters) :
+  GeneralUserObject(name, parameters)
+{}
+
+void
+RichardsDensity::initialize()
+{}
+
+void
+RichardsDensity::execute()
+{}
+
+void RichardsDensity::finalize()
+{}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

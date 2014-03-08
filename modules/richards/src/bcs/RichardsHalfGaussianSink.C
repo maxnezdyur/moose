@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -58,10 +59,43 @@ RichardsHalfGaussianSink::RichardsHalfGaussianSink(const InputParameters & param
     _dpp_dv(getMaterialProperty<std::vector<std::vector<Real>>>("dporepressure_dv"))
 {
 }
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#include "RichardsHalfGaussianSink.h"
+#include "Material.h"
+
+#include <iostream>
+
+
+template<>
+InputParameters validParams<RichardsHalfGaussianSink>()
+{
+  InputParameters params = validParams<IntegratedBC>();
+  params.addRequiredParam<Real>("max", "Maximum of the flux (measured in kg.m^-2.s^-1).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.  Note, to make this a source rather than a sink, let max<0");
+  params.addRequiredParam<Real>("sd", "Standard deviation of the Gaussian (measured in Pa).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.");
+  params.addRequiredParam<Real>("centre", "Centre of the Gaussian (measured in Pa).  Flux out = max*exp((-0.5*(p - centre)/sd)^2) for p<centre, and Flux out = max for p>centre.");
+  params.addParam<FunctionName>("multiplying_fcn", "If this function is provided, the flux will be multiplied by this function.  This is useful for spatially or temporally varying sinks");
+  return params;
+}
+
+RichardsHalfGaussianSink::RichardsHalfGaussianSink(const std::string & name,
+                                             InputParameters parameters) :
+    IntegratedBC(name,parameters),
+    _maximum(getParam<Real>("max")),
+    _sd(getParam<Real>("sd")),
+    _centre(getParam<Real>("centre")),
+    _m_func(parameters.isParamValid("multiplying_fcn") ? &getFunction("multiplying_fcn") : NULL)
+{}
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Real
 RichardsHalfGaussianSink::computeQpResidual()
 {
+<<<<<<< HEAD
   const Real test_fcn_f = _test[_i][_qp] * _m_func.value(_t, _q_point[_qp]);
 
   if (_pp[_qp][_pvar] >= _centre)
@@ -69,11 +103,24 @@ RichardsHalfGaussianSink::computeQpResidual()
 
   return test_fcn_f * _maximum *
          std::exp(-0.5 * Utility::pow<2>((_pp[_qp][_pvar] - _centre) / _sd));
+=======
+  Real test_fcn = _test[_i][_qp];
+  if (_m_func)
+    test_fcn *= _m_func->value(_t, _q_point[_qp]);
+
+  if (_u[_qp] >= _centre) {
+    return test_fcn*_maximum;
+  }
+  else {
+    return test_fcn*_maximum*exp(-0.5*std::pow((_u[_qp] - _centre)/_sd, 2));
+  }
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
 
 Real
 RichardsHalfGaussianSink::computeQpJacobian()
 {
+<<<<<<< HEAD
   if (_pp[_qp][_pvar] >= _centre)
     return 0.0;
 
@@ -97,4 +144,16 @@ RichardsHalfGaussianSink::computeQpOffDiagJacobian(unsigned int jvar)
   return -test_fcn_f * _maximum * (_pp[_qp][_pvar] - _centre) / Utility::pow<2>(_sd) *
          std::exp(-0.5 * Utility::pow<2>((_pp[_qp][_pvar] - _centre) / _sd)) * _phi[_j][_qp] *
          _dpp_dv[_qp][_pvar][dvar];
+=======
+  Real test_fcn = _test[_i][_qp];
+  if (_m_func)
+    test_fcn *= _m_func->value(_t, _q_point[_qp]);
+
+  if (_u[_qp] >= _centre) {
+    return 0.0;
+  }
+  else {
+    return -test_fcn*_maximum*(_u[_qp] - _centre)/std::pow(_sd, 2)*exp(-0.5*std::pow((_u[_qp] - _centre)/_sd, 2))*_phi[_j][_qp];
+  }
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -34,11 +35,32 @@ protected:
   virtual Real precomputeQpJacobian();
   virtual Real computeQpOffDiagJacobian(unsigned int jvar);
 
+=======
+#ifndef ACBulk_H
+#define ACBulk_H
+
+#include "KernelValue.h"
+
+//Forward Declarations
+class ACBulk;
+
+template<>
+InputParameters validParams<ACBulk>();
+
+class ACBulk : public KernelValue
+{
+public:
+
+  ACBulk(const std::string & name, InputParameters parameters);
+
+protected:
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
   enum PFFunctionType
   {
     Jacobian,
     Residual
   };
+<<<<<<< HEAD
 
   virtual Real computeDFDOP(PFFunctionType type) = 0;
 
@@ -115,3 +137,17 @@ ACBulk<T>::computeQpOffDiagJacobian(unsigned int jvar)
   // Set off-diagonal Jacobian term from mobility derivatives
   return (*_dLdarg[cvar])[_qp] * _phi[_j][_qp] * computeDFDOP(Residual) * _test[_i][_qp];
 }
+=======
+  virtual Real precomputeQpResidual();
+  virtual Real precomputeQpJacobian();
+  virtual Real computeDFDOP(PFFunctionType type) = 0;
+  std::string _mob_name;
+  MaterialProperty<Real> & _L;
+
+
+private:
+
+
+};
+#endif //ACBulk_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

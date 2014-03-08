@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -26,6 +27,28 @@ NSGravityForce::NSGravityForce(const InputParameters & parameters)
   : NSKernel(parameters), _acceleration(getParam<Real>("acceleration"))
 {
 }
+=======
+#include "NSGravityForce.h"
+
+template<>
+InputParameters validParams<NSGravityForce>()
+{
+  InputParameters params = validParams<NSKernel>();
+
+  // The strength of the acceleration in the _component direction.  Make this
+  // value negative if you want force in the -_component direction.
+  params.addRequiredParam<Real>("acceleration", "The body force vector component.");
+
+  return params;
+}
+
+NSGravityForce::NSGravityForce(const std::string & name, InputParameters parameters)
+  :NSKernel(name, parameters),
+    _acceleration(getParam<Real>("acceleration"))
+  {}
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Real
 NSGravityForce::computeQpResidual()
@@ -34,17 +57,32 @@ NSGravityForce::computeQpResidual()
   return -_rho[_qp] * _acceleration * _test[_i][_qp];
 }
 
+<<<<<<< HEAD
 Real
 NSGravityForce::computeQpJacobian()
 {
   return 0.0;
 }
 
+=======
+
+Real NSGravityForce::computeQpJacobian()
+{
+  return 0.;
+}
+
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 Real
 NSGravityForce::computeQpOffDiagJacobian(unsigned int jvar)
 {
   if (jvar == _rho_var_number)
     return -_phi[_j][_qp] * _acceleration * _test[_i][_qp];
 
+<<<<<<< HEAD
   return 0.0;
+=======
+  return 0;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }

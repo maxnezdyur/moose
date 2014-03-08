@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -8,11 +9,23 @@
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
 #pragma once
+=======
+#ifndef NSENERGYINVISCIDBC_H
+#define NSENERGYINVISCIDBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 #include "NSIntegratedBC.h"
 #include "NSPressureDerivs.h"
 
 // Forward Declarations
+<<<<<<< HEAD
+=======
+class NSEnergyInviscidBC;
+
+template<>
+InputParameters validParams<NSEnergyInviscidBC>();
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 /**
  * This class corresponds to the inviscid part of the "natural"
@@ -31,6 +44,7 @@
  */
 class NSEnergyInviscidBC : public NSIntegratedBC
 {
+<<<<<<< HEAD
 public:
   static InputParameters validParams();
 
@@ -39,6 +53,25 @@ public:
 protected:
   // Aux vars
   const VariableValue & _temperature;
+=======
+
+public:
+  NSEnergyInviscidBC(const std::string & name, InputParameters parameters);
+
+  virtual ~NSEnergyInviscidBC(){}
+
+protected:
+
+  /**
+   * Must be implemented in derived classes.
+   */
+//  virtual Real computeQpResidual();
+//  virtual Real computeQpJacobian();
+//  virtual Real computeQpOffDiagJacobian(unsigned jvar);
+
+  // Aux vars
+  VariableValue& _temperature;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // An object for computing pressure derivatives.
   // Constructed via a reference to ourself
@@ -52,7 +85,11 @@ protected:
   // at this quadrature point.  Note that the derived classes are
   // responsible for determining whether the inputs are specified
   // values or come from the current solution.
+<<<<<<< HEAD
   Real qpResidualHelper(Real pressure, Real un);
+=======
+  Real qp_residual(Real pressure, Real un);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // This was experimental code and did not really work out, do not use!
   // New version, allows input of three variables to provide both:
@@ -61,7 +98,11 @@ protected:
   //
   // The actual term implemented here is:
   // rho*H*(u.n) = (rho*E + p)(u.n) = (rho*(cv*T + 0.5*|u|^2) + p)(u.n)
+<<<<<<< HEAD
   Real qpResidualHelper(Real rho, RealVectorValue u, Real pressure);
+=======
+  Real qp_residual(Real rho, RealVectorValue u, Real pressure);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // The Jacobian of this term is given by the product rule, i.e.
   //
@@ -79,6 +120,7 @@ protected:
   // passed in.
 
   // (U4+p) * d(u.n)/dX
+<<<<<<< HEAD
   Real qpJacobianTermA(unsigned var_number, Real pressure);
 
   // d(U4)/dX * (u.n)
@@ -86,13 +128,31 @@ protected:
 
   // d(p)/dX * (u.n)
   Real qpJacobianTermC(unsigned var_number, Real un);
+=======
+  Real qp_jacobian_termA(unsigned var_number, Real pressure);
+
+  // d(U4)/dX * (u.n)
+  Real qp_jacobian_termB(unsigned var_number, Real un);
+
+  // d(p)/dX * (u.n)
+  Real qp_jacobian_termC(unsigned var_number, Real un);
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
   // The residual term with rho*E expanded has 3 parts:
   // rho*cv*T*(u.n) + rho*0.5*|u|^2*(u.n) + p*(u.n)
   // Each of these terms, when differentiated, leads to
   // multiple terms due to the product rule:
   // (1) d/dX (rho*cv*T*(u.n))      = cv * (d(rho)/dX*T*(u.n) + rho*d(T)/dX*(u.n) + rho*T*d(u.n)/dX)
+<<<<<<< HEAD
   // (2) d/dX (rho*0.5*|u|^2*(u.n)) = 0.5 * (d(rho)/dX*|u|^2*(u.n) + rho*d(|u|^2)/dX*(u.n) +
   // rho*|u|^2*d(u.n)/dX)
   // (3) d/dX (p*(u.n)) = d(p)/dx*(u.n) + p*d(u.n)/dX
 };
+=======
+  // (2) d/dX (rho*0.5*|u|^2*(u.n)) = 0.5 * (d(rho)/dX*|u|^2*(u.n) + rho*d(|u|^2)/dX*(u.n) + rho*|u|^2*d(u.n)/dX)
+  // (3) d/dX (p*(u.n)) = d(p)/dx*(u.n) + p*d(u.n)/dX
+};
+
+
+#endif // NSENERGYINVISCIDBC_H
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

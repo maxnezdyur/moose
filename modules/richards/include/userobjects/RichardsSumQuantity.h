@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -17,10 +18,30 @@
  * flowing into a borehole.
  * This is a suboptimal setup because it requires a const_cast
  * of a RichardsSumQuantity object in order to do the summing
+=======
+/*****************************************/
+/* Written by andrew.wilkins@csiro.au    */
+/* Please contact me if you make changes */
+/*****************************************/
+
+#ifndef RICHARDSSUMQUANTITY_H
+#define RICHARDSSUMQUANTITY_H
+
+#include "GeneralUserObject.h"
+
+class RichardsSumQuantity;
+
+template<>
+InputParameters validParams<RichardsSumQuantity>();
+
+/**
+ *
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
  */
 class RichardsSumQuantity : public GeneralUserObject
 {
 public:
+<<<<<<< HEAD
   static InputParameters validParams();
 
   RichardsSumQuantity(const InputParameters & parameters);
@@ -51,3 +72,21 @@ protected:
   /// this holds the sum
   Real _total;
 };
+=======
+  RichardsSumQuantity(const std::string & name, InputParameters parameters);
+  virtual ~RichardsSumQuantity();
+
+  void zero();
+  void add(Real contrib);
+
+  virtual void initialize();
+  virtual void execute();
+  virtual void finalize();
+  virtual Real getValue() const;
+
+protected:
+  Real _total_outflow_mass;
+};
+
+#endif /* RICHARDSSUMQUANTITY_H */
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)

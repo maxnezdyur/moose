@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -28,10 +29,33 @@ INSTemperatureTimeDerivative::INSTemperatureTimeDerivative(const InputParameters
     _cp(getMaterialProperty<Real>("cp_name"))
 {
 }
+=======
+#include "INSTemperatureTimeDerivative.h"
+
+template<>
+InputParameters validParams<INSTemperatureTimeDerivative>()
+{
+  InputParameters params = validParams<TimeDerivative>();
+  params.addRequiredParam<Real>("rho", "density");
+  params.addRequiredParam<Real>("cp", "specific heat");
+  return params;
+}
+
+
+INSTemperatureTimeDerivative::INSTemperatureTimeDerivative(const std::string & name,
+                                                           InputParameters parameters) :
+  TimeDerivative(name,parameters),
+  _rho(getParam<Real>("rho")),
+  _cp(getParam<Real>("cp"))
+{}
+
+
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 
 Real
 INSTemperatureTimeDerivative::computeQpResidual()
 {
+<<<<<<< HEAD
   return _rho[_qp] * _cp[_qp] * TimeDerivative::computeQpResidual();
 }
 
@@ -43,6 +67,22 @@ INSTemperatureTimeDerivative::computeQpJacobian()
 
 Real
 INSTemperatureTimeDerivative::computeQpOffDiagJacobian(unsigned)
+=======
+  return _rho * _cp * TimeDerivative::computeQpResidual();
+}
+
+
+
+Real
+INSTemperatureTimeDerivative::computeQpJacobian()
+{
+  return _rho * _cp * TimeDerivative::computeQpJacobian();
+}
+
+
+
+Real INSTemperatureTimeDerivative::computeQpOffDiagJacobian(unsigned)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   return 0.;
 }

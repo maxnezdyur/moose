@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //* This file is part of the MOOSE framework
 //* https://www.mooseframework.org
 //*
@@ -32,6 +33,38 @@ NSMomentumViscousBC::NSMomentumViscousBC(const InputParameters & parameters)
 
 Real
 NSMomentumViscousBC::computeQpResidual()
+=======
+#include "NSMomentumViscousBC.h"
+
+template<>
+InputParameters validParams<NSMomentumViscousBC>()
+{
+  InputParameters params = validParams<NSIntegratedBC>();
+
+  // Required parameters
+  params.addRequiredParam<unsigned>("component", "(0,1,2) = (x,y,z) for which momentum component this BC is applied to");
+
+  return params;
+}
+
+
+
+
+NSMomentumViscousBC::NSMomentumViscousBC(const std::string & name, InputParameters parameters)
+    : NSIntegratedBC(name, parameters),
+
+      // Parameters to be specified in input file block...
+      _component(getParam<unsigned>("component")),
+
+      // Derivative computing object
+      _vst_derivs(*this)
+{
+}
+
+
+
+Real NSMomentumViscousBC::computeQpResidual()
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 {
   // n . (-tau) . v
 
@@ -46,6 +79,7 @@ NSMomentumViscousBC::computeQpResidual()
   return -visc_term;
 }
 
+<<<<<<< HEAD
 Real
 NSMomentumViscousBC::computeQpJacobian()
 {
@@ -58,6 +92,21 @@ NSMomentumViscousBC::computeQpJacobian()
 
   // FIXME: attempt calling shared dtau function
   for (unsigned int ell = 0; ell < LIBMESH_DIM; ++ell)
+=======
+
+
+Real NSMomentumViscousBC::computeQpJacobian()
+{
+  // See Eqns. (41)--(43) from the notes for the viscous boundary term contributions
+  Real visc_term = 0.;
+
+  // Set variable names as in the notes
+  const unsigned k = _component;
+  const unsigned m = _component+1; // _component = 0,1,2 -> m = 1,2,3 global variable number
+
+  // FIXME: attempt calling shared dtau function
+  for (unsigned ell=0; ell<LIBMESH_DIM; ++ell)
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
     visc_term += _vst_derivs.dtau(k, ell, m) * _normals[_qp](ell);
 
   // Multiply visc_term by test function
@@ -67,6 +116,7 @@ NSMomentumViscousBC::computeQpJacobian()
   return -visc_term;
 }
 
+<<<<<<< HEAD
 Real
 NSMomentumViscousBC::computeQpOffDiagJacobian(unsigned jvar)
 {
@@ -97,4 +147,31 @@ NSMomentumViscousBC::computeQpOffDiagJacobian(unsigned jvar)
   }
   else
     return 0.0;
+=======
+
+
+Real NSMomentumViscousBC::computeQpOffDiagJacobian(unsigned jvar)
+{
+  // See Eqns. (41)--(43) from the notes for the viscous boundary
+  // term contributions.
+
+  // Map jvar into the variable m for our problem, regardless of
+  // how Moose has numbered things.
+  unsigned m = this->map_var_number(jvar);
+
+  // Now compute viscous contribution
+  Real visc_term = 0.;
+
+  // Set variable names as in the notes
+  const unsigned k = _component;
+
+  for (unsigned ell=0; ell<LIBMESH_DIM; ++ell)
+    visc_term += _vst_derivs.dtau(k, ell, m) * _normals[_qp](ell);
+
+  // Multiply visc_term by test function
+  visc_term *= _test[_i][_qp];
+
+  // Note the sign...
+  return -visc_term;
+>>>>>>> d297f50cb1 (Merging Modules into MOOSE #2460)
 }
