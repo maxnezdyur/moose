@@ -7,11 +7,13 @@
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
+#include "ADRealForward.h"
 #include "INSADMaterial.h"
 #include "Function.h"
 #include "Assembly.h"
 #include "INSADObjectTracker.h"
 #include "FEProblemBase.h"
+#include "MooseTypes.h"
 #include "NS.h"
 
 registerMooseObject("NavierStokesApp", INSADMaterial);
@@ -26,6 +28,12 @@ INSADMaterial::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<MaterialPropertyName>("mu_name", "mu", "The name of the dynamic viscosity");
   params.addParam<MaterialPropertyName>("rho_name", "rho", "The name of the density");
+  params.addParam<bool>("compute_fsi_force", "Whether to compute the fsi force or not.");
+  params.addCoupledVar("solid_stress_div", "Stress Divergence of the solid for coupling");
+  params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
+  params.addParam<Real>("solid_density", "The constant density of the solid");
+  params.addParam<MaterialPropertyName>(
+      "indictator_name", "indictator", "The name of the indictator");
   return params;
 }
 
@@ -53,7 +61,13 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _use_displaced_mesh(getParam<bool>("use_displaced_mesh")),
     _ad_q_point(_bnd ? _assembly.adQPointsFace() : _assembly.adQPoints()),
     _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
-    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0)
+    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
+    _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
+    _compute_fsi_force(getParam<bool>("compute_fsi_force")),
+    _solid_stress_div(adCoupledVectorValue("solid_stress_div")),
+    _solid_accel(adCoupledVectorValue("solid_accel")),
+    _solid_rho(getParam<Real>("solid_density")),
+    _indicator(getADMaterialProperty<Real>("indictator_name"))
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
@@ -183,6 +197,11 @@ INSADMaterial::computeQpProperties()
 
   if (_coord_sys == Moose::COORD_RZ)
     viscousTermRZ();
+
+  // if (_compute_fsi_force && _indicator[_qp] > 0.5)
+  _fsi_strong_residual[_qp] = compute_fsi_force(); //* _indicator[_qp];
+  // else
+  //   _fsi_strong_residual[_qp] = compute_fsi_force() * _ad_zero;
 }
 
 void
@@ -246,4 +265,34 @@ INSADMaterial::viscousTermRZ()
                             -_mu[_qp] / r * (_grad_velocity[_qp](1, 0) + _grad_velocity[_qp](0, 1)),
                             0);
   }
+}
+ADRealVectorValue
+INSADMaterial::compute_vel_correction()
+{
+  return -compute_material_deriv(); // + _solid_accel[_qp]
+}
+
+ADRealVectorValue
+INSADMaterial::compute_material_deriv()
+{
+  // Dv/Dt = dv/dt + V * dV/dx
+  return (*_velocity_dot)[_qp] + _grad_velocity[_qp] * _velocity[_qp];
+}
+
+ADRealVectorValue
+INSADMaterial::compute_fluid_stress_div()
+{
+  // ADRealVectorValue laplace =
+  //     -_mu[_qp] *
+  //     ADRealVectorValue(_second_vel_u[_qp].tr(), _second_vel_v[_qp].tr(),
+  //     _second_vel_w[_qp].tr());
+  // ADRealVectorValue trac =
+  //     laplace - _mu[_qp] * (_second_vel_u[_qp].row(0) + _second_vel_v[_qp].row(1) +
+  //                           _second_vel_w[_qp].row(2));
+  return ADRealVectorValue();
+}
+ADRealVectorValue
+INSADMaterial::compute_fsi_force()
+{
+  return -_solid_rho * compute_vel_correction(); //-_solid_stress_div[_qp]
 }
