@@ -32,8 +32,7 @@ INSADMaterial::validParams()
   params.addCoupledVar("solid_stress_div", "Stress Divergence of the solid for coupling");
   params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
   params.addParam<Real>("solid_density", "The constant density of the solid");
-  params.addParam<MaterialPropertyName>(
-      "indictator_name", "indictator", "The name of the indictator");
+  params.addCoupledVar("indicator", "The name of the indicator");
   return params;
 }
 
@@ -68,7 +67,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
                                          : _ad_grad_zero),
     _solid_accel(_compute_fsi_force ? adCoupledVectorValue("solid_accel") : _ad_grad_zero),
     _solid_rho(_compute_fsi_force ? getParam<Real>("solid_density") : _real_zero),
-    _solid_indicator(getADMaterialProperty<Real>("indictator_name"))
+    _solid_indicator(_compute_fsi_force ? adCoupledValue("indicator") : _ad_zero)
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
