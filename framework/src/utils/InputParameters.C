@@ -16,6 +16,8 @@
 #include "MultiMooseEnum.h"
 #include "ExecFlagEnum.h"
 
+#include "libmesh/utility.h"
+
 #include "pcrecpp.h"
 
 #include <cmath>
@@ -99,7 +101,7 @@ InputParameters::set_attributes(const std::string & name, bool inserted_only)
     {
       if (_params.count(name) && !_params[name]._deprecation_message.empty())
         mooseDeprecated(
-            "The parameter ", name, " is deprecated.\n", _params[name]._deprecation_message);
+            "The parameter '", name, "' is deprecated.\n", _params[name]._deprecation_message);
     }
   }
 }
@@ -386,15 +388,15 @@ InputParameters::declareControllable(const std::string & input_names,
 }
 
 bool
-InputParameters::isControllable(const std::string & name)
+InputParameters::isControllable(const std::string & name) const
 {
-  return _params.count(name) > 0 && _params[name]._controllable;
+  return _params.count(name) > 0 && _params.at(name)._controllable;
 }
 
 const std::set<ExecFlagType> &
-InputParameters::getControllableExecuteOnTypes(const std::string & name)
+InputParameters::getControllableExecuteOnTypes(const std::string & name) const
 {
-  return _params[name]._controllable_flags;
+  return at(name)._controllable_flags;
 }
 
 void
@@ -842,6 +844,8 @@ InputParameters::applyParameter(const InputParameters & common,
     remove(common_name);
     _values[common_name] = common._values.find(common_name)->second->clone();
     set_attributes(common_name, false);
+    _params[common_name]._set_by_add_param =
+        libmesh_map_find(common._params, common_name)._set_by_add_param;
   }
 
   // Enable deprecated message printing

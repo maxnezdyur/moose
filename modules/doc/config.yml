@@ -107,6 +107,7 @@ Extensions:
             scalarkernels: syntax/ScalarKernels/index.md
             splits: syntax/Preconditioning/index.md
             surrogates: syntax/Surrogates/index.md
+            systems: syntax/Systems/index.md
             timeintegrators: syntax/Executioner/TimeIntegrator/index.md
             timesteppers: syntax/Executioner/TimeStepper/index.md
             transfers: syntax/Transfers/index.md
@@ -125,6 +126,8 @@ Extensions:
         active: True
         args:
             company: Ford # used for example in python/MooseDocs/extensions/template.md
+            thm-bin-opt: thermal_hydraulics-opt
+            thm-bin-dbg: thermal_hydraulics-dbg
     MooseDocs.extensions.sqa:
         active: True
         reports: !include modules/doc/sqa_reports.yml
