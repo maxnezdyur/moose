@@ -136,7 +136,7 @@ protected:
   const ADVectorVariableValue & _solid_stress_div;
   const ADVectorVariableValue & _solid_accel;
   const Real & _solid_rho;
-  const ADMaterialProperty<Real> & _solid_indicator;
+  const ADVariableValue & _solid_indicator;
 
   // const ADVariableSecond & _second_vel_u;
   // const ADVariableSecond & _second_vel_v;
