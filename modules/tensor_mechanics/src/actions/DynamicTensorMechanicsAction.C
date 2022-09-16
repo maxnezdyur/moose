@@ -178,7 +178,8 @@ DynamicTensorMechanicsAction::act()
     {
       auto kernel_type = _use_ad ? "ADInertialForce" : "InertialForce";
       auto params = _factory.getValidParams(kernel_type);
-
+      if (_save_in.size() == _ndisp)
+        params.set<std::vector<AuxVariableName>>("save_in") = {};
       params.set<NonlinearVariableName>("variable") = _displacements[i];
       params.set<std::vector<VariableName>>("velocity") = {_velocities[i]};
       params.set<std::vector<VariableName>>("acceleration") = {_accelerations[i]};

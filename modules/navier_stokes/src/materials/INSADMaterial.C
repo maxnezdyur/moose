@@ -67,7 +67,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _solid_stress_div(adCoupledVectorValue("solid_stress_div")),
     _solid_accel(adCoupledVectorValue("solid_accel")),
     _solid_rho(getParam<Real>("solid_density")),
-    _indicator(getADMaterialProperty<Real>("indictator_name"))
+    _solid_indicator(getADMaterialProperty<Real>("indictator_name"))
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
@@ -198,10 +198,8 @@ INSADMaterial::computeQpProperties()
   if (_coord_sys == Moose::COORD_RZ)
     viscousTermRZ();
 
-  // if (_compute_fsi_force && _indicator[_qp] > 0.5)
-  _fsi_strong_residual[_qp] = compute_fsi_force(); //* _indicator[_qp];
-  // else
-  //   _fsi_strong_residual[_qp] = compute_fsi_force() * _ad_zero;
+  // compute _fsi_strong_residual;
+  _fsi_strong_residual[_qp] = compute_fsi_force();
 }
 
 void
@@ -269,7 +267,7 @@ INSADMaterial::viscousTermRZ()
 ADRealVectorValue
 INSADMaterial::compute_vel_correction()
 {
-  return -compute_material_deriv(); // + _solid_accel[_qp]
+  return -compute_material_deriv() + _solid_accel[_qp];
 }
 
 ADRealVectorValue
@@ -294,5 +292,7 @@ INSADMaterial::compute_fluid_stress_div()
 ADRealVectorValue
 INSADMaterial::compute_fsi_force()
 {
-  return -_solid_rho * compute_vel_correction(); //-_solid_stress_div[_qp]
+  // After rearranging terms this is what the fsi and strong momentum residual
+  // looks like for the artificial fluid.
+  return -_solid_stress_div[_qp] + _solid_rho * _solid_accel[_qp];
 }
