@@ -64,9 +64,10 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
     _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
     _compute_fsi_force(getParam<bool>("compute_fsi_force")),
-    _solid_stress_div(adCoupledVectorValue("solid_stress_div")),
-    _solid_accel(adCoupledVectorValue("solid_accel")),
-    _solid_rho(getParam<Real>("solid_density")),
+    _solid_stress_div(_compute_fsi_force ? adCoupledVectorValue("solid_stress_div")
+                                         : _ad_grad_zero),
+    _solid_accel(_compute_fsi_force ? adCoupledVectorValue("solid_accel") : _ad_grad_zero),
+    _solid_rho(_compute_fsi_force ? getParam<Real>("solid_density") : _real_zero),
     _solid_indicator(getADMaterialProperty<Real>("indictator_name"))
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
@@ -199,7 +200,8 @@ INSADMaterial::computeQpProperties()
     viscousTermRZ();
 
   // compute _fsi_strong_residual;
-  _fsi_strong_residual[_qp] = compute_fsi_force();
+  if (_compute_fsi_force)
+    _fsi_strong_residual[_qp] = compute_fsi_force();
 }
 
 void
