@@ -60,7 +60,6 @@ protected:
   using T::_has_coupled_force;
   using T::_has_gravity;
   using T::_has_transient;
-  using T::_indicator;
   using T::_mu;
   using T::_object_tracker;
   using T::_qp;
@@ -149,11 +148,13 @@ INSADTauMaterialTempl<T>::computeQpProperties()
   _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
                                  9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
 
-  _momentum_strong_residual[_qp] = _advective_strong_residual[_qp];
-  if (_compute_fsi_force && _indicator[_qp] > 0.5)
-    _momentum_strong_residual[_qp] += _fsi_strong_residual[_qp]; // + _grad_p[_qp];
+  if (_compute_fsi_force && _solid_indicator[_qp] > 0.95)
+  {
+    _momentum_strong_residual[_qp] = _fsi_strong_residual[_qp];
+    return;
+  }
   else
-    _momentum_strong_residual[_qp] += _grad_p[_qp];
+    _momentum_strong_residual[_qp] = _grad_p[_qp] + _advective_strong_residual[_qp];
   // Since we can't current compute vector Laplacians we only have strong residual
   // contributions from the viscous term in the RZ coordinate system
   if (_coord_sys == Moose::COORD_RZ)
