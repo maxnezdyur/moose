@@ -149,7 +149,7 @@ INSADTauMaterialTempl<T>::computeQpProperties()
 
   if (_compute_fsi_force && _solid_indicator[_qp] > 0.95)
   {
-    _momentum_strong_residual[_qp] = _fsi_strong_residual[_qp];
+    _momentum_strong_residual[_qp] = _fsi_strong_residual[_qp] + _grad_p[_qp];
     return;
   }
   else
