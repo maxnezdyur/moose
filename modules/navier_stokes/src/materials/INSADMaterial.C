@@ -15,6 +15,7 @@
 #include "FEProblemBase.h"
 #include "MooseTypes.h"
 #include "NS.h"
+#include "metaphysicl/raw_type.h"
 
 registerMooseObject("NavierStokesApp", INSADMaterial);
 
