@@ -29,7 +29,7 @@ INSADMaterial::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<MaterialPropertyName>("mu_name", "mu", "The name of the dynamic viscosity");
   params.addParam<MaterialPropertyName>("rho_name", "rho", "The name of the density");
-  params.addParam<bool>("compute_fsi_force", "Whether to compute the fsi force or not.");
+  params.addParam<bool>("compute_fsi_force", false, "Whether to compute the fsi force or not.");
   params.addCoupledVar("solid_stress_div", "Stress Divergence of the solid for coupling");
   params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
   params.addParam<Real>("solid_density", "The constant density of the solid");
@@ -63,7 +63,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
     _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
     _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
-    _compute_fsi_force(getParam<bool>("compute_fsi_force")),
+    _compute_fsi_force(getParam<bool>("compute_fsi_force") ? true : false),
     _solid_stress_div(_compute_fsi_force ? adCoupledVectorValue("solid_stress_div")
                                          : _ad_grad_zero),
     _solid_accel(_compute_fsi_force ? adCoupledVectorValue("solid_accel") : _ad_grad_zero),
@@ -200,8 +200,8 @@ INSADMaterial::computeQpProperties()
     viscousTermRZ();
 
   // compute _fsi_strong_residual;
-  if (_compute_fsi_force)
-    _fsi_strong_residual[_qp] = compute_fsi_force();
+  // if (_compute_fsi_force)
+  //   _fsi_strong_residual[_qp] = compute_fsi_force();
 }
 
 void
