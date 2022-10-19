@@ -132,18 +132,19 @@ protected:
   ADMaterialProperty<RealVectorValue> & _fsi_strong_residual;
 
   /// FSI needed stuff
-  const bool _compute_fsi_force;
-  const ADVectorVariableValue & _solid_stress_div;
-  const ADVectorVariableValue & _solid_accel;
-  const Real & _solid_rho;
+  const bool _use_weakly_compressible;
+  const Real & _ref_pressure;
+  const Real & _adiabatic_exp_fac;
+  // const ADVectorVariableValue & _solid_stress_div;
+  // const ADVectorVariableValue & _solid_accel;
+  // const Real & _solid_rho;
   const ADVariableValue & _solid_indicator;
+  const ADVariableValue * _pressure_dot;
+  const ADVariableValue & _pressure;
 
-  // const ADVariableSecond & _second_vel_u;
-  // const ADVariableSecond & _second_vel_v;
-  // const ADVariableSecond & _second_vel_w;
   // Functions to compute
-  virtual ADRealVectorValue compute_vel_correction();
-  virtual ADRealVectorValue compute_material_deriv();
-  virtual ADRealVectorValue compute_fluid_stress_div();
-  virtual ADRealVectorValue compute_fsi_force();
+  // virtual ADRealVectorValue compute_vel_correction();
+  // virtual ADRealVectorValue compute_material_deriv();
+  // virtual ADRealVectorValue compute_fluid_stress_div();
+  // virtual ADRealVectorValue compute_fsi_force();
 };

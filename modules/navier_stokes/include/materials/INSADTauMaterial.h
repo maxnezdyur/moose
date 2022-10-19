@@ -46,7 +46,6 @@ protected:
 
   using T::_advective_strong_residual;
   using T::_boussinesq_strong_residual;
-  using T::_compute_fsi_force;
   using T::_coord_sys;
   using T::_coupled_force_strong_residual;
   using T::_current_elem;
@@ -66,6 +65,7 @@ protected:
   using T::_rho;
   using T::_solid_indicator;
   using T::_td_strong_residual;
+  using T::_use_weakly_compressible;
   using T::_velocity;
   using T::_viscous_strong_residual;
 };
@@ -147,7 +147,7 @@ INSADTauMaterialTempl<T>::computeQpProperties()
   _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
                                  9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
 
-  // if (_compute_fsi_force && _solid_indicator[_qp] > 0.95)
+  // if (_use_weakly_compressible && _solid_indicator[_qp] > 0.95)
   // {
   //   _momentum_strong_residual[_qp] = _fsi_strong_residual[_qp] + _grad_p[_qp];
   //   return;
