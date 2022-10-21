@@ -168,7 +168,8 @@ INSADMaterial::computeQpProperties()
   {
     ADReal weakly_compressible = 0;
     // pressure time derivative
-    weakly_compressible -= (*_pressure_dot)[_qp];
+    if (_has_transient)
+      weakly_compressible -= (*_pressure_dot)[_qp];
     weakly_compressible -=
         _adiabatic_exp_fac * (_ref_pressure + _pressure[_qp]) * _grad_velocity[_qp].tr();
     weakly_compressible -= _velocity[_qp] * _grad_p[_qp];
