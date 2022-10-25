@@ -15,6 +15,7 @@
 #include "FEProblemBase.h"
 #include "MooseTypes.h"
 #include "NS.h"
+#include "libmesh/utility.h"
 #include "metaphysicl/raw_type.h"
 
 registerMooseObject("NavierStokesApp", INSADMaterial);
@@ -32,10 +33,8 @@ INSADMaterial::validParams()
   params.addParam<bool>(
       "use_weakly_compressible", false, "Whether to compute the fsi force or not.");
   params.addParam<Real>(
-      "reference_pressure", 1, "Reference pressure for weakly compressible formulation");
-  params.addParam<Real>("adiabatic_expansion_factor",
-                        1.4,
-                        "Adiabatic expansion factor for weakly compressible formulation");
+      "speed_of_sound", 343, "Speed of sound for weakly compressible formulation");
+
   // params.addCoupledVar("solid_stress_div", "Stress Divergence of the solid for coupling");
   // params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
   // params.addParam<Real>("solid_density", "The constant density of the solid");
@@ -70,9 +69,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
     _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
     _use_weakly_compressible(getParam<bool>("use_weakly_compressible")),
-    _ref_pressure(_use_weakly_compressible ? getParam<Real>("reference_pressure") : _real_zero),
-    _adiabatic_exp_fac(_use_weakly_compressible ? getParam<Real>("adiabatic_expansion_factor")
-                                                : _real_zero),
+    _sound_speed(_use_weakly_compressible ? getParam<Real>("speed_of_sound") : _real_zero),
     _solid_indicator(_use_weakly_compressible ? adCoupledValue("indicator") : _ad_zero),
     _pressure_dot(nullptr),
     _pressure(adCoupledValue(NS::pressure))
@@ -167,12 +164,12 @@ INSADMaterial::computeQpProperties()
   else
   {
     ADReal weakly_compressible = 0;
+    ADReal pc2 = _rho[_qp] * Utility::pow<2>(_sound_speed);
     // pressure time derivative
     if (_has_transient)
-      weakly_compressible -= (*_pressure_dot)[_qp];
-    weakly_compressible -=
-        _adiabatic_exp_fac * (_ref_pressure + _pressure[_qp]) * _grad_velocity[_qp].tr();
-    weakly_compressible -= _velocity[_qp] * _grad_p[_qp];
+      weakly_compressible -= (*_pressure_dot)[_qp] / pc2;
+    weakly_compressible -= _grad_velocity[_qp].tr();
+    weakly_compressible -= _velocity[_qp] * _grad_p[_qp] / pc2;
     _mass_strong_residual[_qp] = weakly_compressible;
   }
   if (_coord_sys == Moose::COORD_RZ)
