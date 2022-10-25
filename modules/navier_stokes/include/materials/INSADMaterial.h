@@ -133,8 +133,7 @@ protected:
 
   /// FSI needed stuff
   const bool _use_weakly_compressible;
-  const Real & _ref_pressure;
-  const Real & _adiabatic_exp_fac;
+  const Real & _sound_speed;
   // const ADVectorVariableValue & _solid_stress_div;
   // const ADVectorVariableValue & _solid_accel;
   // const Real & _solid_rho;
