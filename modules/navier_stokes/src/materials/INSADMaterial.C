@@ -7,12 +7,16 @@
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
+#include "ADRealForward.h"
 #include "INSADMaterial.h"
 #include "Function.h"
 #include "Assembly.h"
 #include "INSADObjectTracker.h"
 #include "FEProblemBase.h"
+#include "MooseTypes.h"
 #include "NS.h"
+#include "libmesh/utility.h"
+#include "metaphysicl/raw_type.h"
 
 registerMooseObject("NavierStokesApp", INSADMaterial);
 
@@ -26,6 +30,15 @@ INSADMaterial::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<MaterialPropertyName>("mu_name", "mu", "The name of the dynamic viscosity");
   params.addParam<MaterialPropertyName>("rho_name", "rho", "The name of the density");
+  params.addParam<bool>(
+      "use_weakly_compressible", false, "Whether to compute the fsi force or not.");
+  params.addParam<Real>(
+      "speed_of_sound", 343, "Speed of sound for weakly compressible formulation");
+
+  // params.addCoupledVar("solid_stress_div", "Stress Divergence of the solid for coupling");
+  // params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
+  // params.addParam<Real>("solid_density", "The constant density of the solid");
+  params.addCoupledVar("indicator", "The name of the indicator");
   return params;
 }
 
@@ -53,7 +66,13 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _use_displaced_mesh(getParam<bool>("use_displaced_mesh")),
     _ad_q_point(_bnd ? _assembly.adQPointsFace() : _assembly.adQPoints()),
     _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
-    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0)
+    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
+    _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
+    _use_weakly_compressible(getParam<bool>("use_weakly_compressible")),
+    _sound_speed(_use_weakly_compressible ? getParam<Real>("speed_of_sound") : _real_zero),
+    _solid_indicator(_use_weakly_compressible ? adCoupledValue("indicator") : _ad_zero),
+    _pressure_dot(nullptr),
+    _pressure(adCoupledValue(NS::pressure))
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
@@ -76,6 +95,10 @@ INSADMaterial::subdomainSetup()
     _velocity_dot = &adCoupledVectorDot("velocity");
   else
     _velocity_dot = nullptr;
+
+  if ((_has_transient = _object_tracker->get<bool>("has_transient", _current_subdomain_id)) &
+      _use_weakly_compressible)
+    _pressure_dot = &adCoupledDot(NS::pressure);
 
   if ((_has_boussinesq = _object_tracker->get<bool>("has_boussinesq", _current_subdomain_id)))
   {
@@ -136,7 +159,19 @@ INSADMaterial::subdomainSetup()
 void
 INSADMaterial::computeQpProperties()
 {
-  _mass_strong_residual[_qp] = -_grad_velocity[_qp].tr();
+  if (!_use_weakly_compressible)
+    _mass_strong_residual[_qp] = -_grad_velocity[_qp].tr();
+  else
+  {
+    ADReal weakly_compressible = 0;
+    ADReal pc2 = _rho[_qp] * Utility::pow<2>(_sound_speed);
+    // pressure time derivative
+    if (_has_transient)
+      weakly_compressible -= (*_pressure_dot)[_qp] / pc2;
+    weakly_compressible -= _grad_velocity[_qp].tr();
+    weakly_compressible -= _velocity[_qp] * _grad_p[_qp] / pc2;
+    _mass_strong_residual[_qp] = weakly_compressible;
+  }
   if (_coord_sys == Moose::COORD_RZ)
     // Subtract u_r / r
     _mass_strong_residual[_qp] -=
@@ -183,6 +218,10 @@ INSADMaterial::computeQpProperties()
 
   if (_coord_sys == Moose::COORD_RZ)
     viscousTermRZ();
+
+  // compute _fsi_strong_residual;
+  // if (_use_weakly_compressible)
+  //   _fsi_strong_residual[_qp] = use_weakly_compressible();
 }
 
 void
@@ -247,3 +286,36 @@ INSADMaterial::viscousTermRZ()
                             0);
   }
 }
+
+// ADRealVectorValue
+// INSADMaterial::compute_vel_correction()
+// {
+//   return -compute_material_deriv() + _solid_accel[_qp];
+// }
+
+// ADRealVectorValue
+// INSADMaterial::compute_material_deriv()
+// {
+//   // Dv/Dt = dv/dt + V * dV/dx
+//   return (*_velocity_dot)[_qp] + _grad_velocity[_qp] * _velocity[_qp];
+// }
+
+// ADRealVectorValue
+// INSADMaterial::compute_fluid_stress_div()
+// {
+//   // ADRealVectorValue laplace =
+//   //     -_mu[_qp] *
+//   //     ADRealVectorValue(_second_vel_u[_qp].tr(), _second_vel_v[_qp].tr(),
+//   //     _second_vel_w[_qp].tr());
+//   // ADRealVectorValue trac =
+//   //     laplace - _mu[_qp] * (_second_vel_u[_qp].row(0) + _second_vel_v[_qp].row(1) +
+//   //                           _second_vel_w[_qp].row(2));
+//   return ADRealVectorValue();
+// }
+// ADRealVectorValue
+// INSADMaterial::use_weakly_compressible()
+// {
+//   // After rearranging terms this is what the fsi and strong momentum residual
+//   // looks like for the artificial fluid.
+//   return -_solid_stress_div[_qp] + _solid_rho * _solid_accel[_qp];
+// }
