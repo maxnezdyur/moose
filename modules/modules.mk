@@ -7,7 +7,6 @@
 # there is no need to duplicate the dependencies in the individual module's
 # Makefile.
 
-<<<<<<< HEAD
 ifneq (,$(MODULE_NAME))
   # Exec will automatically be built for the given MODULE_NAME
   SKIP_LOADER := yes
@@ -261,125 +260,80 @@ ifeq ($(FSI),yes)
   DEPEND_MODULES     := navier_stokes tensor_mechanics
   SUFFIX             := fsi
   include $(FRAMEWORK_DIR)/app.mk
-=======
-###############################################################################
-#
-# New Module Step 5.
-#       MODULENAME                := yes
-###############################################################################
-
-ifeq ($(ALL_MODULES),yes)
-        CHEMICAL_REACTIONS        := yes
-        CONTACT                   := yes
-        FLUID_MASS_ENERGY_BALANCE := yes
-        HEAT_CONDUCTION           := yes
-        LINEAR_ELASTICITY         := yes
-        MISC                      := yes
-        NAVIER_STOKES             := yes
-        PHASE_FIELD               := yes
-        RICHARDS                  := yes
-        SOLID_MECHANICS           := yes
-        TENSOR_MECHANICS          := yes
-        WATER_STEAM_EOS           := yes
-
-	libmesh_CXXFLAGS          += -DALL_MODULES
-endif
-
-###############################################################################
-########################## MODULE REGISTRATION ################################
-###############################################################################
-#
-# New Module Step 6.
-#
-# ifeq ($(MODULENAME),yes)
-# APPLICATION_DIR    := $(MOOSE_DIR)/modules/modulename
-# APPLICATION_NAME   := modulename
-# include $(FRAMEWORK_DIR)/app.mk
-# libmesh_CXXFLAGS   += -DMODULENAME
-# endif
-#
-###############################################################################
-
-ifeq ($(CHEMICAL_REACTIONS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/chemical_reactions
-  APPLICATION_NAME   := chemical_reactions
-  include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DCHEMICAL_REACTIONS
-endif
-
-ifeq ($(CONTACT),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/contact
-  APPLICATION_NAME   := contact
-  include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DCONTACT
-endif
-
-ifeq ($(FLUID_MASS_ENERGY_BALANCE),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/fluid_mass_energy_balance
-  APPLICATION_NAME   := fluid_mass_energy_balance
-  include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DFLUID_MASS_ENERGY_BALANCE
-endif
-
-ifeq ($(HEAT_CONDUCTION),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/heat_conduction
-  APPLICATION_NAME   := heat_conduction
-  include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DHEAT_CONDUCTION
-endif
-
-ifeq ($(LINEAR_ELASTICITY),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/linear_elasticity
-  APPLICATION_NAME   := linear_elasticity
-  include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DLINEAR_ELASTICITY
 endif
 
 ifeq ($(MISC),yes)
   APPLICATION_DIR    := $(MOOSE_DIR)/modules/misc
   APPLICATION_NAME   := misc
+  SUFFIX             := misc
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DMISC
 endif
 
-ifeq ($(NAVIER_STOKES),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/navier_stokes
-  APPLICATION_NAME   := navier_stokes
+ifeq ($(PERIDYNAMICS),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/peridynamics
+  APPLICATION_NAME   := peridynamics
+  DEPEND_MODULES     := tensor_mechanics
+  SUFFIX             := pd
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DNAVIER_STOKES
 endif
 
 ifeq ($(PHASE_FIELD),yes)
   APPLICATION_DIR    := $(MOOSE_DIR)/modules/phase_field
   APPLICATION_NAME   := phase_field
+  DEPEND_MODULES     := tensor_mechanics
+  SUFFIX             := pf
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DPHASE_FIELD
 endif
 
-ifeq ($(RICHARDS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/richards
-  APPLICATION_NAME   := richards
+ifeq ($(POROUS_FLOW),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/porous_flow
+  APPLICATION_NAME   := porous_flow
+  DEPEND_MODULES     := tensor_mechanics fluid_properties chemical_reactions
+  SUFFIX             := pflow
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DRICHARDS
 endif
 
-ifeq ($(SOLID_MECHANICS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/solid_mechanics
-  APPLICATION_NAME   := solid_mechanics
+ifeq ($(THERMAL_HYDRAULICS),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/thermal_hydraulics
+  APPLICATION_NAME   := thermal_hydraulics
+  DEPEND_MODULES     := navier_stokes fluid_properties heat_conduction rdg ray_tracing solid_properties misc
+  SUFFIX             := th
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DSOLID_MECHANICS
 endif
 
-ifeq ($(TENSOR_MECHANICS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/tensor_mechanics
-  APPLICATION_NAME   := tensor_mechanics
+ifeq ($(SCALAR_TRANSPORT),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/scalar_transport
+  APPLICATION_NAME   := scalar_transport
+  DEPEND_MODULES     := chemical_reactions navier_stokes thermal_hydraulics fluid_properties heat_conduction rdg ray_tracing solid_properties misc
+  SUFFIX             := st
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DTENSOR_MECHANICS
 endif
 
-ifeq ($(WATER_STEAM_EOS),yes)
-  APPLICATION_DIR    := $(MOOSE_DIR)/modules/water_steam_eos
-  APPLICATION_NAME   := water_steam_eos
+ifeq ($(XFEM),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/xfem
+  APPLICATION_NAME   := xfem
+  DEPEND_MODULES     := tensor_mechanics
+  SUFFIX             := xfem
   include $(FRAMEWORK_DIR)/app.mk
-  libmesh_CXXFLAGS   += -DWATER_STEAM_EOS
 endif
+
+ifeq ($(ALL_MODULES),yes)
+  ifneq ($(INCLUDE_COMBINED),no)
+    APPLICATION_DIR    := $(MOOSE_DIR)/modules/combined
+    APPLICATION_NAME   := combined
+    SUFFIX             := comb
+    include $(FRAMEWORK_DIR)/app.mk
+  endif
+endif
+
+# The loader should be used for all applications. We
+# only skip it when compiling individual modules
+ifneq ($(SKIP_LOADER),yes)
+  APPLICATION_DIR    := $(MOOSE_DIR)/modules/module_loader
+  APPLICATION_NAME   := module_loader
+  LIBRARY_SUFFIX     := yes
+  include $(FRAMEWORK_DIR)/app.mk
+endif
+
+# Default to Generating revision for most applications
+GEN_REVISION := yes
