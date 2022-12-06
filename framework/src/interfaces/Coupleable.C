@@ -812,6 +812,21 @@ Coupleable::writableCoupledValue(const std::string & var_name, unsigned int comp
   return const_cast<VariableValue &>(coupledValue(var_name, comp));
 }
 
+// * Max Nezdyur * //
+
+VariableValue &
+Coupleable::writableCoupledValueOld(const std::string & var_name, unsigned int comp)
+{
+  return const_cast<VariableValue &>(coupledValueOld(var_name, comp));
+}
+VectorVariableValue &
+Coupleable::writableCoupledVectorValueOld(const std::string & var_name, unsigned int comp)
+{
+  return const_cast<VectorVariableValue &>(coupledVectorValueOld(var_name, comp));
+}
+
+// * Max Nezdyur * //
+
 const VariableValue &
 Coupleable::coupledValueOld(const std::string & var_name, unsigned int comp) const
 {
