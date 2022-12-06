@@ -452,6 +452,27 @@ protected:
    */
   virtual VariableValue & writableCoupledValue(const std::string & var_name, unsigned int comp = 0);
 
+  // * Max Nezdyur * //
+
+  /**
+   * Returns a *writable* reference to a coupled old variable.
+   * @param var_name Name of coupled old variable
+   * @param comp Component number for vector of coupled variables.
+   * @return Reference to a VariableValue for the coupled old variable
+   */
+  virtual VariableValue & writableCoupledValueOld(const std::string & var_name,
+                                                  unsigned int comp = 0);
+
+  /**
+   * Returns a *writable* reference to a coupled old vector variable.
+   * @param var_name Name of coupled old vector variable
+   * @param comp Component number for vector of coupled variables.
+   * @return Reference to a VariableValue for the coupled old variable
+   */
+  virtual VectorVariableValue & writableCoupledVectorValueOld(const std::string & var_name,
+                                                              unsigned int comp = 0);
+  // * Max Nezdyur * //
+
   /**
    * Returns an old value from previous time step  of a coupled variable
    * @param var_name Name of coupled variable
