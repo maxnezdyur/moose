@@ -70,7 +70,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _fsi_strong_residual(declareADProperty<RealVectorValue>("fsi_strong_residual")),
     _use_weakly_compressible(getParam<bool>("use_weakly_compressible")),
     _sound_speed(_use_weakly_compressible ? getParam<Real>("speed_of_sound") : _real_zero),
-    _solid_indicator(_use_weakly_compressible ? adCoupledValue("indicator") : _ad_zero),
+    _solid_indicator(_use_weakly_compressible ? coupledValue("indicator") : _zero),
     _pressure_dot(nullptr),
     _pressure(adCoupledValue(NS::pressure))
 {
@@ -201,6 +201,12 @@ INSADMaterial::computeQpProperties()
     {
       mooseAssert(fn, "null coupled function in INSADMaterial");
       _coupled_force_strong_residual[_qp] -= fn->vectorValue(_t, _q_point[_qp]);
+    }
+    if (_solid_indicator[_qp] >= 0.99)
+    {
+      _mass_strong_residual[_qp] = 0.0;
+      _td_strong_residual[_qp] = 0.0;
+      _advective_strong_residual[_qp] = 0.0;
     }
   }
 
