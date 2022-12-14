@@ -137,7 +137,7 @@ protected:
   // const ADVectorVariableValue & _solid_stress_div;
   // const ADVectorVariableValue & _solid_accel;
   // const Real & _solid_rho;
-  const ADVariableValue & _solid_indicator;
+  const VariableValue & _solid_indicator;
   const ADVariableValue * _pressure_dot;
   const ADVariableValue & _pressure;
 

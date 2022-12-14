@@ -154,6 +154,7 @@ INSADTauMaterialTempl<T>::computeQpProperties()
   // }
   // else
   _momentum_strong_residual[_qp] = _grad_p[_qp] + _advective_strong_residual[_qp];
+
   // Since we can't current compute vector Laplacians we only have strong residual
   // contributions from the viscous term in the RZ coordinate system
   if (_coord_sys == Moose::COORD_RZ)
@@ -170,7 +171,8 @@ INSADTauMaterialTempl<T>::computeQpProperties()
 
   if (_has_coupled_force)
     _momentum_strong_residual[_qp] += _coupled_force_strong_residual[_qp];
-
+  if (_solid_indicator[_qp] >= 0.99)
+    _momentum_strong_residual[_qp] = 0.0;
   // // Future addition
   // if (_object_tracker->hasMMS())
   //   _momentum_strong_residual[_qp] += _mms_function_strong_residual[_qp];

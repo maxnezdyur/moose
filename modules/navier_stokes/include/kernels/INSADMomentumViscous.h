@@ -45,4 +45,5 @@ protected:
 
   /// Either traction or laplace
   MooseEnum _form;
+  const VariableValue & _solid_indicator;
 };
