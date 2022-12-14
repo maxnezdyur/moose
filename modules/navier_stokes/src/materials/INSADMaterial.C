@@ -13,6 +13,7 @@
 #include "Assembly.h"
 #include "INSADObjectTracker.h"
 #include "FEProblemBase.h"
+#include "MooseError.h"
 #include "MooseTypes.h"
 #include "NS.h"
 #include "libmesh/utility.h"
@@ -202,12 +203,6 @@ INSADMaterial::computeQpProperties()
       mooseAssert(fn, "null coupled function in INSADMaterial");
       _coupled_force_strong_residual[_qp] -= fn->vectorValue(_t, _q_point[_qp]);
     }
-    if (_solid_indicator[_qp] >= 0.99)
-    {
-      _mass_strong_residual[_qp] = 0.0;
-      _td_strong_residual[_qp] = 0.0;
-      _advective_strong_residual[_qp] = 0.0;
-    }
   }
 
   // // Future Addition
@@ -228,6 +223,12 @@ INSADMaterial::computeQpProperties()
   // compute _fsi_strong_residual;
   // if (_use_weakly_compressible)
   //   _fsi_strong_residual[_qp] = use_weakly_compressible();
+  if (_solid_indicator[_qp] >= 0.99)
+  {
+    _mass_strong_residual[_qp] = 0.0;
+    _td_strong_residual[_qp] = 0.0;
+    _advective_strong_residual[_qp] = 0.0;
+  }
 }
 
 void
