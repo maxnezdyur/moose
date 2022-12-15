@@ -40,6 +40,7 @@ INSADMaterial::validParams()
   // params.addCoupledVar("solid_accel", "Acceerationof the solid for coupling");
   // params.addParam<Real>("solid_density", "The constant density of the solid");
   params.addCoupledVar("indicator", "The name of the indicator");
+  params.addCoupledVar("mesh_velocity", "The name of the indicator");
   return params;
 }
 
@@ -73,7 +74,8 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _sound_speed(_use_weakly_compressible ? getParam<Real>("speed_of_sound") : _real_zero),
     _solid_indicator(_use_weakly_compressible ? coupledValue("indicator") : _zero),
     _pressure_dot(nullptr),
-    _pressure(adCoupledValue(NS::pressure))
+    _pressure(adCoupledValue(NS::pressure)),
+    _mesh_velocity(isCoupled("mesh_velocity") ? coupledVectorValue("mesh_velocity") : _vector_zero)
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
@@ -170,7 +172,7 @@ INSADMaterial::computeQpProperties()
     if (_has_transient)
       weakly_compressible -= (*_pressure_dot)[_qp] / pc2;
     weakly_compressible -= _grad_velocity[_qp].tr();
-    weakly_compressible -= _velocity[_qp] * _grad_p[_qp] / pc2;
+    weakly_compressible -= (_velocity[_qp] - _mesh_velocity[_qp]) * _grad_p[_qp] / pc2;
     _mass_strong_residual[_qp] = weakly_compressible;
   }
   if (_coord_sys == Moose::COORD_RZ)
@@ -179,7 +181,8 @@ INSADMaterial::computeQpProperties()
         _velocity[_qp](_rz_radial_coord) / (_use_displaced_mesh ? _ad_q_point[_qp](_rz_radial_coord)
                                                                 : _q_point[_qp](_rz_radial_coord));
 
-  _advective_strong_residual[_qp] = _rho[_qp] * _grad_velocity[_qp] * _velocity[_qp];
+  _advective_strong_residual[_qp] =
+      _rho[_qp] * _grad_velocity[_qp] * (_velocity[_qp] - _mesh_velocity[_qp]);
   if (_has_transient)
     _td_strong_residual[_qp] = _rho[_qp] * (*_velocity_dot)[_qp];
   if (_has_gravity)
