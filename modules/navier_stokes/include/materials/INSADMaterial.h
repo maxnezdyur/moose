@@ -140,7 +140,7 @@ protected:
   const VariableValue & _solid_indicator;
   const ADVariableValue * _pressure_dot;
   const ADVariableValue & _pressure;
-
+  const VectorVariableValue & _mesh_velocity;
   // Functions to compute
   // virtual ADRealVectorValue compute_vel_correction();
   // virtual ADRealVectorValue compute_material_deriv();
