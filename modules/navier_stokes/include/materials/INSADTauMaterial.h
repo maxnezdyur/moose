@@ -59,6 +59,7 @@ protected:
   using T::_has_coupled_force;
   using T::_has_gravity;
   using T::_has_transient;
+  using T::_mesh_velocity;
   using T::_mu;
   using T::_object_tracker;
   using T::_qp;
@@ -143,7 +144,7 @@ INSADTauMaterialTempl<T>::computeQpProperties()
 
   const auto nu = _mu[_qp] / _rho[_qp];
   const auto transient_part = _has_transient ? 4. / (_dt * _dt) : 0.;
-  const auto speed = NS::computeSpeed(_velocity[_qp]);
+  const auto speed = NS::computeSpeed(_velocity[_qp] - _mesh_velocity[_qp]);
   _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
                                  9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
 
