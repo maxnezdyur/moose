@@ -226,7 +226,7 @@ INSADMaterial::computeQpProperties()
   // compute _fsi_strong_residual;
   // if (_use_weakly_compressible)
   //   _fsi_strong_residual[_qp] = use_weakly_compressible();
-  if (_solid_indicator[_qp] >= 0.99)
+  if (_solid_indicator[_qp] >= 0.9999)
   {
     _mass_strong_residual[_qp] = 0.0;
     _td_strong_residual[_qp] = 0.0;

@@ -172,7 +172,7 @@ INSADTauMaterialTempl<T>::computeQpProperties()
 
   if (_has_coupled_force)
     _momentum_strong_residual[_qp] += _coupled_force_strong_residual[_qp];
-  if (_solid_indicator[_qp] >= 0.99)
+  if (_solid_indicator[_qp] >= 0.9999)
     _momentum_strong_residual[_qp] = 0.0;
   // // Future addition
   // if (_object_tracker->hasMMS())
