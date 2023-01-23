@@ -26,11 +26,11 @@ VectorDiffusion::VectorDiffusion(const InputParameters & parameters) : VectorKer
 Real
 VectorDiffusion::computeQpResidual()
 {
-  return _grad_u[_qp].contract(_grad_test[_i][_qp]);
+  return 1e-10 * _grad_u[_qp].contract(_grad_test[_i][_qp]);
 }
 
 Real
 VectorDiffusion::computeQpJacobian()
 {
-  return _grad_phi[_j][_qp].contract(_grad_test[_i][_qp]);
+  return 1e-10 * _grad_phi[_j][_qp].contract(_grad_test[_i][_qp]);
 }

@@ -128,22 +128,12 @@ protected:
 
   /// Newly add stuff
 
-  /// Strong residual corresponding to the fsi force
-  ADMaterialProperty<RealVectorValue> & _fsi_strong_residual;
-
   /// FSI needed stuff
   const bool _use_weakly_compressible;
   const Real & _sound_speed;
-  // const ADVectorVariableValue & _solid_stress_div;
-  // const ADVectorVariableValue & _solid_accel;
-  // const Real & _solid_rho;
+
   const VariableValue & _solid_indicator;
   const ADVariableValue * _pressure_dot;
   const ADVariableValue & _pressure;
   const VectorVariableValue & _mesh_velocity;
-  // Functions to compute
-  // virtual ADRealVectorValue compute_vel_correction();
-  // virtual ADRealVectorValue compute_material_deriv();
-  // virtual ADRealVectorValue compute_fluid_stress_div();
-  // virtual ADRealVectorValue compute_fsi_force();
 };
