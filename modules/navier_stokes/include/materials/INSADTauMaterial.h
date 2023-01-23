@@ -52,7 +52,6 @@ protected:
   using T::_displacements;
   using T::_dt;
   using T::_fe_problem;
-  using T::_fsi_strong_residual;
   using T::_grad_p;
   using T::_gravity_strong_residual;
   using T::_has_boussinesq;
