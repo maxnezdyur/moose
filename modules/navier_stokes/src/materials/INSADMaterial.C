@@ -73,7 +73,7 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
     _use_weakly_compressible(getParam<bool>("use_weakly_compressible")),
     _sound_speed(_use_weakly_compressible ? getParam<Real>("speed_of_sound") : _real_zero),
-    _solid_indicator(_use_weakly_compressible ? coupledValue("indicator") : _zero),
+    _solid_indicator(isCoupled("indicator") ? coupledValue("indicator") : _zero),
     _pressure_dot(nullptr),
     _pressure(adCoupledValue(NS::pressure)),
     _mesh_velocity(isCoupled("mesh_velocity") ? coupledVectorValue("mesh_velocity") : _vector_zero)
