@@ -184,8 +184,6 @@ INSADMaterial::computeQpProperties()
 
   _advective_strong_residual[_qp] =
       _rho[_qp] * _grad_velocity[_qp] * (_velocity[_qp] - _mesh_velocity[_qp]);
-  auto a = _velocity[_qp] - _velocity[_qp];
-  auto c = _velocity[_qp] - _mesh_velocity[_qp];
 
   if (_has_transient)
     _td_strong_residual[_qp] = _rho[_qp] * (*_velocity_dot)[_qp];
