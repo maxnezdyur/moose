@@ -38,8 +38,7 @@ INSADMomentumViscous::INSADMomentumViscous(const InputParameters & parameters)
   : ADVectorKernel(parameters),
     _mu(getADMaterialProperty<Real>("mu_name")),
     _coord_sys(_assembly.coordSystem()),
-    _form(getParam<MooseEnum>("viscous_form")),
-    _solid_indicator(isCoupled("indicator") ? coupledValue("indicator") : _zero)
+    _form(getParam<MooseEnum>("viscous_form"))
 {
   auto & obj_tracker = const_cast<INSADObjectTracker &>(
       _fe_problem.getUserObject<INSADObjectTracker>("ins_ad_object_tracker"));
@@ -50,8 +49,6 @@ INSADMomentumViscous::INSADMomentumViscous(const InputParameters & parameters)
 ADRealTensorValue
 INSADMomentumViscous::qpViscousTerm()
 {
-  if (_solid_indicator[_qp] >= 0.99)
-    return ADRealTensorValue(0);
   if (_form == "laplace")
     return _mu[_qp] * _grad_u[_qp];
   else

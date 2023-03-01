@@ -29,17 +29,12 @@ INSADMassPSPG::INSADMassPSPG(const InputParameters & parameters)
   : ADKernelGrad(parameters),
     _rho(getADMaterialProperty<Real>("rho_name")),
     _tau(getADMaterialProperty<Real>("tau")),
-    _momentum_strong_residual(getADMaterialProperty<RealVectorValue>("momentum_strong_residual")),
-    _solid_indicator(isCoupled("indicator") ? coupledValue("indicator") : _zero)
+    _momentum_strong_residual(getADMaterialProperty<RealVectorValue>("momentum_strong_residual"))
 {
 }
 
 ADRealVectorValue
 INSADMassPSPG::precomputeQpResidual()
 {
-  if (_solid_indicator[_qp] >= 0.99)
-  {
-    return ADRealVectorValue(0.0);
-  }
   return -_tau[_qp] / _rho[_qp] * _momentum_strong_residual[_qp];
 }

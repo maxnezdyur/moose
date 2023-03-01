@@ -24,7 +24,6 @@ INSADMomentumPressure::validParams()
   params.addDeprecatedCoupledVar("p", NS::pressure, "1/1/2022");
   params.addParam<bool>(
       "integrate_p_by_parts", true, "Whether to integrate the pressure term by parts");
-  params.addCoupledVar("indicator", "solid indicator");
   return params;
 }
 
@@ -33,8 +32,7 @@ INSADMomentumPressure::INSADMomentumPressure(const InputParameters & parameters)
     _integrate_p_by_parts(getParam<bool>("integrate_p_by_parts")),
     _p(adCoupledValue(NS::pressure)),
     _grad_p(adCoupledGradient(NS::pressure)),
-    _coord_sys(_assembly.coordSystem()),
-    _solid_indicator(isCoupled("indicator") ? coupledValue("indicator") : _zero)
+    _coord_sys(_assembly.coordSystem())
 {
   // Bypass the UserObjectInterface method because it requires a UserObjectName param which we
   // don't need
@@ -47,8 +45,6 @@ INSADMomentumPressure::INSADMomentumPressure(const InputParameters & parameters)
 ADReal
 INSADMomentumPressure::computeQpResidual()
 {
-  if (_solid_indicator[_qp] >= 0.99)
-    return 0.0;
   if (_integrate_p_by_parts)
   {
     ADReal residual = -_p[_qp] * _grad_test[_i][_qp].tr();
