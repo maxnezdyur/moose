@@ -42,10 +42,11 @@ protected:
   const ADMaterialProperty<Real> & _mu;
 
   const Moose::CoordinateSystemType & _coord_sys;
-
   /// Either traction or laplace
   const MooseEnum _form;
 
   /// The radial coordinate index for RZ coordinate systems
   const unsigned int _rz_radial_coord;
+  MooseEnum _form;
+  const VariableValue & _vol_frac;
 };

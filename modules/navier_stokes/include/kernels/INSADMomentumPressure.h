@@ -34,4 +34,5 @@ protected:
 
   /// The radial coordinate index for RZ coordinate systems
   const unsigned int _rz_radial_coord;
+  const VariableValue & _vol_frac;
 };

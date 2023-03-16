@@ -13,7 +13,8 @@
 []
 
 [Variables]
-  [u][]
+  [u]
+  []
 []
 
 [Kernels]

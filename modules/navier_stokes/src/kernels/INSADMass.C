@@ -19,17 +19,19 @@ INSADMass::validParams()
                              "contributions (the latter using automatic differentiation) for the "
                              "incompressible Navier-Stokes "
                              "equations.");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
 INSADMass::INSADMass(const InputParameters & parameters)
   : ADKernelValue(parameters),
-    _mass_strong_residual(getADMaterialProperty<Real>("mass_strong_residual"))
+    _mass_strong_residual(getADMaterialProperty<Real>("mass_strong_residual")),
+    _vol_frac(coupledValue("volume_fraction"))
 {
 }
 
 ADReal
 INSADMass::precomputeQpResidual()
 {
-  return _mass_strong_residual[_qp];
+  return _mass_strong_residual[_qp] * _vol_frac[_qp];
 }

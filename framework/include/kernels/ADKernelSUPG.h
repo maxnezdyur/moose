@@ -10,6 +10,7 @@
 #pragma once
 
 #include "ADKernelStabilized.h"
+#include "MooseTypes.h"
 
 template <typename>
 class ADKernelSUPGTempl;
@@ -30,6 +31,7 @@ protected:
 
   const ADMaterialProperty<Real> & _tau;
   const ADVectorVariableValue & _velocity;
+  const VectorVariableValue & _mesh_velocity;
 
   using ADKernelStabilizedTempl<T>::_qp;
 };

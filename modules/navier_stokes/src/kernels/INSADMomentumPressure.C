@@ -23,6 +23,7 @@ INSADMomentumPressure::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<bool>(
       "integrate_p_by_parts", true, "Whether to integrate the pressure term by parts");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
@@ -33,6 +34,7 @@ INSADMomentumPressure::INSADMomentumPressure(const InputParameters & parameters)
     _grad_p(adCoupledGradient(NS::pressure)),
     _coord_sys(_assembly.coordSystem()),
     _rz_radial_coord(_mesh.getAxisymmetricRadialCoord())
+    _vol_frac(coupledValue("volume_fraction"))
 {
   // Bypass the UserObjectInterface method because it requires a UserObjectName param which we
   // don't need
@@ -47,7 +49,7 @@ INSADMomentumPressure::computeQpResidual()
 {
   if (_integrate_p_by_parts)
   {
-    ADReal residual = -_p[_qp] * _grad_test[_i][_qp].tr();
+    ADReal residual = -_p[_qp] * _grad_test[_i][_qp].tr() * _vol_frac[_qp];
     if (_coord_sys == Moose::COORD_RZ)
     {
       const auto r_component_residual = -_p[_qp] / _ad_q_point[_qp](_rz_radial_coord);
