@@ -243,14 +243,6 @@ dataLoad(std::istream & stream, LineSegment & l, void * context)
 }
 
 void
-to_json(nlohmann::json & json, const Point & p)
-{
-  json["x"] = p(0);
-  json["y"] = p(1);
-  json["z"] = p(2);
-}
-
-void
 to_json(nlohmann::json & json, const LineSegment & l)
 {
   to_json(json["start"], l.start());

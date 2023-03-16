@@ -10,13 +10,9 @@
 #include "JsonIO.h"
 #include "MooseApp.h"
 #include "MooseRevision.h"
-#include "MultiApp.h"
-#include "PenetrationInfo.h"
-#include "MaterialPropertyStorage.h"
 #include "SystemInfo.h"
 
 #include "libmesh/libmesh_config.h"
-#include "libmesh/node.h"
 
 // MooseDocs:to_json_start
 void
@@ -44,3 +40,14 @@ to_json(nlohmann::json & json, const MooseApp & app)
 #endif
 }
 // MooseDocs:to_json_end
+
+namespace libMesh
+{
+void
+to_json(nlohmann::json & json, const Point & p)
+{
+  json["x"] = p(0);
+  json["y"] = p(1);
+  json["z"] = p(2);
+}
+}
