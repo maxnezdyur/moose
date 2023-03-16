@@ -9,6 +9,8 @@
 
 #include "LineSegment.h"
 
+#include "JsonIO.h"
+
 #include "libmesh/plane.h"
 #include "libmesh/vector_value.h"
 
