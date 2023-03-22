@@ -22,6 +22,7 @@ ADKernelSUPGTempl<T>::validParams()
   params.addParam<MaterialPropertyName>(
       "tau_name", "tau", "The name of the stabilization parameter tau.");
   params.addRequiredCoupledVar("velocity", "The velocity variable.");
+  params.addCoupledVar("mesh_velocity", "The mesh velocity.");
   return params;
 }
 
@@ -29,7 +30,9 @@ template <typename T>
 ADKernelSUPGTempl<T>::ADKernelSUPGTempl(const InputParameters & parameters)
   : ADKernelStabilizedTempl<T>(parameters),
     _tau(this->template getADMaterialProperty<Real>("tau_name")),
-    _velocity(this->adCoupledVectorValue("velocity"))
+    _velocity(this->adCoupledVectorValue("velocity")),
+    _mesh_velocity(this->isCoupled("mesh_velocity") ? this->coupledVectorValue("mesh_velocity")
+                                                    : this->_vector_zero)
 {
 }
 
@@ -37,7 +40,7 @@ template <typename T>
 ADRealVectorValue
 ADKernelSUPGTempl<T>::computeQpStabilization()
 {
-  return _velocity[_qp] * _tau[_qp];
+  return (_velocity[_qp] - _mesh_velocity[_qp]) * _tau[_qp];
 }
 
 template class ADKernelSUPGTempl<Real>;
