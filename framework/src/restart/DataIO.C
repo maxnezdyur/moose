@@ -87,12 +87,8 @@ dataStore(std::ostream & stream, DualReal & dn, void * context)
     dataStore(stream, size, context);
     for (MooseIndex(size) i = 0; i < size; ++i)
     {
-#ifdef MOOSE_SPARSE_AD
       dataStore(stream, derivatives.raw_index(i), context);
       dataStore(stream, derivatives.raw_at(i), context);
-#else
-      dataStore(stream, derivatives[i], context);
-#endif
     }
   }
 }
@@ -362,18 +358,12 @@ dataLoad(std::istream & stream, DualReal & dn, void * context)
     auto & derivatives = dn.derivatives();
     std::size_t size = 0;
     stream.read((char *)&size, sizeof(size));
-#ifdef MOOSE_SPARSE_AD
     derivatives.resize(size);
-#endif
 
     for (MooseIndex(derivatives) i = 0; i < derivatives.size(); ++i)
     {
-#ifdef MOOSE_SPARSE_AD
       dataLoad(stream, derivatives.raw_index(i), context);
       dataLoad(stream, derivatives.raw_at(i), context);
-#else
-      dataLoad(stream, derivatives[i], context);
-#endif
     }
   }
 }
@@ -465,7 +455,7 @@ dataLoad(std::istream & stream, std::stringstream & s, void * /* context */)
   size_t s_size = 0;
   stream.read((char *)&s_size, sizeof(s_size));
 
-  std::unique_ptr<char[]> s_s(new char[s_size]);
+  std::unique_ptr<char[]> s_s = std::make_unique<char[]>(s_size);
   stream.read(s_s.get(), s_size);
 
   // Clear the stringstream before loading new data into it.

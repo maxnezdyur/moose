@@ -97,6 +97,17 @@ public:
   virtual ~Assembly();
 
   /**
+   * Workaround for C++ compilers thinking they can't just cast a
+   * const-reference-to-pointer to const-reference-to-const-pointer
+   */
+  template <typename T>
+  static const T * const & constify_ref(T * const & inref)
+  {
+    const T * const * ptr = &inref;
+    return *ptr;
+  }
+
+  /**
    * Get a reference to a pointer that will contain the current volume FE.
    * @param type The type of FE
    * @param dim The dimension of the current volume
@@ -105,7 +116,7 @@ public:
   const FEBase * const & getFE(FEType type, unsigned int dim) const
   {
     buildFE(type);
-    return _const_fe[dim][type];
+    return constify_ref(_fe[dim][type]);
   }
 
   /**
@@ -117,7 +128,7 @@ public:
   const FEBase * const & getFENeighbor(FEType type, unsigned int dim) const
   {
     buildNeighborFE(type);
-    return _const_fe_neighbor[dim][type];
+    return constify_ref(_fe_neighbor[dim][type]);
   }
 
   /**
@@ -129,7 +140,7 @@ public:
   const FEBase * const & getFEFace(FEType type, unsigned int dim) const
   {
     buildFaceFE(type);
-    return _const_fe_face[dim][type];
+    return constify_ref(_fe_face[dim][type]);
   }
 
   /**
@@ -141,7 +152,7 @@ public:
   const FEBase * const & getFEFaceNeighbor(FEType type, unsigned int dim) const
   {
     buildFaceNeighborFE(type);
-    return _const_fe_face_neighbor[dim][type];
+    return constify_ref(_fe_face_neighbor[dim][type]);
   }
 
   /**
@@ -153,7 +164,7 @@ public:
   const FEVectorBase * const & getVectorFE(FEType type, unsigned int dim) const
   {
     buildVectorFE(type);
-    return _const_vector_fe[dim][type];
+    return constify_ref(_vector_fe[dim][type]);
   }
 
   /**
@@ -165,7 +176,7 @@ public:
   const FEVectorBase * const & getVectorFENeighbor(FEType type, unsigned int dim) const
   {
     buildVectorNeighborFE(type);
-    return _const_vector_fe_neighbor[dim][type];
+    return constify_ref(_vector_fe_neighbor[dim][type]);
   }
 
   /**
@@ -177,7 +188,7 @@ public:
   const FEVectorBase * const & getVectorFEFace(FEType type, unsigned int dim) const
   {
     buildVectorFaceFE(type);
-    return _const_vector_fe_face[dim][type];
+    return constify_ref(_vector_fe_face[dim][type]);
   }
 
   /**
@@ -189,14 +200,14 @@ public:
   const FEVectorBase * const & getVectorFEFaceNeighbor(FEType type, unsigned int dim) const
   {
     buildVectorFaceNeighborFE(type);
-    return _const_vector_fe_face_neighbor[dim][type];
+    return constify_ref(_vector_fe_face_neighbor[dim][type]);
   }
 
   /**
    * Returns the reference to the current quadrature being used
    * @return A _reference_ to the pointer.  Make sure to store this as a reference!
    */
-  const QBase * const & qRule() const { return _const_current_qrule; }
+  const QBase * const & qRule() const { return constify_ref(_current_qrule); }
 
   /**
    * Returns the reference to the current quadrature being used
@@ -276,7 +287,7 @@ public:
    * Returns the reference to the current quadrature being used on a current face
    * @return A _reference_.  Make sure to store this as a reference!
    */
-  const QBase * const & qRuleFace() const { return _const_current_qrule_face; }
+  const QBase * const & qRuleFace() const { return constify_ref(_current_qrule_face); }
 
   /**
    * Returns the reference to the current quadrature being used on a current face
@@ -457,7 +468,7 @@ public:
    * Returns the reference to the current quadrature being used on a current neighbor
    * @return A _reference_.  Make sure to store this as a reference!
    */
-  const QBase * const & qRuleNeighbor() const { return _const_current_qrule_neighbor; }
+  const QBase * const & qRuleNeighbor() const { return constify_ref(_current_qrule_neighbor); }
 
   /**
    * Returns the reference to the current quadrature being used on a current neighbor
@@ -638,7 +649,7 @@ public:
   /**
    * Returns a reference to the quadrature rule for the mortar segments
    */
-  const QBase * const & qRuleMortar() const { return _const_qrule_msm; }
+  const QBase * const & qRuleMortar() const { return constify_ref(_qrule_msm); }
 
 private:
   /**
@@ -1736,7 +1747,6 @@ public:
                         const std::set<TagID> & vector_tags,
                         Real scaling_factor);
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   /**
    * Process the value and \p derivatives() data of a vector of \p ADReals. When using global
    * indexing, this method simply caches the value (residual) for the provided \p vector_tags and
@@ -1749,7 +1759,6 @@ public:
                                    const std::set<TagID> & vector_tags,
                                    const std::set<TagID> & matrix_tags,
                                    Real scaling_factor);
-#endif
 
   /**
    * Process the \p derivatives() data of a vector of \p ADReals. When using global indexing, this
@@ -1769,7 +1778,6 @@ public:
                        Real scaling_factor,
                        LocalFunctor & local_functor);
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   /**
    * Same as \p processResiduals with the exception that constrain_element_vector and
    * constrain_element_matrix will not be applied. This should only be used when the contributions
@@ -1788,7 +1796,6 @@ public:
    * doing residual and matrix assembly
    */
   void hasScalingVector();
-#endif
 
   /**
    * Modify the weights when using the arbitrary quadrature rule. The intention is to use this when
@@ -1801,15 +1808,19 @@ public:
   void modifyArbitraryWeights(const std::vector<Real> & weights);
 
   /**
-   * @return whether we are computing a residual. In practice this will return true whenever we are
-   * not computing a Jacobian
+   * @return whether we are computing a residual
    */
-  bool computingResidual() const { return !_computing_jacobian; }
+  bool computingResidual() const { return _computing_residual; }
 
   /**
    * @return whether we are computing a Jacobian
    */
-  bool computingJacobian() const { return _computing_jacobian || _computing_residual_and_jacobian; }
+  bool computingJacobian() const { return _computing_jacobian; }
+
+  /**
+   * @return whether we are computing a residual and a Jacobian simultaneously
+   */
+  bool computingResidualAndJacobian() const { return _computing_residual_and_jacobian; }
 
 protected:
   /**
@@ -2131,6 +2142,9 @@ private:
   const CouplingMatrix * _cm;
   const CouplingMatrix & _nonlocal_cm;
 
+  /// Whether we are currently computing the residual
+  const bool & _computing_residual;
+
   /// Whether we are currently computing the Jacobian
   const bool & _computing_jacobian;
 
@@ -2188,21 +2202,12 @@ private:
 
   /// Each dimension's actual fe objects indexed on type
   mutable std::map<unsigned int, std::map<FEType, FEBase *>> _fe;
-  /// Each dimension's actual fe objects indexed on type
-  mutable std::map<unsigned int, std::map<FEType, const FEBase *>> _const_fe;
   /// Each dimension's actual vector fe objects indexed on type
   mutable std::map<unsigned int, std::map<FEType, FEVectorBase *>> _vector_fe;
-  /// Each dimension's actual vector fe objects indexed on type
-  mutable std::map<unsigned int, std::map<FEType, const FEVectorBase *>> _const_vector_fe;
   /// Each dimension's helper objects
   std::map<unsigned int, FEBase **> _holder_fe_helper;
   /// The current helper object for transforming coordinates
   FEBase * _current_fe_helper;
-  /// The current current quadrature rule being used (could be either volumetric or arbitrary - for
-  /// dirac kernels). Note that this const version is required because our getter APIs return a
-  /// const QBase * const &. Without the const QBase * member we would be casting the non-const
-  /// version, which creates a temporary, and we cannot return a reference to a temporary
-  const QBase * _const_current_qrule;
   /// The current current quadrature rule being used (could be either volumetric or arbitrary - for dirac kernels)
   QBase * _current_qrule;
   /// The current volumetric quadrature for the element
@@ -2309,20 +2314,12 @@ private:
 
   /// types of finite elements
   mutable std::map<unsigned int, std::map<FEType, FEBase *>> _fe_face;
-  /// types of finite elements
-  mutable std::map<unsigned int, std::map<FEType, const FEBase *>> _const_fe_face;
   /// types of vector finite elements
   mutable std::map<unsigned int, std::map<FEType, FEVectorBase *>> _vector_fe_face;
-  /// types of vector finite elements
-  mutable std::map<unsigned int, std::map<FEType, const FEVectorBase *>> _const_vector_fe_face;
   /// Each dimension's helper objects
   std::map<unsigned int, FEBase **> _holder_fe_face_helper;
   /// helper object for transforming coordinates
   FEBase * _current_fe_face_helper;
-  /// quadrature rule used on faces. Note that this const version is required because our getter
-  /// APIs return a const QBase * const &. Without the const QBase * member we would be casting the
-  /// non-const version, which creates a temporary, and we cannot return a reference to a temporary
-  const QBase * _const_current_qrule_face;
   /// quadrature rule used on faces
   QBase * _current_qrule_face;
   /// The current arbitrary quadrature rule used on element faces
@@ -2354,11 +2351,6 @@ private:
   mutable std::map<unsigned int, std::map<FEType, FEBase *>> _fe_face_neighbor;
   mutable std::map<unsigned int, std::map<FEType, FEVectorBase *>> _vector_fe_neighbor;
   mutable std::map<unsigned int, std::map<FEType, FEVectorBase *>> _vector_fe_face_neighbor;
-  mutable std::map<unsigned int, std::map<FEType, const FEBase *>> _const_fe_neighbor;
-  mutable std::map<unsigned int, std::map<FEType, const FEBase *>> _const_fe_face_neighbor;
-  mutable std::map<unsigned int, std::map<FEType, const FEVectorBase *>> _const_vector_fe_neighbor;
-  mutable std::map<unsigned int, std::map<FEType, const FEVectorBase *>>
-      _const_vector_fe_face_neighbor;
 
   /// Each dimension's helper objects
   std::map<unsigned int, FEBase **> _holder_fe_neighbor_helper;
@@ -2366,19 +2358,11 @@ private:
 
   /// FE objects for lower dimensional elements
   mutable std::map<unsigned int, std::map<FEType, FEBase *>> _fe_lower;
-  /// FE objects for lower dimensional elements
-  mutable std::map<unsigned int, std::map<FEType, const FEBase *>> _const_fe_lower;
   /// Vector FE objects for lower dimensional elements
   mutable std::map<unsigned int, std::map<FEType, FEVectorBase *>> _vector_fe_lower;
-  /// Vector FE objects for lower dimensional elements
-  mutable std::map<unsigned int, std::map<FEType, const FEVectorBase *>> _const_vector_fe_lower;
   /// helper object for transforming coordinates for lower dimensional element quadrature points
   std::map<unsigned int, FEBase **> _holder_fe_lower_helper;
 
-  /// quadrature rule used on neighbors. Note that this const version is required because our getter
-  /// APIs return a const QBase * const &. Without the const QBase * member we would be casting the
-  /// non-const version, which creates a temporary, and we cannot return a reference to a temporary
-  const QBase * _const_current_qrule_neighbor;
   /// quadrature rule used on neighbors
   QBase * _current_qrule_neighbor;
   /// The current quadrature points on the neighbor face
@@ -2404,17 +2388,10 @@ private:
   /// we will be constructing other objects that need the qrule before the qrule
   /// is actually created
   QBase * _qrule_msm;
-  /// A pointer to const qrule_msm
-  const QBase * _const_qrule_msm;
   /// Flag specifying whether a custom quadrature rule has been specified for mortar segment mesh
   bool _custom_mortar_qrule;
 
 private:
-  /// quadrature rule used on lower dimensional elements. This should always be the same as the face
-  /// qrule. Note that this const version is required because our getter APIs return a const QBase *
-  /// const &. Without the const QBase * member we would be casting the non-const version, which
-  /// creates a temporary, and we cannot return a reference to a temporary
-  const QBase * _const_current_qrule_lower;
   /// quadrature rule used on lower dimensional elements. This should always be
   /// the same as the face qrule
   QBase * _current_qrule_lower;
@@ -2584,20 +2561,20 @@ protected:
   };
 
   /// Shape function values, gradients, second derivatives for each FE type
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data;
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data_face;
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data_neighbor;
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data_face_neighbor;
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data_lower;
-  mutable std::map<FEType, FEShapeData *> _fe_shape_data_dual_lower;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data_face;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data_neighbor;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data_face_neighbor;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data_lower;
+  mutable std::map<FEType, std::unique_ptr<FEShapeData>> _fe_shape_data_dual_lower;
 
   /// Shape function values, gradients, second derivatives for each vector FE type
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data;
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data_face;
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data_neighbor;
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data_face_neighbor;
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data_lower;
-  mutable std::map<FEType, VectorFEShapeData *> _vector_fe_shape_data_dual_lower;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data_face;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data_neighbor;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data_face_neighbor;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data_lower;
+  mutable std::map<FEType, std::unique_ptr<VectorFEShapeData>> _vector_fe_shape_data_dual_lower;
 
   mutable std::map<FEType, ADTemplateVariablePhiGradient<Real>> _ad_grad_phi_data;
   mutable std::map<FEType, ADTemplateVariablePhiGradient<RealVectorValue>> _ad_vector_grad_phi_data;
@@ -2688,10 +2665,8 @@ protected:
   mutable std::map<FEType, bool> _need_second_derivative_neighbor;
   mutable std::map<FEType, bool> _need_curl;
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   /// The map from global index to variable scaling factor
   const NumericVector<Real> * _scaling_vector = nullptr;
-#endif
 
   /// In place side element builder for _current_side_elem
   ElemSideBuilder _current_side_elem_builder;
@@ -2834,7 +2809,6 @@ Assembly::adGradPhi<RealVectorValue>(const MooseVariableFE<RealVectorValue> & v)
   return _ad_vector_grad_phi_data.at(v.feType());
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 inline void
 Assembly::processJacobian(const ADReal & residual,
                           const dof_id_type row_index,
@@ -2852,30 +2826,15 @@ Assembly::processJacobian(const ADReal & residual,
   for (std::size_t i = 0; i < column_indices.size(); ++i)
     cacheJacobian(row_index, column_indices[i], values[i] * scalar, matrix_tags);
 }
-#else
-inline void
-Assembly::processJacobian(const ADReal &, const dof_id_type, const std::set<TagID> &)
-{
-  mooseError("Not implemented for local AD indexing");
-}
-#endif
 
 template <typename LocalFunctor>
 void
 Assembly::processJacobian(const ADReal & residual,
                           const dof_id_type row_index,
                           const std::set<TagID> & matrix_tags,
-                          LocalFunctor &
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-                              local_functor
-#endif
-)
+                          LocalFunctor &)
 {
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   processJacobian(residual, row_index, matrix_tags);
-#else
-  local_functor(residual, row_index, matrix_tags);
-#endif
 }
 
 template <typename LocalFunctor>
@@ -2883,22 +2842,10 @@ void
 Assembly::processJacobian(const std::vector<ADReal> & residuals,
                           const std::vector<dof_id_type> & input_row_indices,
                           const std::set<TagID> & matrix_tags,
-                          const Real
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                              scaling_factor
-#endif
-                          ,
-                          LocalFunctor &
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-                              local_functor
-#endif
-)
+                          const Real scaling_factor,
+                          LocalFunctor &)
 {
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   processResidualsAndJacobian(residuals, input_row_indices, {}, matrix_tags, scaling_factor);
-#else
-  local_functor(residuals, input_row_indices, matrix_tags);
-#endif
 }
 
 template <typename T>

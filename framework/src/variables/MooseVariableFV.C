@@ -39,24 +39,18 @@ MooseVariableFV<OutputType>::validParams()
   params.set<MooseEnum>("order") = "CONSTANT";
   params.template addParam<bool>(
       "two_term_boundary_expansion",
-#ifdef MOOSE_GLOBAL_AD_INDEXING
       true,
-#else
-      false,
-#endif
       "Whether to use a two-term Taylor expansion to calculate boundary face values. "
       "If the two-term expansion is used, then the boundary face value depends on the "
       "adjoining cell center gradient, which itself depends on the boundary face value. "
       "Consequently an implicit solve is used to simultaneously solve for the adjoining cell "
       "center gradient and boundary face value(s).");
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   MooseEnum face_interp_method("average skewness-corrected", "average");
   params.template addParam<MooseEnum>("face_interp_method",
                                       face_interp_method,
                                       "Switch that can select between face interpoaltion methods.");
   params.template addParam<bool>(
       "cache_cell_gradients", true, "Whether to cache cell gradients or re-compute them.");
-#endif
   return params;
 }
 
@@ -75,24 +69,14 @@ MooseVariableFV<OutputType>::MooseVariableFV(const InputParameters & parameters)
     _phi_neighbor(this->_assembly.template fePhiNeighbor<OutputShape>(FEType(CONSTANT, MONOMIAL))),
     _grad_phi_neighbor(
         this->_assembly.template feGradPhiNeighbor<OutputShape>(FEType(CONSTANT, MONOMIAL))),
+    _prev_elem(nullptr),
     _two_term_boundary_expansion(this->isParamValid("two_term_boundary_expansion")
                                      ? this->template getParam<bool>("two_term_boundary_expansion")
-                                     :
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                                     true),
-#else
-                                     false),
-#endif
+                                     : true),
     _cache_cell_gradients(this->isParamValid("cache_cell_gradients")
                               ? this->template getParam<bool>("cache_cell_gradients")
                               : true)
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  if (_two_term_boundary_expansion)
-    this->paramError(
-        "two_term_boundary_expansion",
-        "Two term boundary expansion only works for global AD indexing configurations.");
-#endif
   _element_data = std::make_unique<MooseVariableDataFV<OutputType>>(
       *this, _sys, _tid, Moose::ElementType::Element, this->_assembly.elem());
   _neighbor_data = std::make_unique<MooseVariableDataFV<OutputType>>(
@@ -372,10 +356,9 @@ template <typename OutputType>
 OutputType
 MooseVariableFV<OutputType>::getValue(const Elem * elem) const
 {
-  std::vector<dof_id_type> dof_indices;
-  this->_dof_map.dof_indices(elem, dof_indices, _var_num);
-  mooseAssert(dof_indices.size() == 1, "Wrong size for dof indices");
-  OutputType value = (*this->_sys.currentSolution())(dof_indices[0]);
+  Moose::initDofIndices(const_cast<MooseVariableFV<OutputType> &>(*this), *elem);
+  mooseAssert(this->_dof_indices.size() == 1, "Wrong size for dof indices");
+  OutputType value = (*this->_sys.currentSolution())(this->_dof_indices[0]);
   return value;
 }
 
@@ -425,29 +408,12 @@ template <typename OutputType>
 std::pair<bool, const FVDirichletBCBase *>
 MooseVariableFV<OutputType>::getDirichletBC(const FaceInfo & fi) const
 {
-  std::vector<FVDirichletBCBase *> bcs;
+  for (const auto bnd_id : fi.boundaryIDs())
+    if (auto it = _boundary_id_to_dirichlet_bc.find(bnd_id);
+        it != _boundary_id_to_dirichlet_bc.end())
+      return {true, it->second};
 
-  this->_subproblem.getMooseApp()
-      .theWarehouse()
-      .query()
-      .template condition<AttribSystem>("FVDirichletBC")
-      .template condition<AttribThread>(_tid)
-      .template condition<AttribBoundaries>(fi.boundaryIDs())
-      .template condition<AttribVar>(_var_num)
-      .template condition<AttribSysNum>(this->_sys.number())
-      .queryInto(bcs);
-  mooseAssert(bcs.size() <= 1, "cannot have multiple dirichlet BCs on the same boundary");
-
-  bool has_dirichlet_bc = bcs.size() > 0;
-
-  if (has_dirichlet_bc)
-  {
-    mooseAssert(bcs[0], "The FVDirichletBC is null!");
-
-    return std::make_pair(true, bcs[0]);
-  }
-  else
-    return std::make_pair(false, nullptr);
+  return {false, nullptr};
 }
 
 template <typename OutputType>
@@ -478,9 +444,6 @@ template <typename OutputType>
 ADReal
 MooseVariableFV<OutputType>::getElemValue(const Elem * const elem) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("MooseVariableFV::getElemValue only supported for global AD indexing");
-#endif
   mooseAssert(elem,
               "The elem shall exist! This typically occurs when the "
               "user wants to evaluate non-existing elements (nullptr) at physical boundaries.");
@@ -492,14 +455,13 @@ MooseVariableFV<OutputType>::getElemValue(const Elem * const elem) const
           Moose::stringify(this->activeSubdomains()) + " the subdomain of the element " +
           std::to_string(elem->subdomain_id()));
 
-  std::vector<dof_id_type> dof_indices;
-  this->_dof_map.dof_indices(elem, dof_indices, _var_num);
+  Moose::initDofIndices(const_cast<MooseVariableFV<OutputType> &>(*this), *elem);
 
   mooseAssert(
-      dof_indices.size() == 1,
+      this->_dof_indices.size() == 1,
       "There should only be one dof-index for a constant monomial variable on any given element");
 
-  dof_id_type index = dof_indices[0];
+  const dof_id_type index = this->_dof_indices[0];
 
   ADReal value = (*_solution)(index);
 
@@ -524,11 +486,6 @@ ADReal
 MooseVariableFV<OutputType>::getDirichletBoundaryFaceValue(
     const FaceInfo & fi, const Elem * const libmesh_dbg_var(elem)) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError(
-      "MooseVariableFV::getDirichletBoundaryFaceValue only supported for global AD indexing");
-#endif
-
   mooseAssert(isDirichletBoundaryFace(fi, elem),
               "This function should only be called on Dirichlet boundary faces.");
 
@@ -558,11 +515,6 @@ ADReal
 MooseVariableFV<OutputType>::getExtrapolatedBoundaryFaceValue(
     const FaceInfo & fi, bool two_term_expansion, const Elem * elem_to_extrapolate_from) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError(
-      "MooseVariableFV::getExtrapolatedBoundaryFaceValue only supported for global AD indexing");
-#endif
-
   mooseAssert(isExtrapolatedBoundaryFace(fi, elem_to_extrapolate_from),
               "This function should only be called on extrapolated boundary faces");
 
@@ -606,10 +558,6 @@ template <typename OutputType>
 ADReal
 MooseVariableFV<OutputType>::getBoundaryFaceValue(const FaceInfo & fi) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("MooseVariableFV::getBoundaryFaceValue only supported for global AD indexing");
-#endif
-
   mooseAssert(!this->isInternalFace(fi),
               "A boundary face value has been requested on an internal face.");
 
@@ -625,10 +573,6 @@ template <typename OutputType>
 const VectorValue<ADReal> &
 MooseVariableFV<OutputType>::adGradSln(const Elem * const elem, const bool correct_skewness) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("MooseVariableFV::adGradSln only supported for global AD indexing");
-#endif
-
   // We ensure that no caching takes place when we compute skewness-corrected
   // quantities.
   if (_cache_cell_gradients && !correct_skewness)
@@ -660,10 +604,6 @@ VectorValue<ADReal>
 MooseVariableFV<OutputType>::uncorrectedAdGradSln(const FaceInfo & fi,
                                                   const bool correct_skewness) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("MooseVariableFV::uncorrectedAdGradSln only supported for global AD indexing");
-#endif
-
   const bool var_defined_on_elem = this->hasBlocks(fi.elem().subdomain_id());
   const Elem * const elem_one = var_defined_on_elem ? &fi.elem() : fi.neighborPtr();
   const Elem * const elem_two = var_defined_on_elem ? fi.neighborPtr() : &fi.elem();
@@ -688,10 +628,6 @@ template <typename OutputType>
 VectorValue<ADReal>
 MooseVariableFV<OutputType>::adGradSln(const FaceInfo & fi, const bool correct_skewness) const
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("MooseVariableFV::adGradSln only supported for global AD indexing");
-#endif
-
   const bool var_defined_on_elem = this->hasBlocks(fi.elem().subdomain_id());
   const Elem * const elem = &fi.elem();
   const Elem * const neighbor = fi.neighborPtr();
@@ -813,14 +749,13 @@ MooseVariableFV<Real>::evaluateDot(const ElemArg & elem_arg,
               "A time derivative is being requested but we do not have a time integrator so we'll "
               "have no idea how to compute it");
 
-  std::vector<dof_id_type> dof_indices;
-  this->_dof_map.dof_indices(elem, dof_indices, _var_num);
+  Moose::initDofIndices(const_cast<MooseVariableFV<Real> &>(*this), *elem);
 
   mooseAssert(
-      dof_indices.size() == 1,
+      this->_dof_indices.size() == 1,
       "There should only be one dof-index for a constant monomial variable on any given element");
 
-  const dof_id_type dof_index = dof_indices[0];
+  const dof_id_type dof_index = this->_dof_indices[0];
 
   if (_var_kind == Moose::VAR_NONLINEAR)
   {
@@ -840,6 +775,44 @@ MooseVariableFV<OutputType>::prepareAux()
 {
   _element_data->prepareAux();
   _neighbor_data->prepareAux();
+}
+
+template <typename OutputType>
+void
+MooseVariableFV<OutputType>::determineBoundaryToDirichletBCMap()
+{
+  _boundary_id_to_dirichlet_bc.clear();
+  std::vector<FVDirichletBCBase *> bcs;
+
+  // I believe because query() returns by value but condition returns by reference that binding to a
+  // const lvalue reference results in the query() getting destructed and us holding onto a dangling
+  // reference. I think that condition returned by value we would be able to bind to a const lvalue
+  // reference here. But as it is we'll bind to a regular lvalue
+  const auto base_query = this->_subproblem.getMooseApp()
+                              .theWarehouse()
+                              .query()
+                              .template condition<AttribSystem>("FVDirichletBC")
+                              .template condition<AttribThread>(_tid)
+                              .template condition<AttribVar>(_var_num)
+                              .template condition<AttribSysNum>(this->_sys.number());
+
+  for (const auto bnd_id : this->_mesh.getBoundaryIDs())
+  {
+    auto base_query_copy = base_query;
+    base_query_copy.template condition<AttribBoundaries>(std::set<BoundaryID>({bnd_id}))
+        .queryInto(bcs);
+    mooseAssert(bcs.size() <= 1, "cannot have multiple dirichlet BCs on the same boundary");
+    if (!bcs.empty())
+      _boundary_id_to_dirichlet_bc.emplace(bnd_id, bcs[0]);
+  }
+}
+
+template <typename OutputType>
+void
+MooseVariableFV<OutputType>::initialSetup()
+{
+  determineBoundaryToDirichletBCMap();
+  MooseVariableField<OutputType>::initialSetup();
 }
 
 template class MooseVariableFV<Real>;

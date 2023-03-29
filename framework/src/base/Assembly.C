@@ -70,6 +70,7 @@ Assembly::Assembly(SystemBase & sys, THREAD_ID tid)
     _subproblem(_sys.subproblem()),
     _displaced(dynamic_cast<DisplacedSystem *>(&sys) ? true : false),
     _nonlocal_cm(_subproblem.nonlocalCouplingMatrix(_sys.number())),
+    _computing_residual(_subproblem.currentlyComputingResidual()),
     _computing_jacobian(_subproblem.currentlyComputingJacobian()),
     _computing_residual_and_jacobian(_subproblem.currentlyComputingResidualAndJacobian()),
     _dof_map(_sys.dofMap()),
@@ -217,42 +218,6 @@ Assembly::~Assembly()
     for (auto & it : _vector_fe_face_neighbor[dim])
       delete it.second;
 
-  for (auto & it : _fe_shape_data)
-    delete it.second;
-
-  for (auto & it : _fe_shape_data_face)
-    delete it.second;
-
-  for (auto & it : _fe_shape_data_neighbor)
-    delete it.second;
-
-  for (auto & it : _fe_shape_data_face_neighbor)
-    delete it.second;
-
-  for (auto & it : _fe_shape_data_lower)
-    delete it.second;
-
-  for (auto & it : _fe_shape_data_dual_lower)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data_face)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data_neighbor)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data_face_neighbor)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data_lower)
-    delete it.second;
-
-  for (auto & it : _vector_fe_shape_data_dual_lower)
-    delete it.second;
-
   for (auto & it : _ad_grad_phi_data)
     it.second.release();
 
@@ -294,13 +259,13 @@ void
 Assembly::buildFE(FEType type) const
 {
   if (!_fe_shape_data[type])
-    _fe_shape_data[type] = new FEShapeData;
+    _fe_shape_data[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of the current mesh
   for (unsigned int dim = 0; dim <= _mesh_dimension; dim++)
   {
     if (!_fe[dim][type])
-      _const_fe[dim][type] = _fe[dim][type] = FEGenericBase<Real>::build(dim, type).release();
+      _fe[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe[dim][type]->get_phi();
     _fe[dim][type]->get_dphi();
@@ -317,14 +282,13 @@ void
 Assembly::buildFaceFE(FEType type) const
 {
   if (!_fe_shape_data_face[type])
-    _fe_shape_data_face[type] = new FEShapeData;
+    _fe_shape_data_face[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of the current mesh
   for (unsigned int dim = 0; dim <= _mesh_dimension; dim++)
   {
     if (!_fe_face[dim][type])
-      _const_fe_face[dim][type] = _fe_face[dim][type] =
-          FEGenericBase<Real>::build(dim, type).release();
+      _fe_face[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe_face[dim][type]->get_phi();
     _fe_face[dim][type]->get_dphi();
@@ -337,14 +301,13 @@ void
 Assembly::buildNeighborFE(FEType type) const
 {
   if (!_fe_shape_data_neighbor[type])
-    _fe_shape_data_neighbor[type] = new FEShapeData;
+    _fe_shape_data_neighbor[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of the current mesh
   for (unsigned int dim = 0; dim <= _mesh_dimension; dim++)
   {
     if (!_fe_neighbor[dim][type])
-      _const_fe_neighbor[dim][type] = _fe_neighbor[dim][type] =
-          FEGenericBase<Real>::build(dim, type).release();
+      _fe_neighbor[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe_neighbor[dim][type]->get_phi();
     _fe_neighbor[dim][type]->get_dphi();
@@ -357,14 +320,13 @@ void
 Assembly::buildFaceNeighborFE(FEType type) const
 {
   if (!_fe_shape_data_face_neighbor[type])
-    _fe_shape_data_face_neighbor[type] = new FEShapeData;
+    _fe_shape_data_face_neighbor[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of the current mesh
   for (unsigned int dim = 0; dim <= _mesh_dimension; dim++)
   {
     if (!_fe_face_neighbor[dim][type])
-      _const_fe_face_neighbor[dim][type] = _fe_face_neighbor[dim][type] =
-          FEGenericBase<Real>::build(dim, type).release();
+      _fe_face_neighbor[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe_face_neighbor[dim][type]->get_phi();
     _fe_face_neighbor[dim][type]->get_dphi();
@@ -377,7 +339,7 @@ void
 Assembly::buildLowerDFE(FEType type) const
 {
   if (!_fe_shape_data_lower[type])
-    _fe_shape_data_lower[type] = new FEShapeData;
+    _fe_shape_data_lower[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of
   // the current mesh minus one (because this is for lower-dimensional
@@ -385,8 +347,7 @@ Assembly::buildLowerDFE(FEType type) const
   for (unsigned int dim = 0; dim <= _mesh_dimension - 1; dim++)
   {
     if (!_fe_lower[dim][type])
-      _const_fe_lower[dim][type] = _fe_lower[dim][type] =
-          FEGenericBase<Real>::build(dim, type).release();
+      _fe_lower[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe_lower[dim][type]->get_phi();
     _fe_lower[dim][type]->get_dphi();
@@ -399,7 +360,7 @@ void
 Assembly::buildLowerDDualFE(FEType type) const
 {
   if (!_fe_shape_data_dual_lower[type])
-    _fe_shape_data_dual_lower[type] = new FEShapeData;
+    _fe_shape_data_dual_lower[type] = std::make_unique<FEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of
   // the current mesh minus one (because this is for lower-dimensional
@@ -407,8 +368,7 @@ Assembly::buildLowerDDualFE(FEType type) const
   for (unsigned int dim = 0; dim <= _mesh_dimension - 1; dim++)
   {
     if (!_fe_lower[dim][type])
-      _const_fe_lower[dim][type] = _fe_lower[dim][type] =
-          FEGenericBase<Real>::build(dim, type).release();
+      _fe_lower[dim][type] = FEGenericBase<Real>::build(dim, type).release();
 
     _fe_lower[dim][type]->get_dual_phi();
     _fe_lower[dim][type]->get_dual_dphi();
@@ -421,7 +381,7 @@ void
 Assembly::buildVectorLowerDFE(FEType type) const
 {
   if (!_vector_fe_shape_data_lower[type])
-    _vector_fe_shape_data_lower[type] = new VectorFEShapeData;
+    _vector_fe_shape_data_lower[type] = std::make_unique<VectorFEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of
   // the current mesh minus one (because this is for lower-dimensional
@@ -429,8 +389,7 @@ Assembly::buildVectorLowerDFE(FEType type) const
   for (unsigned int dim = 0; dim <= _mesh_dimension - 1; dim++)
   {
     if (!_vector_fe_lower[dim][type])
-      _const_vector_fe_lower[dim][type] = _vector_fe_lower[dim][type] =
-          FEVectorBase::build(dim, type).release();
+      _vector_fe_lower[dim][type] = FEVectorBase::build(dim, type).release();
 
     _vector_fe_lower[dim][type]->get_phi();
     _vector_fe_lower[dim][type]->get_dphi();
@@ -443,7 +402,7 @@ void
 Assembly::buildVectorDualLowerDFE(FEType type) const
 {
   if (!_vector_fe_shape_data_dual_lower[type])
-    _vector_fe_shape_data_dual_lower[type] = new VectorFEShapeData;
+    _vector_fe_shape_data_dual_lower[type] = std::make_unique<VectorFEShapeData>();
 
   // Build an FE object for this type for each dimension up to the dimension of
   // the current mesh minus one (because this is for lower-dimensional
@@ -451,8 +410,7 @@ Assembly::buildVectorDualLowerDFE(FEType type) const
   for (unsigned int dim = 0; dim <= _mesh_dimension - 1; dim++)
   {
     if (!_vector_fe_lower[dim][type])
-      _const_vector_fe_lower[dim][type] = _vector_fe_lower[dim][type] =
-          FEVectorBase::build(dim, type).release();
+      _vector_fe_lower[dim][type] = FEVectorBase::build(dim, type).release();
 
     _vector_fe_lower[dim][type]->get_dual_phi();
     _vector_fe_lower[dim][type]->get_dual_dphi();
@@ -465,7 +423,7 @@ void
 Assembly::buildVectorFE(FEType type) const
 {
   if (!_vector_fe_shape_data[type])
-    _vector_fe_shape_data[type] = new VectorFEShapeData;
+    _vector_fe_shape_data[type] = std::make_unique<VectorFEShapeData>();
 
   // Note that NEDELEC_ONE elements can only be built for dimension > 2
   unsigned int min_dim;
@@ -479,8 +437,7 @@ Assembly::buildVectorFE(FEType type) const
   for (unsigned int dim = min_dim; dim <= _mesh_dimension; dim++)
   {
     if (!_vector_fe[dim][type])
-      _const_vector_fe[dim][type] = _vector_fe[dim][type] =
-          FEGenericBase<VectorValue<Real>>::build(dim, type).release();
+      _vector_fe[dim][type] = FEGenericBase<VectorValue<Real>>::build(dim, type).release();
 
     _vector_fe[dim][type]->get_phi();
     _vector_fe[dim][type]->get_dphi();
@@ -497,7 +454,7 @@ void
 Assembly::buildVectorFaceFE(FEType type) const
 {
   if (!_vector_fe_shape_data_face[type])
-    _vector_fe_shape_data_face[type] = new VectorFEShapeData;
+    _vector_fe_shape_data_face[type] = std::make_unique<VectorFEShapeData>();
 
   // Note that NEDELEC_ONE elements can only be built for dimension > 2
   unsigned int min_dim;
@@ -511,8 +468,7 @@ Assembly::buildVectorFaceFE(FEType type) const
   for (unsigned int dim = min_dim; dim <= _mesh_dimension; dim++)
   {
     if (!_vector_fe_face[dim][type])
-      _const_vector_fe_face[dim][type] = _vector_fe_face[dim][type] =
-          FEGenericBase<VectorValue<Real>>::build(dim, type).release();
+      _vector_fe_face[dim][type] = FEGenericBase<VectorValue<Real>>::build(dim, type).release();
 
     _vector_fe_face[dim][type]->get_phi();
     _vector_fe_face[dim][type]->get_dphi();
@@ -525,7 +481,7 @@ void
 Assembly::buildVectorNeighborFE(FEType type) const
 {
   if (!_vector_fe_shape_data_neighbor[type])
-    _vector_fe_shape_data_neighbor[type] = new VectorFEShapeData;
+    _vector_fe_shape_data_neighbor[type] = std::make_unique<VectorFEShapeData>();
 
   // Note that NEDELEC_ONE elements can only be built for dimension > 2
   unsigned int min_dim;
@@ -539,8 +495,7 @@ Assembly::buildVectorNeighborFE(FEType type) const
   for (unsigned int dim = min_dim; dim <= _mesh_dimension; dim++)
   {
     if (!_vector_fe_neighbor[dim][type])
-      _const_vector_fe_neighbor[dim][type] = _vector_fe_neighbor[dim][type] =
-          FEGenericBase<VectorValue<Real>>::build(dim, type).release();
+      _vector_fe_neighbor[dim][type] = FEGenericBase<VectorValue<Real>>::build(dim, type).release();
 
     _vector_fe_neighbor[dim][type]->get_phi();
     _vector_fe_neighbor[dim][type]->get_dphi();
@@ -553,7 +508,7 @@ void
 Assembly::buildVectorFaceNeighborFE(FEType type) const
 {
   if (!_vector_fe_shape_data_face_neighbor[type])
-    _vector_fe_shape_data_face_neighbor[type] = new VectorFEShapeData;
+    _vector_fe_shape_data_face_neighbor[type] = std::make_unique<VectorFEShapeData>();
 
   // Note that NEDELEC_ONE elements can only be built for dimension > 2
   unsigned int min_dim;
@@ -567,7 +522,7 @@ Assembly::buildVectorFaceNeighborFE(FEType type) const
   for (unsigned int dim = min_dim; dim <= _mesh_dimension; dim++)
   {
     if (!_vector_fe_face_neighbor[dim][type])
-      _const_vector_fe_face_neighbor[dim][type] = _vector_fe_face_neighbor[dim][type] =
+      _vector_fe_face_neighbor[dim][type] =
           FEGenericBase<VectorValue<Real>>::build(dim, type).release();
 
     _vector_fe_face_neighbor[dim][type]->get_phi();
@@ -652,7 +607,7 @@ Assembly::createQRules(QuadratureType type,
 
   delete _qrule_msm;
   _custom_mortar_qrule = false;
-  _const_qrule_msm = _qrule_msm = QBase::build(type, _mesh_dimension - 1, face_order).release();
+  _qrule_msm = QBase::build(type, _mesh_dimension - 1, face_order).release();
   _qrule_msm->allow_rules_with_negative_weights = allow_negative_qweights;
   _fe_msm->attach_quadrature_rule(_qrule_msm);
 }
@@ -660,7 +615,7 @@ Assembly::createQRules(QuadratureType type,
 void
 Assembly::setVolumeQRule(QBase * qrule, unsigned int dim)
 {
-  _const_current_qrule = _current_qrule = qrule;
+  _current_qrule = qrule;
 
   if (qrule) // Don't set a NULL qrule
   {
@@ -674,7 +629,7 @@ Assembly::setVolumeQRule(QBase * qrule, unsigned int dim)
 void
 Assembly::setFaceQRule(QBase * qrule, unsigned int dim)
 {
-  _const_current_qrule_face = _current_qrule_face = qrule;
+  _current_qrule_face = qrule;
 
   for (auto & it : _fe_face[dim])
     it.second->attach_quadrature_rule(qrule);
@@ -688,7 +643,7 @@ Assembly::setLowerQRule(QBase * qrule, unsigned int dim)
   // The lower-dimensional quadrature rule matches the face quadrature rule
   setFaceQRule(qrule, dim);
 
-  _const_current_qrule_lower = _current_qrule_lower = qrule;
+  _current_qrule_lower = qrule;
 
   for (auto & it : _fe_lower[dim])
     it.second->attach_quadrature_rule(qrule);
@@ -699,7 +654,7 @@ Assembly::setLowerQRule(QBase * qrule, unsigned int dim)
 void
 Assembly::setNeighborQRule(QBase * qrule, unsigned int dim)
 {
-  _const_current_qrule_neighbor = _current_qrule_neighbor = qrule;
+  _current_qrule_neighbor = qrule;
 
   for (auto & it : _fe_face_neighbor[dim])
     it.second->attach_quadrature_rule(qrule);
@@ -720,7 +675,7 @@ Assembly::setMortarQRule(Order order)
       const QuadratureType type = _qrule_msm->type();
       delete _qrule_msm;
 
-      _const_qrule_msm = _qrule_msm = QBase::build(type, dim, order).release();
+      _qrule_msm = QBase::build(type, dim, order).release();
       _fe_msm->attach_quadrature_rule(_qrule_msm);
     }
     else
@@ -739,43 +694,42 @@ Assembly::reinitFE(const Elem * elem)
 
   for (const auto & it : _fe[dim])
   {
-    FEBase * fe = it.second;
+    FEBase & fe = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_fe[fe_type] = fe;
+    _current_fe[fe_type] = &fe;
 
-    FEShapeData * fesd = _fe_shape_data[fe_type];
+    FEShapeData & fesd = *_fe_shape_data[fe_type];
 
-    fe->reinit(elem);
+    fe.reinit(elem);
 
-    fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe.get_d2phi()));
   }
   for (const auto & it : _vector_fe[dim])
   {
-    FEVectorBase * fe = it.second;
+    FEVectorBase & fe = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe[fe_type] = fe;
+    _current_vector_fe[fe_type] = &fe;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data[fe_type];
 
-    fe->reinit(elem);
+    fe.reinit(elem);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(
-          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(
+          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe.get_curl_phi()));
   }
 
   // During that last loop the helper objects will have been reinitialized as well
@@ -804,9 +758,9 @@ Assembly::reinitFE(const Elem * elem)
 
     for (const auto & it : _fe[dim])
     {
-      FEBase * fe = it.second;
+      FEBase & fe = *it.second;
       auto fe_type = it.first;
-      auto num_shapes = fe->n_shape_functions();
+      auto num_shapes = fe.n_shape_functions();
       auto & grad_phi = _ad_grad_phi_data[fe_type];
 
       grad_phi.resize(num_shapes);
@@ -814,7 +768,7 @@ Assembly::reinitFE(const Elem * elem)
         grad_phi[i].resize(n_qp);
 
       if (_displaced)
-        computeGradPhiAD(elem, n_qp, grad_phi, fe);
+        computeGradPhiAD(elem, n_qp, grad_phi, &fe);
       else
       {
         const auto & regular_grad_phi = _fe_shape_data[fe_type]->_grad_phi;
@@ -825,9 +779,9 @@ Assembly::reinitFE(const Elem * elem)
     }
     for (const auto & it : _vector_fe[dim])
     {
-      FEVectorBase * fe = it.second;
+      FEVectorBase & fe = *it.second;
       auto fe_type = it.first;
-      auto num_shapes = fe->n_shape_functions();
+      auto num_shapes = fe.n_shape_functions();
       auto & grad_phi = _ad_vector_grad_phi_data[fe_type];
 
       grad_phi.resize(num_shapes);
@@ -835,7 +789,7 @@ Assembly::reinitFE(const Elem * elem)
         grad_phi[i].resize(n_qp);
 
       if (_displaced)
-        computeGradPhiAD(elem, n_qp, grad_phi, fe);
+        computeGradPhiAD(elem, n_qp, grad_phi, &fe);
       else
       {
         const auto & regular_grad_phi = _vector_fe_shape_data[fe_type]->_grad_phi;
@@ -1046,14 +1000,8 @@ Assembly::computeSinglePointMapAD(const Elem * elem,
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
             if (node.n_dofs(sys_num, disp_num))
-              Moose::derivInsert(elem_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                                 node.dof_number(sys_num, disp_num, 0)
-#else
-                                 disp_num * _sys.getMaxVarNDofsPerElem() + i
-#endif
-                                     ,
-                                 1.);
+              Moose::derivInsert(
+                  elem_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
 
         _ad_dxyzdxi_map[p].add_scaled(elem_point, dphidxi_map[i][p]);
 
@@ -1101,14 +1049,8 @@ Assembly::computeSinglePointMapAD(const Elem * elem,
         libMesh::VectorValue<DualReal> elem_point = node;
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
-            Moose::derivInsert(elem_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                               node.dof_number(sys_num, disp_num, 0)
-#else
-                               disp_num * _sys.getMaxVarNDofsPerElem() + i
-#endif
-                                   ,
-                               1.);
+            Moose::derivInsert(
+                elem_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
 
         _ad_dxyzdxi_map[p].add_scaled(elem_point, dphidxi_map[i][p]);
         _ad_dxyzdeta_map[p].add_scaled(elem_point, dphideta_map[i][p]);
@@ -1183,14 +1125,8 @@ Assembly::computeSinglePointMapAD(const Elem * elem,
         libMesh::VectorValue<DualReal> elem_point = node;
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
-            Moose::derivInsert(elem_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                               node.dof_number(sys_num, disp_num, 0)
-#else
-                               disp_num * _sys.getMaxVarNDofsPerElem() + i
-#endif
-                                   ,
-                               1.);
+            Moose::derivInsert(
+                elem_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
 
         _ad_dxyzdxi_map[p].add_scaled(elem_point, dphidxi_map[i][p]);
         _ad_dxyzdeta_map[p].add_scaled(elem_point, dphideta_map[i][p]);
@@ -1255,40 +1191,40 @@ Assembly::reinitFEFace(const Elem * elem, unsigned int side)
 
   for (const auto & it : _fe_face[dim])
   {
-    FEBase * fe_face = it.second;
+    FEBase & fe_face = *it.second;
     const FEType & fe_type = it.first;
-    FEShapeData * fesd = _fe_shape_data_face[fe_type];
-    fe_face->reinit(elem, side);
-    _current_fe_face[fe_type] = fe_face;
+    FEShapeData & fesd = *_fe_shape_data_face[fe_type];
+    fe_face.reinit(elem, side);
+    _current_fe_face[fe_type] = &fe_face;
 
-    fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face.get_d2phi()));
   }
   for (const auto & it : _vector_fe_face[dim])
   {
-    FEVectorBase * fe_face = it.second;
+    FEVectorBase & fe_face = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe_face[fe_type] = fe_face;
+    _current_vector_fe_face[fe_type] = &fe_face;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data_face[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data_face[fe_type];
 
-    fe_face->reinit(elem, side);
+    fe_face.reinit(elem, side);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face->get_dphi()));
+    fesd._phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_face->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_face.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(
-          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(
+          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face.get_curl_phi()));
   }
 
   // During that last loop the helper objects will have been reinitialized as well
@@ -1365,20 +1301,11 @@ Assembly::computeFaceMap(const Elem & elem, const unsigned int side, const std::
       {
         const Node & node = side_elem.node_ref(0);
         side_point = node;
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-        auto element_node_number = elem.local_side_node(side, 0);
-#endif
 
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
-            Moose::derivInsert(side_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                               node.dof_number(sys_num, disp_num, 0)
-#else
-                               disp_num * _sys.getMaxVarNDofsPerElem() + element_node_number
-#endif
-                                   ,
-                               1.);
+            Moose::derivInsert(
+                side_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
       }
 
       for (unsigned int p = 0; p < n_qp; p++)
@@ -1418,20 +1345,11 @@ Assembly::computeFaceMap(const Elem & elem, const unsigned int side, const std::
       {
         const Node & node = side_elem.node_ref(i);
         VectorValue<DualReal> side_point = node;
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-        auto element_node_number = elem.local_side_node(side, i);
-#endif
 
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
-            Moose::derivInsert(side_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                               node.dof_number(sys_num, disp_num, 0)
-#else
-                               disp_num * _sys.getMaxVarNDofsPerElem() + element_node_number
-#endif
-                                   ,
-                               1.);
+            Moose::derivInsert(
+                side_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
 
         for (unsigned int p = 0; p < n_qp; p++)
         {
@@ -1493,20 +1411,11 @@ Assembly::computeFaceMap(const Elem & elem, const unsigned int side, const std::
       {
         const Node & node = side_elem.node_ref(i);
         VectorValue<DualReal> side_point = node;
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-        auto element_node_number = elem.local_side_node(side, i);
-#endif
 
         if (do_derivatives)
           for (const auto & [disp_num, direction] : _disp_numbers_and_directions)
-            Moose::derivInsert(side_point(direction).derivatives(),
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-                               node.dof_number(sys_num, disp_num, 0)
-#else
-                               disp_num * _sys.getMaxVarNDofsPerElem() + element_node_number
-#endif
-                                   ,
-                               1.);
+            Moose::derivInsert(
+                side_point(direction).derivatives(), node.dof_number(sys_num, disp_num, 0), 1.);
 
         for (unsigned int p = 0; p < n_qp; p++)
         {
@@ -1575,43 +1484,42 @@ Assembly::reinitFEFaceNeighbor(const Elem * neighbor, const std::vector<Point> &
   // reinit neighbor face
   for (const auto & it : _fe_face_neighbor[neighbor_dim])
   {
-    FEBase * fe_face_neighbor = it.second;
+    FEBase & fe_face_neighbor = *it.second;
     FEType fe_type = it.first;
-    FEShapeData * fesd = _fe_shape_data_face_neighbor[fe_type];
+    FEShapeData & fesd = *_fe_shape_data_face_neighbor[fe_type];
 
-    fe_face_neighbor->reinit(neighbor, &reference_points);
+    fe_face_neighbor.reinit(neighbor, &reference_points);
 
-    _current_fe_face_neighbor[fe_type] = fe_face_neighbor;
+    _current_fe_face_neighbor[fe_type] = &fe_face_neighbor;
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<Real>> &>(fe_face_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face_neighbor.get_dphi()));
     if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor.get_d2phi()));
   }
   for (const auto & it : _vector_fe_face_neighbor[neighbor_dim])
   {
-    FEVectorBase * fe_face_neighbor = it.second;
+    FEVectorBase & fe_face_neighbor = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe_face_neighbor[fe_type] = fe_face_neighbor;
+    _current_vector_fe_face_neighbor[fe_type] = &fe_face_neighbor;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data_face_neighbor[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data_face_neighbor[fe_type];
 
-    fe_face_neighbor->reinit(neighbor, &reference_points);
+    fe_face_neighbor.reinit(neighbor, &reference_points);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(
-          fe_face_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(
+          fe_face_neighbor.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(const_cast<std::vector<std::vector<VectorValue<Real>>> &>(
-          fe_face_neighbor->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(const_cast<std::vector<std::vector<VectorValue<Real>>> &>(
+          fe_face_neighbor.get_curl_phi()));
   }
 }
 
@@ -1623,42 +1531,42 @@ Assembly::reinitFENeighbor(const Elem * neighbor, const std::vector<Point> & ref
   // reinit neighbor face
   for (const auto & it : _fe_neighbor[neighbor_dim])
   {
-    FEBase * fe_neighbor = it.second;
+    FEBase & fe_neighbor = *it.second;
     FEType fe_type = it.first;
-    FEShapeData * fesd = _fe_shape_data_neighbor[fe_type];
+    FEShapeData & fesd = *_fe_shape_data_neighbor[fe_type];
 
-    fe_neighbor->reinit(neighbor, &reference_points);
+    fe_neighbor.reinit(neighbor, &reference_points);
 
-    _current_fe_neighbor[fe_type] = fe_neighbor;
+    _current_fe_neighbor[fe_type] = &fe_neighbor;
 
-    fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<RealGradient>> &>(fe_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<RealGradient>> &>(fe_neighbor.get_dphi()));
     if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_neighbor.get_d2phi()));
   }
   for (const auto & it : _vector_fe_neighbor[neighbor_dim])
   {
-    FEVectorBase * fe_neighbor = it.second;
+    FEVectorBase & fe_neighbor = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe_neighbor[fe_type] = fe_neighbor;
+    _current_vector_fe_neighbor[fe_type] = &fe_neighbor;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data_neighbor[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data_neighbor[fe_type];
 
-    fe_neighbor->reinit(neighbor, &reference_points);
+    fe_neighbor.reinit(neighbor, &reference_points);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_neighbor.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_neighbor.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(
-          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_neighbor->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(
+          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_neighbor.get_curl_phi()));
   }
 }
 
@@ -1679,15 +1587,15 @@ Assembly::reinitNeighbor(const Elem * neighbor, const std::vector<Point> & refer
   if (_need_neighbor_elem_volume)
   {
     unsigned int dim = neighbor->dim();
-    FEBase * fe = *_holder_fe_neighbor_helper[dim];
+    FEBase & fe = **_holder_fe_neighbor_helper[dim];
     QBase * qrule = qrules(dim).vol.get();
 
-    fe->attach_quadrature_rule(qrule);
-    fe->reinit(neighbor);
+    fe.attach_quadrature_rule(qrule);
+    fe.reinit(neighbor);
 
-    const std::vector<Real> & JxW = fe->get_JxW();
+    const std::vector<Real> & JxW = fe.get_JxW();
     MooseArray<Point> q_points;
-    q_points.shallowCopy(const_cast<std::vector<Point> &>(fe->get_xyz()));
+    q_points.shallowCopy(const_cast<std::vector<Point> &>(fe.get_xyz()));
 
     setCoordinateTransformation(qrule, q_points, _coord_neighbor, _current_neighbor_subdomain_id);
 
@@ -2017,42 +1925,42 @@ Assembly::reinitElemFaceRef(const Elem * elem,
   // reinit face
   for (const auto & it : _fe_face[elem_dim])
   {
-    FEBase * fe_face = it.second;
+    FEBase & fe_face = *it.second;
     FEType fe_type = it.first;
-    FEShapeData * fesd = _fe_shape_data_face[fe_type];
+    FEShapeData & fesd = *_fe_shape_data_face[fe_type];
 
-    fe_face->reinit(elem, elem_side, tolerance, pts, weights);
+    fe_face.reinit(elem, elem_side, tolerance, pts, weights);
 
-    _current_fe_face[fe_type] = fe_face;
+    _current_fe_face[fe_type] = &fe_face;
 
-    fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face.get_dphi()));
     if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face.get_d2phi()));
   }
   for (const auto & it : _vector_fe_face[elem_dim])
   {
-    FEVectorBase * fe_face = it.second;
+    FEVectorBase & fe_face = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe_face[fe_type] = fe_face;
+    _current_vector_fe_face[fe_type] = &fe_face;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data_face[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data_face[fe_type];
 
-    fe_face->reinit(elem, elem_side, tolerance, pts, weights);
+    fe_face.reinit(elem, elem_side, tolerance, pts, weights);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face->get_dphi()));
+    fesd._phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_face->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(fe_face.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(
-          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(
+          const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face.get_curl_phi()));
   }
   // During that last loop the helper objects will have been reinitialized
   _current_q_points_face.shallowCopy(
@@ -2110,9 +2018,9 @@ Assembly::computeADFace(const Elem & elem, const unsigned int side)
 
     for (const auto & it : _fe_face[dim])
     {
-      FEBase * fe = it.second;
+      FEBase & fe = *it.second;
       auto fe_type = it.first;
-      auto num_shapes = fe->n_shape_functions();
+      auto num_shapes = fe.n_shape_functions();
       auto & grad_phi = _ad_grad_phi_data_face[fe_type];
 
       grad_phi.resize(num_shapes);
@@ -2122,7 +2030,7 @@ Assembly::computeADFace(const Elem & elem, const unsigned int side)
       const auto & regular_grad_phi = _fe_shape_data_face[fe_type]->_grad_phi;
 
       if (_displaced)
-        computeGradPhiAD(&elem, n_qp, grad_phi, fe);
+        computeGradPhiAD(&elem, n_qp, grad_phi, &fe);
       else
         for (unsigned qp = 0; qp < n_qp; ++qp)
           for (decltype(num_shapes) i = 0; i < num_shapes; ++i)
@@ -2130,9 +2038,9 @@ Assembly::computeADFace(const Elem & elem, const unsigned int side)
     }
     for (const auto & it : _vector_fe_face[dim])
     {
-      FEVectorBase * fe = it.second;
+      FEVectorBase & fe = *it.second;
       auto fe_type = it.first;
-      auto num_shapes = fe->n_shape_functions();
+      auto num_shapes = fe.n_shape_functions();
       auto & grad_phi = _ad_vector_grad_phi_data_face[fe_type];
 
       grad_phi.resize(num_shapes);
@@ -2142,7 +2050,7 @@ Assembly::computeADFace(const Elem & elem, const unsigned int side)
       const auto & regular_grad_phi = _vector_fe_shape_data_face[fe_type]->_grad_phi;
 
       if (_displaced)
-        computeGradPhiAD(&elem, n_qp, grad_phi, fe);
+        computeGradPhiAD(&elem, n_qp, grad_phi, &fe);
       else
         for (unsigned qp = 0; qp < n_qp; ++qp)
           for (decltype(num_shapes) i = 0; i < num_shapes; ++i)
@@ -2175,43 +2083,42 @@ Assembly::reinitNeighborFaceRef(const Elem * neighbor,
   // reinit neighbor face
   for (const auto & it : _fe_face_neighbor[neighbor_dim])
   {
-    FEBase * fe_face_neighbor = it.second;
+    FEBase & fe_face_neighbor = *it.second;
     FEType fe_type = it.first;
-    FEShapeData * fesd = _fe_shape_data_face_neighbor[fe_type];
+    FEShapeData & fesd = *_fe_shape_data_face_neighbor[fe_type];
 
-    fe_face_neighbor->reinit(neighbor, neighbor_side, tolerance, pts, weights);
+    fe_face_neighbor.reinit(neighbor, neighbor_side, tolerance, pts, weights);
 
-    _current_fe_face_neighbor[fe_type] = fe_face_neighbor;
+    _current_fe_face_neighbor[fe_type] = &fe_face_neighbor;
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<Real>> &>(fe_face_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_face_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<RealGradient>> &>(fe_face_neighbor.get_dphi()));
     if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
-      fesd->_second_phi.shallowCopy(
-          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(
+          const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor.get_d2phi()));
   }
   for (const auto & it : _vector_fe_face_neighbor[neighbor_dim])
   {
-    FEVectorBase * fe_face_neighbor = it.second;
+    FEVectorBase & fe_face_neighbor = *it.second;
     const FEType & fe_type = it.first;
 
-    _current_vector_fe_face_neighbor[fe_type] = fe_face_neighbor;
+    _current_vector_fe_face_neighbor[fe_type] = &fe_face_neighbor;
 
-    VectorFEShapeData * fesd = _vector_fe_shape_data_face_neighbor[fe_type];
+    VectorFEShapeData & fesd = *_vector_fe_shape_data_face_neighbor[fe_type];
 
-    fe_face_neighbor->reinit(neighbor, neighbor_side, tolerance, pts, weights);
+    fe_face_neighbor.reinit(neighbor, neighbor_side, tolerance, pts, weights);
 
-    fesd->_phi.shallowCopy(
-        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face_neighbor->get_phi()));
-    fesd->_grad_phi.shallowCopy(
-        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor->get_dphi()));
+    fesd._phi.shallowCopy(
+        const_cast<std::vector<std::vector<VectorValue<Real>>> &>(fe_face_neighbor.get_phi()));
+    fesd._grad_phi.shallowCopy(
+        const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_face_neighbor.get_dphi()));
     if (_need_second_derivative.find(fe_type) != _need_second_derivative.end())
-      fesd->_second_phi.shallowCopy(const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(
-          fe_face_neighbor->get_d2phi()));
+      fesd._second_phi.shallowCopy(const_cast<std::vector<std::vector<TypeNTensor<3, Real>>> &>(
+          fe_face_neighbor.get_d2phi()));
     if (_need_curl.find(fe_type) != _need_curl.end())
-      fesd->_curl_phi.shallowCopy(const_cast<std::vector<std::vector<VectorValue<Real>>> &>(
-          fe_face_neighbor->get_curl_phi()));
+      fesd._curl_phi.shallowCopy(const_cast<std::vector<std::vector<VectorValue<Real>>> &>(
+          fe_face_neighbor.get_curl_phi()));
   }
   // During that last loop the helper objects will have been reinitialized as well
   // We need to dig out the q_points from it
@@ -2232,10 +2139,10 @@ Assembly::reinitDual(const Elem * elem,
 
   for (const auto & it : _fe_lower[elem_dim])
   {
-    FEBase * const fe_lower = it.second;
+    FEBase & fe_lower = *it.second;
     // We use customized quadrature rule for integration along the mortar segment elements
-    fe_lower->set_calculate_default_dual_coeff(false);
-    fe_lower->reinit_dual_shape_coeffs(elem, pts, JxW);
+    fe_lower.set_calculate_default_dual_coeff(false);
+    fe_lower.reinit_dual_shape_coeffs(elem, pts, JxW);
   }
 }
 
@@ -2268,31 +2175,30 @@ Assembly::reinitLowerDElem(const Elem * elem,
 
   for (const auto & it : _fe_lower[elem_dim])
   {
-    FEBase * fe_lower = it.second;
+    FEBase & fe_lower = *it.second;
     FEType fe_type = it.first;
 
-    fe_lower->reinit(elem);
+    fe_lower.reinit(elem);
 
-    if (FEShapeData * fesd = _fe_shape_data_lower[fe_type])
+    if (FEShapeData * fesd = _fe_shape_data_lower[fe_type].get())
     {
-      fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_lower->get_phi()));
+      fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_lower.get_phi()));
       fesd->_grad_phi.shallowCopy(
-          const_cast<std::vector<std::vector<RealGradient>> &>(fe_lower->get_dphi()));
+          const_cast<std::vector<std::vector<RealGradient>> &>(fe_lower.get_dphi()));
       if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
         fesd->_second_phi.shallowCopy(
-            const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_lower->get_d2phi()));
+            const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_lower.get_d2phi()));
     }
 
     // Dual shape functions need to be computed after primal basis being initialized
-    if (FEShapeData * fesd = _fe_shape_data_dual_lower[fe_type])
+    if (FEShapeData * fesd = _fe_shape_data_dual_lower[fe_type].get())
     {
-      fesd->_phi.shallowCopy(
-          const_cast<std::vector<std::vector<Real>> &>(fe_lower->get_dual_phi()));
+      fesd->_phi.shallowCopy(const_cast<std::vector<std::vector<Real>> &>(fe_lower.get_dual_phi()));
       fesd->_grad_phi.shallowCopy(
-          const_cast<std::vector<std::vector<RealGradient>> &>(fe_lower->get_dual_dphi()));
+          const_cast<std::vector<std::vector<RealGradient>> &>(fe_lower.get_dual_dphi()));
       if (_need_second_derivative_neighbor.find(fe_type) != _need_second_derivative_neighbor.end())
         fesd->_second_phi.shallowCopy(
-            const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_lower->get_dual_d2phi()));
+            const_cast<std::vector<std::vector<TensorValue<Real>>> &>(fe_lower.get_dual_d2phi()));
     }
   }
 
@@ -2316,9 +2222,9 @@ Assembly::reinitLowerDElem(const Elem * elem,
   else
   {
     // During that last loop the helper objects will have been reinitialized as well
-    auto * helper_fe = *_holder_fe_lower_helper[elem_dim];
-    const auto & physical_q_points = helper_fe->get_xyz();
-    const auto & JxW = helper_fe->get_JxW();
+    FEBase & helper_fe = **_holder_fe_lower_helper[elem_dim];
+    const auto & physical_q_points = helper_fe.get_xyz();
+    const auto & JxW = helper_fe.get_JxW();
     MooseArray<Real> coord;
     setCoordinateTransformation(
         _current_qrule_lower, physical_q_points, coord, elem->subdomain_id());
@@ -3373,11 +3279,7 @@ Assembly::cacheResidual(dof_id_type dof, Real value, const std::set<TagID> & tag
 void
 Assembly::processResidual(Real value, const dof_id_type dof, const std::set<TagID> & tags)
 {
-  const Real scalar =
-#ifdef MOOSE_GLOBAL_AD_INDEXING
-      _scaling_vector ? (*_scaling_vector)(dof) :
-#endif
-                      1.;
+  const Real scalar = _scaling_vector ? (*_scaling_vector)(dof) : 1.;
   value *= scalar;
 
   for (const auto tag_id : tags)
@@ -3395,9 +3297,6 @@ Assembly::processResidualAndJacobian(const ADReal & residual,
                                      const std::set<TagID> & vector_tags,
                                      const std::set<TagID> & matrix_tags)
 {
-  mooseAssert(!(_computing_jacobian && _computing_residual_and_jacobian),
-              "These should never be true at the same time");
-
   if (computingResidual())
     processResidual(MetaPhysicL::raw_value(residual), row_index, vector_tags);
 
@@ -4563,13 +4462,11 @@ Assembly::modifyFaceWeightsDueToXFEM(const Elem * elem, unsigned int side)
   }
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 Assembly::hasScalingVector()
 {
   _scaling_vector = &_sys.getVector("scaling_factors");
 }
-#endif
 
 void
 Assembly::modifyArbitraryWeights(const std::vector<Real> & weights)
@@ -4581,7 +4478,6 @@ Assembly::modifyArbitraryWeights(const std::vector<Real> & weights)
     _current_JxW[i] = weights[i];
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 Assembly::processUnconstrainedResidualsAndJacobian(const std::vector<ADReal> & residuals,
                                                    const std::vector<dof_id_type> & row_indices,
@@ -4612,7 +4508,6 @@ Assembly::processUnconstrainedResidualsAndJacobian(const std::vector<ADReal> & r
             row_index, column_indices[j], raw_derivatives[j] * scaling_factor, matrix_tags);
     }
 }
-#endif
 
 template <>
 const typename OutputTools<VectorValue<Real>>::VariablePhiValue &
@@ -4782,7 +4677,6 @@ Assembly::feCurlPhiFaceNeighbor<VectorValue<Real>>(FEType type) const
   return _vector_fe_shape_data_face_neighbor[type]->_curl_phi;
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 Assembly::processResidualsAndJacobian(const std::vector<ADReal> & residuals,
                                       const std::vector<dof_id_type> & input_row_indices,
@@ -4840,7 +4734,6 @@ Assembly::processResidualsAndJacobian(const std::vector<ADReal> & residuals,
     for (const auto j : index_range(column_indices))
       cacheJacobian(row_indices[i], column_indices[j], element_matrix(i, j), matrix_tags);
 }
-#endif
 
 template void coordTransformFactor<Point, Real>(const SubProblem & s,
                                                 SubdomainID sub_id,

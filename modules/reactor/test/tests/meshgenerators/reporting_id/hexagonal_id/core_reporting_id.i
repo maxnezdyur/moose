@@ -20,7 +20,7 @@
     polygon_size = 0.5
   []
   [assembly1]
-    type = HexIDPatternedMeshGenerator
+    type = PatternedHexMeshGenerator
     inputs = 'pin1 pin2'
     pattern_boundary = hexagon
     pattern = '  1 0 1;
@@ -35,7 +35,7 @@
     assign_type = 'cell'
   []
   [assembly2]
-    type = HexIDPatternedMeshGenerator
+    type = PatternedHexMeshGenerator
     inputs = 'pin1 pin2'
     pattern_boundary = hexagon
     pattern = '  0 0 0;
@@ -50,7 +50,7 @@
     assign_type = 'cell'
   []
   [core]
-    type = HexIDPatternedMeshGenerator
+    type = PatternedHexMeshGenerator
     inputs = 'assembly1 assembly2'
     pattern_boundary = none
     pattern = '1 1;
@@ -70,31 +70,11 @@
   solve = false
 []
 
-[AuxVariables]
-  [pin_id]
-    family = MONOMIAL
-    order = CONSTANT
-  []
-  [assembly_id]
-    family = MONOMIAL
-    order = CONSTANT
-  []
-[]
-
-[AuxKernels]
-  [set_pin_id]
-    type = ExtraElementIDAux
-    variable = pin_id
-    extra_id_name = pin_id
-  []
-  [set_assembly_id]
-    type = ExtraElementIDAux
-    variable = assembly_id
-    extra_id_name = assembly_id
-  []
-[]
-
 [Outputs]
-  exodus = true
-  execute_on = timestep_end
+  [out]
+    type = Exodus
+    execute_on = timestep_end
+    output_extra_element_ids = true
+    extra_element_ids_to_output = 'pin_id assembly_id'
+  []
 []

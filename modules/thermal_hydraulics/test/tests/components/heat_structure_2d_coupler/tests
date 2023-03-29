@@ -10,7 +10,6 @@
       Postprocessors/E_tot/axis_dir='1 0 0'
       Postprocessors/E_tot/axis_point='0 0 0'"
     exodiff = 'cylindrical.e'
-    ad_indexing_type = 'global'
     mesh_mode = 'replicated'
     requirement = 'The system shall be able to couple two 2D cylindrical heat structures.'
   []
@@ -30,7 +29,6 @@
       Postprocessors/E_tot/plate_depth=1.0
       Outputs/file_base=plate"
     exodiff = 'plate.e'
-    ad_indexing_type = 'global'
     mesh_mode = 'replicated'
     requirement = 'The system shall be able to couple two 2D plate heat structures.'
   []
@@ -79,7 +77,7 @@
         Materials/mat/prop_names='density specific_heat thermal_conductivity'
         Materials/mat/prop_values='1 1 1'
         Components/hs_coupling_1_2/primary_heat_structure=hs4"
-      expect_err = "The type of the heat structure 'hs4' is not 'HeatStructurePlate' or inherited from 'HeatStructureCylindricalBase'"
+      expect_err = "The component 'hs4' is not of type 'HeatStructureBase'"
 
       detail = 'the types of either coupled heat structure is invalid.'
     []

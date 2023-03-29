@@ -20,7 +20,7 @@
     polygon_size = 0.5
   []
   [assembly]
-    type = HexIDPatternedMeshGenerator
+    type = PatternedHexMeshGenerator
     inputs = 'pin1 pin2'
     pattern_boundary = hexagon
     pattern = '  1 0 1;
@@ -44,22 +44,11 @@
   solve = false
 []
 
-[AuxVariables]
-  [pin_id]
-    family = MONOMIAL
-    order = CONSTANT
-  []
-[]
-
-[AuxKernels]
-  [set_pin_id]
-    type = ExtraElementIDAux
-    variable = pin_id
-    extra_id_name = pin_id
-  []
-[]
-
 [Outputs]
-  exodus = true
-  execute_on = timestep_end
+  [out]
+    type = Exodus
+    execute_on = timestep_end
+    output_extra_element_ids = true
+    extra_element_ids_to_output = 'pin_id'
+  []
 []

@@ -16,6 +16,11 @@
 #include "InputParameters.h"
 #include "MooseObject.h"
 #include "SystemBase.h"
+#include "AuxiliarySystem.h"
+
+#include "AuxKernel.h"
+#include "ElementUserObject.h"
+#include "NodalUserObject.h"
 
 Coupleable::Coupleable(const MooseObject * moose_object, bool nodal, bool is_fv)
   : _c_parameters(moose_object->parameters()),
@@ -49,9 +54,11 @@ Coupleable::Coupleable(const MooseObject * moose_object, bool nodal, bool is_fv)
                              : false),
     _coupleable_max_qps(Moose::constMaxQpsPerElem),
     _is_fv(is_fv),
-    _obj(moose_object)
+    _obj(moose_object),
+    _writable_coupled_variables(libMesh::n_threads())
 {
   SubProblem & problem = *_c_parameters.getCheckedPointerParam<SubProblem *>("_subproblem");
+  _obj->getMooseApp().registerInterfaceObject(*this);
 
   unsigned int optional_var_index_counter = 0;
 
@@ -81,7 +88,13 @@ Coupleable::Coupleable(const MooseObject * moose_object, bool nodal, bool is_fv)
           else if (auto * tmp_var = dynamic_cast<ArrayMooseVariable *>(moose_var))
             _coupled_array_moose_vars.push_back(tmp_var);
           else if (auto * tmp_var = dynamic_cast<MooseVariableFV<Real> *>(moose_var))
+          {
+            // We are using a finite volume variable through add*CoupledVar as opposed to getFunctor
+            // so we can be reasonably confident that the variable values will be obtained using
+            // traditional pre-evaluation and quadrature point indexing
+            tmp_var->requireQpComputations();
             _coupled_standard_fv_moose_vars.push_back(tmp_var);
+          }
           else
             _obj->paramError(name, "provided c++ type for variable parameter is not supported");
         }
@@ -107,8 +120,10 @@ Coupleable::Coupleable(const MooseObject * moose_object, bool nodal, bool is_fv)
 }
 
 bool
-Coupleable::isCoupled(const std::string & var_name, unsigned int i) const
+Coupleable::isCoupled(const std::string & var_name_in, unsigned int i) const
 {
+  const auto var_name = _c_parameters.checkForRename(var_name_in);
+
   auto it = _coupled_vars.find(var_name);
   if (it != _coupled_vars.end())
     return (i < it->second.size());
@@ -134,8 +149,10 @@ Coupleable::isCoupledConstant(const std::string & var_name) const
 }
 
 unsigned int
-Coupleable::coupledComponents(const std::string & var_name) const
+Coupleable::coupledComponents(const std::string & var_name_in) const
 {
+  const auto var_name = _c_parameters.checkForRename(var_name_in);
+
   if (isCoupled(var_name))
   {
     mooseAssert(_coupled_vars.find(var_name) != _coupled_vars.end(),
@@ -183,8 +200,11 @@ Coupleable::checkFuncType(const std::string var_name, VarType t, FuncAge age) co
 }
 
 bool
-Coupleable::checkVar(const std::string & var_name, unsigned int comp, unsigned int comp_bound) const
+Coupleable::checkVar(const std::string & var_name_in,
+                     unsigned int comp,
+                     unsigned int comp_bound) const
 {
+  const auto var_name = _c_parameters.checkForRename(var_name_in);
   auto it = _c_coupled_scalar_vars.find(var_name);
   if (it != _c_coupled_scalar_vars.end())
   {
@@ -244,6 +264,12 @@ Coupleable::getFEVar(const std::string & var_name, unsigned int comp) const
   mooseDeprecated("Coupleable::getFEVar is deprecated. Please use Coupleable::getFieldVar instead. "
                   "Note that this method could potentially return a finite volume variable");
   return getFieldVar(var_name, comp);
+}
+
+MooseVariableFieldBase *
+Coupleable::getFieldVar(const std::string & var_name, unsigned int comp)
+{
+  return getVarHelper<MooseVariableFieldBase>(var_name, comp);
 }
 
 const MooseVariableFieldBase *
@@ -531,6 +557,20 @@ Coupleable::vectorTagValueHelper(const std::string & var_names,
   return vectorTagValueHelper<T>(var_names, tag, index);
 }
 
+template <>
+const GenericVariableValue<false> &
+Coupleable::coupledGenericDofValue<false>(const std::string & var_name, unsigned int comp) const
+{
+  return coupledDofValues(var_name, comp);
+}
+
+template <>
+const GenericVariableValue<true> &
+Coupleable::coupledGenericDofValue<true>(const std::string & var_name, unsigned int comp) const
+{
+  return adCoupledDofValues(var_name, comp);
+}
+
 const VariableValue &
 Coupleable::coupledValueLower(const std::string & var_name, const unsigned int comp) const
 {
@@ -806,10 +846,113 @@ Coupleable::coupledArrayValues(const std::string & var_name) const
   return coupledVectorHelper<const ArrayVariableValue *>(var_name, func);
 }
 
+MooseVariable &
+Coupleable::writableVariable(const std::string & var_name, unsigned int comp)
+{
+  auto * var = dynamic_cast<MooseVariable *>(getVar(var_name, comp));
+
+  const auto * aux = dynamic_cast<const AuxKernel *>(this);
+  const auto * euo = dynamic_cast<const ElementUserObject *>(this);
+  const auto * nuo = dynamic_cast<const NodalUserObject *>(this);
+
+  if (!aux && !euo && !nuo)
+    mooseError("writableVariable() can only be called from AuxKernels, ElementUserObjects, or "
+               "NodalUserObjects. '",
+               _obj->name(),
+               "' is neither of those.");
+
+  if (aux && !aux->isNodal() && var->isNodal())
+    mooseError("The elemental AuxKernel '",
+               _obj->name(),
+               "' cannot obtain a writable reference to the nodal variable '",
+               var->name(),
+               "'.");
+  if (euo && var->isNodal())
+    mooseError("The ElementUserObject '",
+               _obj->name(),
+               "' cannot obtain a writable reference to the nodal variable '",
+               var->name(),
+               "'.");
+
+  // make sure only one object can access a variable
+  checkWritableVar(var);
+
+  return *var;
+}
+
 VariableValue &
 Coupleable::writableCoupledValue(const std::string & var_name, unsigned int comp)
 {
+  mooseDeprecated("Coupleable::writableCoupledValue is deprecated, please use "
+                  "Coupleable::writableVariable instead. ");
+
+  // check if the variable exists
+  auto * const var = getVar(var_name, comp);
+  if (!var)
+    mooseError(
+        "Unable to create a writable reference for '", var_name, "', is it a constant expression?");
+
+  // is the requested variable an AuxiliaryVariable?
+  if (!_c_fe_problem.getAuxiliarySystem().hasVariable(var->name()))
+    mooseError(
+        "'", var->name(), "' must be an auxiliary variable in Coupleable::writableCoupledValue");
+
+  // check that the variable type (elemental/nodal) is compatible with the object type
+  const auto * aux = dynamic_cast<const AuxKernel *>(this);
+
+  if (!aux)
+    mooseError("writableCoupledValue() can only be called from AuxKernels, but '",
+               _obj->name(),
+               "' is not an AuxKernel.");
+
+  if (!aux->isNodal() && var->isNodal())
+    mooseError("The elemental AuxKernel '",
+               _obj->name(),
+               "' cannot obtain a writable reference to the nodal variable '",
+               var->name(),
+               "'.");
+
+  // make sure only one object can access a variable
+  checkWritableVar(var);
+
   return const_cast<VariableValue &>(coupledValue(var_name, comp));
+}
+
+void
+Coupleable::checkWritableVar(MooseVariable * var)
+{
+  // check block restrictions for compatibility
+  const auto * br = dynamic_cast<const BlockRestrictable *>(this);
+  if (!var->hasBlocks(br->blockIDs()))
+    mooseError("The variable '",
+               var->name(),
+               "' must be defined on all blocks '",
+               _obj->name(),
+               "' is defined on");
+
+  // make sure only one object can access a variable
+  for (const auto & ci : _obj->getMooseApp().getInterfaceObjects<Coupleable>())
+    if (ci != this && ci->_writable_coupled_variables[_c_tid].count(var))
+    {
+      // if both this and ci are block restrictable then we check if the block restrictions
+      // are not overlapping. If they don't we permit the call.
+      const auto * br_other = dynamic_cast<const BlockRestrictable *>(ci);
+      if (br && br_other && br->blockRestricted() && br_other->blockRestricted() &&
+          !MooseUtils::setsIntersect(br->blockIDs(), br_other->blockIDs()))
+        continue;
+
+      mooseError("'",
+                 ci->_obj->name(),
+                 "' already obtained a writable reference to '",
+                 var->name(),
+                 "'. Only one object can obtain such a reference per variable and subdomain in a "
+                 "simulation.");
+    }
+
+  // var is unique across threads, so we could forego having a separate set per thread, but we
+  // need quick access to the list of all variables that need to be inserted into the solution
+  // vector by a given thread.
+  _writable_coupled_variables[_c_tid].insert(var);
 }
 
 const VariableValue &
@@ -1791,6 +1934,23 @@ Coupleable::coupledArrayDofValues(const std::string & var_name, unsigned int com
   if (!_coupleable_neighbor)
     return (_c_is_implicit) ? var->dofValues() : var->dofValuesOld();
   return (_c_is_implicit) ? var->dofValuesNeighbor() : var->dofValuesOldNeighbor();
+}
+
+const ADVariableValue &
+Coupleable::adCoupledDofValues(const std::string & var_name, unsigned int comp) const
+{
+  const auto * var = getVarHelper<MooseVariableField<Real>>(var_name, comp);
+
+  if (!var)
+    return *getADDefaultValue(var_name);
+  checkFuncType(var_name, VarType::Ignore, FuncAge::Curr);
+
+  if (!_c_is_implicit)
+    mooseError("Not implemented");
+
+  if (!_coupleable_neighbor)
+    return var->adDofValues();
+  return var->adDofValuesNeighbor();
 }
 
 void

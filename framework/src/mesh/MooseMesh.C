@@ -147,6 +147,12 @@ MooseMesh::validParams()
                         true,
                         "True to skip uniform refinements when using a pre-split mesh.");
 
+  params.addParam<std::vector<SubdomainID>>(
+      "add_subdomain_ids",
+      "The listed subdomains will be assumed valid for the mesh. This permits setting up subdomain "
+      "restrictions for subdomains initially containing no elements, which can occur, for example, "
+      "in additive manufacturing simulations which dynamically add and remove elements.");
+
   params += MooseAppCoordTransform::validParams();
 
   // This indicates that the derived mesh type accepts a MeshGenerator, and should be set to true in
@@ -214,6 +220,10 @@ MooseMesh::MooseMesh(const InputParameters & parameters)
   }
   else if (isParamValid("block"))
     _provided_coord_blocks = getParam<std::vector<SubdomainName>>("block");
+
+  if (getParam<bool>("build_all_side_lowerd_mesh"))
+    // Do not initially allow removal of remote elements
+    allowRemoteElementRemoval(false);
 
   determineUseDistributedMesh();
 }
@@ -352,6 +362,13 @@ MooseMesh::prepare(bool)
   for (const auto & elem : getMesh().element_ptr_range())
     _mesh_subdomains.insert(elem->subdomain_id());
 
+  // add explicitly requested subdomains
+  if (isParamValid("add_subdomain_ids"))
+  {
+    const auto add_subdomain_id = getParam<std::vector<SubdomainID>>("add_subdomain_ids");
+    _mesh_subdomains.insert(add_subdomain_id.begin(), add_subdomain_id.end());
+  }
+
   // Make sure nodesets have been generated
   buildNodeListFromSideList();
 
@@ -388,6 +405,9 @@ MooseMesh::prepare(bool)
   detectOrthogonalDimRanges();
 
   update();
+
+  // Check if there is subdomain name duplication for the same subdomain ID
+  checkDuplicateSubdomainNames();
 
   _moose_mesh_prepared = true;
 }
@@ -466,16 +486,13 @@ MooseMesh::buildLowerDMesh()
       bool build_side = false;
       if (!neig)
         build_side = true;
-      else if (!neig->is_remote())
+      else
       {
-        if (mesh.is_replicated() || elem->processor_id() == comm().rank() ||
-            neig->processor_id() == comm().rank())
-        {
-          if (!neig->active())
-            build_side = true;
-          else if (neig->level() == elem->level() && elem->id() < neig->id())
-            build_side = true;
-        }
+        mooseAssert(!neig->is_remote(), "We error if the mesh is not serial");
+        if (!neig->active())
+          build_side = true;
+        else if (neig->level() == elem->level() && elem->id() < neig->id())
+          build_side = true;
       }
 
       if (build_side)
@@ -1380,64 +1397,8 @@ std::vector<BoundaryID>
 MooseMesh::getBoundaryIDs(const std::vector<BoundaryName> & boundary_name,
                           bool generate_unknown) const
 {
-  const BoundaryInfo & boundary_info = getMesh().get_boundary_info();
-  const std::map<BoundaryID, std::string> & sideset_map = boundary_info.get_sideset_name_map();
-  const std::map<BoundaryID, std::string> & nodeset_map = boundary_info.get_nodeset_name_map();
-
-  BoundaryID max_boundary_local_id = 0;
-  /* It is required to generate a new ID for a given name. It is used often in mesh modifiers such
-   * as SideSetsBetweenSubdomains. Then we need to check the current boundary ids since they are
-   * changing during "mesh modify()", and figure out the right max boundary ID. Most of mesh
-   * modifiers are running in serial, and we won't involve a global communication.
-   */
-  if (generate_unknown)
-  {
-    const std::set<BoundaryID> & local_bids = getMesh().get_boundary_info().get_boundary_ids();
-    max_boundary_local_id = local_bids.empty() ? 0 : *(local_bids.rbegin());
-    /* We should not hit this often */
-    if (!getMesh().is_serial())
-      _communicator.max(max_boundary_local_id);
-  }
-
-  BoundaryID max_boundary_id = _mesh_boundary_ids.empty() ? 0 : *(_mesh_boundary_ids.rbegin());
-
-  max_boundary_id =
-      max_boundary_id > max_boundary_local_id ? max_boundary_id : max_boundary_local_id;
-
-  std::vector<BoundaryID> ids(boundary_name.size());
-  for (unsigned int i = 0; i < boundary_name.size(); i++)
-  {
-    if (boundary_name[i] == "ANY_BOUNDARY_ID")
-    {
-      ids.assign(_mesh_boundary_ids.begin(), _mesh_boundary_ids.end());
-      if (i)
-        mooseWarning("You passed \"ANY_BOUNDARY_ID\" in addition to other boundary_names.  This "
-                     "may be a logic error.");
-      break;
-    }
-
-    BoundaryID id;
-    std::istringstream ss(boundary_name[i]);
-
-    if (!(ss >> id) || !ss.eof())
-    {
-      /**
-       * If the conversion from a name to a number fails, that means that this must be a named
-       * boundary.  We will look in the complete map for this sideset and create a new name/ID pair
-       * if requested.
-       */
-      if (generate_unknown &&
-          !MooseUtils::doesMapContainValue(sideset_map, std::string(boundary_name[i])) &&
-          !MooseUtils::doesMapContainValue(nodeset_map, std::string(boundary_name[i])))
-        id = ++max_boundary_id;
-      else
-        id = boundary_info.get_id_by_name(boundary_name[i]);
-    }
-
-    ids[i] = id;
-  }
-
-  return ids;
+  return MooseMeshUtils::getBoundaryIDs(
+      getMesh(), boundary_name, generate_unknown, _mesh_boundary_ids);
 }
 
 SubdomainID
@@ -1452,23 +1413,7 @@ MooseMesh::getSubdomainID(const SubdomainName & subdomain_name) const
 std::vector<SubdomainID>
 MooseMesh::getSubdomainIDs(const std::vector<SubdomainName> & subdomain_name) const
 {
-  std::vector<SubdomainID> ids(subdomain_name.size());
-
-  for (unsigned int i = 0; i < subdomain_name.size(); i++)
-  {
-    if (subdomain_name[i] == "ANY_BLOCK_ID")
-    {
-      ids.assign(_mesh_subdomains.begin(), _mesh_subdomains.end());
-      if (i)
-        mooseWarning("You passed \"ANY_BLOCK_ID\" in addition to other block names.  This may be a "
-                     "logic error.");
-      break;
-    }
-
-    ids[i] = MooseMeshUtils::getSubdomainID(subdomain_name[i], getMesh());
-  }
-
-  return ids;
+  return MooseMeshUtils::getSubdomainIDs(getMesh(), subdomain_name, _mesh_subdomains);
 }
 
 void
@@ -1484,9 +1429,33 @@ MooseMesh::setSubdomainName(MeshBase & mesh, SubdomainID subdomain_id, const Sub
 }
 
 const std::string &
-MooseMesh::getSubdomainName(SubdomainID subdomain_id)
+MooseMesh::getSubdomainName(SubdomainID subdomain_id) const
 {
   return getMesh().subdomain_name(subdomain_id);
+}
+
+std::vector<SubdomainName>
+MooseMesh::getSubdomainNames(const std::vector<SubdomainID> & subdomain_ids) const
+{
+  std::vector<SubdomainName> names(subdomain_ids.size());
+
+  for (unsigned int i = 0; i < subdomain_ids.size(); i++)
+  {
+    if (subdomain_ids[i] == Moose::ANY_BLOCK_ID)
+    {
+      unsigned int j = 0;
+      for (const auto & sub_id : _mesh_subdomains)
+        names[j++] = getSubdomainName(sub_id);
+      if (i)
+        mooseWarning("You passed \"ANY_BLOCK_ID\" in addition to other block ids. This may be a "
+                     "logic error.");
+      break;
+    }
+
+    names[i] = getSubdomainName(subdomain_ids[i]);
+  }
+
+  return names;
 }
 
 void
@@ -2499,10 +2468,10 @@ MooseMesh::init()
     // Re-enable partitioning so the splitter can partition!
     if (_app.isSplitMesh())
       getMesh().skip_partitioning(false);
-  }
 
-  if (getParam<bool>("build_all_side_lowerd_mesh"))
-    buildLowerDMesh();
+    if (getParam<bool>("build_all_side_lowerd_mesh"))
+      buildLowerDMesh();
+  }
 }
 
 unsigned int
@@ -3296,6 +3265,10 @@ MooseMesh::buildFiniteVolumeInfo() const
 {
   if (!_finite_volume_info_dirty)
     return;
+
+  mooseAssert(!Threads::in_threads,
+              "This routine has not been implemented for threads. Please query this routine before "
+              "a threaded region or contact a MOOSE developer to discuss.");
   _finite_volume_info_dirty = false;
 
   using Keytype = std::pair<const Elem *, unsigned short int>;
@@ -3684,4 +3657,24 @@ MooseMesh::lengthUnit() const
 {
   mooseAssert(_coord_transform, "This must be non-null");
   return _coord_transform->lengthUnit();
+}
+
+void
+MooseMesh::checkDuplicateSubdomainNames()
+{
+  std::map<SubdomainName, SubdomainID> subdomain;
+  for (const auto & sbd_id : _mesh_subdomains)
+  {
+    std::string sub_name = getSubdomainName(sbd_id);
+    if (!sub_name.empty() && subdomain.count(sub_name) > 0)
+      mooseError("The subdomain name ",
+                 sub_name,
+                 " is used for both subdomain with ID=",
+                 subdomain[sub_name],
+                 " and ID=",
+                 sbd_id,
+                 ", Please rename one of them!");
+    else
+      subdomain[sub_name] = sbd_id;
+  }
 }

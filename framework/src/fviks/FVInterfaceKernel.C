@@ -30,7 +30,7 @@ FVInterfaceKernel::validParams()
   params += TaggingInterface::validParams();
   params += NeighborCoupleableMooseVariableDependencyIntermediateInterface::validParams();
   params += TwoMaterialPropertyInterface::validParams();
-  params += FunctorInterface::validParams();
+  params += ADFunctorInterface::validParams();
 
   params.addRequiredParam<std::vector<SubdomainName>>(
       "subdomain1", "The subdomains on the 1st side of the boundary.");
@@ -55,6 +55,7 @@ FVInterfaceKernel::validParams()
                         false,
                         "Whether to use point neighbors, which introduces additional ghosting to "
                         "that used for simple face neighbors.");
+  params.addParamNamesToGroup("ghost_layers use_point_neighbors", "Parallel ghosting");
 
   // FV Interface Kernels always need one layer of ghosting because the elements
   // on each side of the interface may be on different MPI ranks, but we still
@@ -94,7 +95,7 @@ FVInterfaceKernel::FVInterfaceKernel(const InputParameters & parameters)
     NeighborCoupleableMooseVariableDependencyIntermediateInterface(
         this, /*nodal=*/false, /*neighbor_nodal=*/false, /*is_fv=*/true),
     TwoMaterialPropertyInterface(this, Moose::EMPTY_BLOCK_IDS, boundaryIDs()),
-    FunctorInterface(this),
+    ADFunctorInterface(this),
     _tid(getParam<THREAD_ID>("_tid")),
     _subproblem(*getCheckedPointerParam<SubProblem *>("_subproblem")),
     _sys(*getCheckedPointerParam<SystemBase *>("_sys")),
@@ -106,13 +107,6 @@ FVInterfaceKernel::FVInterfaceKernel(const InputParameters & parameters)
                                        : getParam<NonlinearVariableName>("variable1"))),
     _mesh(_subproblem.mesh())
 {
-#ifndef MOOSE_GLOBAL_AD_INDEXING
-  mooseError("FVInterfaceKernels are not supported by local AD indexing. In order to use "
-             "FVInterfaceKernels, please run the "
-             "configure script in the root MOOSE directory with the configure option "
-             "'--with-ad-indexing-type=global'");
-#endif
-
   if (getParam<bool>("use_displaced_mesh"))
     paramError("use_displaced_mesh", "FV interface kernels do not yet support displaced mesh");
 
@@ -172,13 +166,11 @@ FVInterfaceKernel::processResidual(const Real resid,
   accumulateTaggedLocalResidual();
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 FVInterfaceKernel::processJacobian(const ADReal & resid, const dof_id_type dof_index)
 {
   _assembly.processJacobian(resid, dof_index, _matrix_tags);
 }
-#endif
 
 void
 FVInterfaceKernel::computeResidual(const FaceInfo & fi)
@@ -200,7 +192,6 @@ FVInterfaceKernel::computeResidualAndJacobian(const FaceInfo & fi)
   computeJacobian(fi);
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 FVInterfaceKernel::computeJacobian(const FaceInfo & fi)
 {
@@ -217,12 +208,6 @@ FVInterfaceKernel::computeJacobian(const FaceInfo & fi)
   _assembly.processResidualAndJacobian(r, elem_dof_indices[0], _vector_tags, _matrix_tags);
   _assembly.processResidualAndJacobian(-r, neigh_dof_indices[0], _vector_tags, _matrix_tags);
 }
-#else
-void
-FVInterfaceKernel::computeJacobian(const FaceInfo &)
-{
-}
-#endif
 
 Moose::ElemArg
 FVInterfaceKernel::elemArg(const bool correct_skewness) const

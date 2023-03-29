@@ -9,8 +9,6 @@
 
 #include "MortarContactUtils.h"
 
-#ifdef MOOSE_SPARSE_AD
-
 #include <tuple>
 
 namespace Moose
@@ -28,6 +26,8 @@ communicateGaps(
     const bool normalize_c,
     const Parallel::Communicator & communicator)
 {
+  libmesh_parallel_only(communicator);
+
   // We may have weighted gap information that should go to other processes that own the dofs
   using Datum = std::tuple<dof_id_type, ADReal, Real>;
   std::unordered_map<processor_id_type, std::vector<Datum>> push_data;
@@ -70,4 +70,3 @@ communicateGaps(
 }
 }
 }
-#endif

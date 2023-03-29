@@ -90,6 +90,7 @@ INSFVRhieChowInterpolator::INSFVRhieChowInterpolator(const InputParameters & par
   : GeneralUserObject(params),
     TaggingInterface(this),
     BlockRestrictable(this),
+    ADFunctorInterface(this),
     _moose_mesh(UserObject::_subproblem.mesh()),
     _mesh(_moose_mesh.getMesh()),
     _dim(_moose_mesh.dimension()),
@@ -136,9 +137,13 @@ INSFVRhieChowInterpolator::INSFVRhieChowInterpolator(const InputParameters & par
     if (blockIDs() != var.blockIDs())
       mooseError("Block restriction of interpolator user object '",
                  this->name(),
-                 "' doesn't match the block restriction of variable '",
+                 "' (",
+                 Moose::stringify(blocks()),
+                 ") doesn't match the block restriction of variable '",
                  var.name(),
-                 "'");
+                 "' (",
+                 Moose::stringify(var.blocks()),
+                 ")");
   };
 
   fill_container(NS::pressure, _ps);
@@ -239,17 +244,19 @@ INSFVRhieChowInterpolator::fillARead()
     {
       const Moose::FunctorBase<ADReal> *v_comp, *w_comp;
       if (_dim > 1)
-        v_comp = &UserObject::_subproblem.getFunctor<ADReal>(deduceFunctorName("a_v"), tid, name());
+        v_comp = &UserObject::_subproblem.getFunctor<ADReal>(
+            deduceFunctorName("a_v"), tid, name(), true);
       else
         v_comp = &_zero_functor;
       if (_dim > 2)
-        w_comp = &UserObject::_subproblem.getFunctor<ADReal>(deduceFunctorName("a_w"), tid, name());
+        w_comp = &UserObject::_subproblem.getFunctor<ADReal>(
+            deduceFunctorName("a_w"), tid, name(), true);
       else
         w_comp = &_zero_functor;
 
       _a_aux[tid] = std::make_unique<VectorCompositeFunctor<ADReal>>(
           "RC_a_coeffs",
-          UserObject::_subproblem.getFunctor<ADReal>(deduceFunctorName("a_u"), tid, name()),
+          UserObject::_subproblem.getFunctor<ADReal>(deduceFunctorName("a_u"), tid, name(), true),
           *v_comp,
           *w_comp);
       _a_read[tid] = _a_aux[tid].get();
@@ -380,7 +387,6 @@ INSFVRhieChowInterpolator::execute()
 void
 INSFVRhieChowInterpolator::finalize()
 {
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   if (_a_data_provided || this->n_processors() == 1 ||
       _velocity_interp_method == Moose::FV::InterpMethod::Average)
     return;
@@ -446,9 +452,6 @@ INSFVRhieChowInterpolator::finalize()
     TIMPI::pull_parallel_vector_data(
         _communicator, pull_requests, gather_functor, action_functor, &example);
   }
-#else
-  mooseError("INSFVRhieChowInterpolator only supported for global AD indexing.");
-#endif
 }
 
 void

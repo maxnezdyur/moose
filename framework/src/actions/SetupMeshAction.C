@@ -207,9 +207,8 @@ SetupMeshAction::modifyParamsForUseSplit(InputParameters & moose_object_params) 
   {
     if (split_file == "")
     {
-      if (_app.processor_id() == 0)
-        mooseError("Cannot use split mesh for a non-file mesh without specifying --split-file on "
-                   "command line");
+      mooseError("Cannot use split mesh for a non-file mesh without specifying --split-file on "
+                 "command line");
     }
 
     auto new_pars = FileMesh::validParams();
@@ -292,6 +291,7 @@ SetupMeshAction::act()
 
   else if (_current_task == "set_mesh_base")
   {
+
     TIME_SECTION("SetupMeshAction::act::set_mesh_base", 1, "Setting Mesh", true);
 
     if (!_app.masterMesh() && !_mesh->hasMeshBase())
@@ -304,10 +304,13 @@ SetupMeshAction::act()
       if (!_app.getMeshGeneratorNames().empty() && !_app.isUseSplit() &&
           !((_app.isRecovering() || _app.isRestarting()) && _app.isUltimateMaster()))
       {
-        auto mesh_base = _app.getMeshGeneratorMesh();
+        auto & mesh_generator_system = _app.getMeshGeneratorSystem();
+        auto mesh_base =
+            mesh_generator_system.getSavedMesh(mesh_generator_system.mainMeshGeneratorName());
         if (_mesh->allowRemoteElementRemoval() != mesh_base->allow_remote_element_removal())
           mooseError("The MooseMesh and libmesh::MeshBase object coming from mesh generators are "
                      "out of sync with respect to whether remote elements can be deleted");
+        mooseAssert(mesh_base, "Null mesh");
         _mesh->setMeshBase(std::move(mesh_base));
       }
       else
@@ -315,7 +318,7 @@ SetupMeshAction::act()
         const auto & mg_names = _app.getMeshGeneratorNames();
         std::vector<bool> use_dm;
         for (const auto & mg_name : mg_names)
-          if (hasMeshProperty("use_distributed_mesh", mg_name))
+          if (hasMeshProperty<bool>("use_distributed_mesh", mg_name))
             use_dm.push_back(getMeshProperty<bool>("use_distributed_mesh", mg_name));
 
         if (!use_dm.empty())

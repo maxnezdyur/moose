@@ -13,7 +13,7 @@
   []
 
   [core]
-    type = HexIDPatternedMeshGenerator
+    type = PatternedHexMeshGenerator
     inputs = 'assembly dummy'
     pattern_boundary = none
     pattern = '  1 0 1;
@@ -58,6 +58,10 @@
 []
 
 [Outputs]
-  exodus = true
-  execute_on = timestep_end
+  [out]
+    type = Exodus
+    execute_on = timestep_end
+    output_extra_element_ids = true
+    extra_element_ids_to_output = 'assembly_id'
+  []
 []

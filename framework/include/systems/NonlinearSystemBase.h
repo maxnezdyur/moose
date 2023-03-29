@@ -38,7 +38,7 @@ class ADDirichletBCBase;
 class DGKernelBase;
 class InterfaceKernelBase;
 class ScalarKernelBase;
-class DiracKernel;
+class DiracKernelBase;
 class NodalKernelBase;
 class Split;
 class KernelBase;
@@ -589,7 +589,7 @@ public:
   {
     return _interface_kernels;
   }
-  MooseObjectTagWarehouse<DiracKernel> & getDiracKernelWarehouse() { return _dirac_kernels; }
+  MooseObjectTagWarehouse<DiracKernelBase> & getDiracKernelWarehouse() { return _dirac_kernels; }
   MooseObjectTagWarehouse<IntegratedBCBase> & getIntegratedBCWarehouse() { return _integrated_bcs; }
   const MooseObjectWarehouse<ElementDamper> & getElementDamperWarehouse() const
   {
@@ -678,18 +678,6 @@ public:
     _off_diagonals_in_auto_scaling = off_diagonals_in_auto_scaling;
   }
 
-#ifndef MOOSE_SPARSE_AD
-  /**
-   * Set the required size of the derivative vector
-   */
-  void setRequiredDerivativeSize(std::size_t size) { _required_derivative_size = size; }
-
-  /**
-   * Return the required size of the derivative vector
-   */
-  std::size_t requiredDerivativeSize() const { return _required_derivative_size; }
-#endif
-
   FEProblemBase & _fe_problem;
   System & _sys;
   // FIXME: make these protected and create getters/setters
@@ -758,13 +746,11 @@ protected:
    */
   virtual void computeScalingResidual() = 0;
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   /**
    * Assemble the numeric vector of scaling factors such that it can be used during assembly of the
    * system matrix
    */
   void assembleScalingVector();
-#endif
 
   /**
    * Called after any ResidualObject-derived objects are added
@@ -779,11 +765,12 @@ protected:
   /// ghosted form of the residual
   NumericVector<Number> * _residual_ghosted;
 
-  /// Serialized version of the solution vector
-  NumericVector<Number> & _serialized_solution;
+  /// Serialized version of the solution vector, or nullptr if a
+  /// serialized solution is not needed
+  std::unique_ptr<NumericVector<Number>> _serialized_solution;
 
-  /// Copy of the residual vector
-  NumericVector<Number> & _residual_copy;
+  /// Copy of the residual vector, or nullptr if a copy is not needed
+  std::unique_ptr<NumericVector<Number>> _residual_copy;
 
   /// solution vector for u^dot
   NumericVector<Number> * _u_dot;
@@ -844,7 +831,7 @@ protected:
   ///@}
 
   /// Dirac Kernel storage for each thread
-  MooseObjectTagWarehouse<DiracKernel> _dirac_kernels;
+  MooseObjectTagWarehouse<DiracKernelBase> _dirac_kernels;
 
   /// Element Dampers for each thread
   MooseObjectWarehouse<ElementDamper> _element_dampers;
@@ -891,11 +878,6 @@ protected:
   /// Whether or not to assemble the residual and Jacobian after the application of each constraint.
   bool _assemble_constraints_separately;
 
-  /// Whether or not a copy of the residual needs to be made
-  bool _need_serialized_solution;
-
-  /// Whether or not a copy of the residual needs to be made
-  bool _need_residual_copy;
   /// Whether or not a ghosted copy of the residual needs to be made
   bool _need_residual_ghosted;
   /// true if debugging residuals
@@ -988,11 +970,6 @@ private:
   /// Functors for computing displaced mortar constraints
   std::unordered_map<std::pair<BoundaryID, BoundaryID>, ComputeMortarFunctor>
       _displaced_mortar_functors;
-
-#ifndef MOOSE_SPARSE_AD
-  /// The required size of the derivative storage array
-  std::size_t _required_derivative_size;
-#endif
 
   /// The current states of the solution (0 = current, 1 = old, etc)
   std::vector<NumericVector<Number> *> _solution_state;

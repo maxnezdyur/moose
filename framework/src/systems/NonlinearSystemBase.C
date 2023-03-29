@@ -58,7 +58,7 @@
 #include "MooseUtils.h"
 #include "MooseApp.h"
 #include "NodalKernelBase.h"
-#include "DiracKernel.h"
+#include "DiracKernelBase.h"
 #include "TimeIntegrator.h"
 #include "Predictor.h"
 #include "Assembly.h"
@@ -73,6 +73,7 @@
 #include "MooseError.h"
 #include "FVElementalKernel.h"
 #include "FVScalarLagrangeMultiplierConstraint.h"
+#include "FVBoundaryScalarLagrangeMultiplierConstraint.h"
 #include "FVFluxKernel.h"
 #include "FVScalarLagrangeMultiplierInterface.h"
 #include "UserObject.h"
@@ -118,8 +119,6 @@ NonlinearSystemBase::NonlinearSystemBase(FEProblemBase & fe_problem,
     _compute_initial_residual_before_preset_bcs(true),
     _current_solution(NULL),
     _residual_ghosted(NULL),
-    _serialized_solution(*NumericVector<Number>::build(_communicator).release()),
-    _residual_copy(*NumericVector<Number>::build(_communicator).release()),
     _u_dot(NULL),
     _u_dotdot(NULL),
     _u_dot_old(NULL),
@@ -141,8 +140,6 @@ NonlinearSystemBase::NonlinearSystemBase(FEProblemBase & fe_problem,
     _use_field_split_preconditioner(false),
     _add_implicit_geometric_coupling_entries_to_jacobian(false),
     _assemble_constraints_separately(false),
-    _need_serialized_solution(false),
-    _need_residual_copy(false),
     _need_residual_ghosted(false),
     _debugging_residuals(false),
     _doing_dg(false),
@@ -160,9 +157,6 @@ NonlinearSystemBase::NonlinearSystemBase(FEProblemBase & fe_problem,
     _compute_scaling_once(true),
     _resid_vs_jac_scaling_param(0),
     _off_diagonals_in_auto_scaling(false),
-#ifndef MOOSE_SPARSE_AD
-    _required_derivative_size(0),
-#endif
     _auto_scaling_initd(false)
 {
   getResidualNonTimeVector();
@@ -183,11 +177,7 @@ NonlinearSystemBase::NonlinearSystemBase(FEProblemBase & fe_problem,
   }
 }
 
-NonlinearSystemBase::~NonlinearSystemBase()
-{
-  delete &_serialized_solution;
-  delete &_residual_copy;
-}
+NonlinearSystemBase::~NonlinearSystemBase() = default;
 
 void
 NonlinearSystemBase::init()
@@ -199,11 +189,11 @@ NonlinearSystemBase::init()
 
   _current_solution = _sys.current_local_solution.get();
 
-  if (_need_serialized_solution)
-    _serialized_solution.init(_sys.n_dofs(), false, SERIAL);
+  if (_serialized_solution.get())
+    _serialized_solution->init(_sys.n_dofs(), false, SERIAL);
 
-  if (_need_residual_copy)
-    _residual_copy.init(_sys.n_dofs(), false, SERIAL);
+  if (_residual_copy.get())
+    _residual_copy->init(_sys.n_dofs(), false, SERIAL);
 }
 
 void
@@ -636,8 +626,8 @@ NonlinearSystemBase::addDiracKernel(const std::string & kernel_name,
 {
   for (THREAD_ID tid = 0; tid < libMesh::n_threads(); tid++)
   {
-    std::shared_ptr<DiracKernel> kernel =
-        _factory.create<DiracKernel>(kernel_name, name, parameters, tid);
+    std::shared_ptr<DiracKernelBase> kernel =
+        _factory.create<DiracKernelBase>(kernel_name, name, parameters, tid);
     postAddResidualObject(*kernel);
     _dirac_kernels.addObject(kernel, tid);
   }
@@ -761,6 +751,8 @@ NonlinearSystemBase::computeResidual(NumericVector<Number> & residual, TagID tag
 void
 NonlinearSystemBase::computeResidualTags(const std::set<TagID> & tags)
 {
+  parallel_object_only();
+
   TIME_SECTION("nl::computeResidualTags", 5);
 
   _fe_problem.setCurrentNonlinearSystem(number());
@@ -1525,12 +1517,14 @@ NonlinearSystemBase::residualSetup()
   _nodal_bcs.residualSetup();
 
   _fe_problem.residualSetup();
-  setSolutionInvalid(false);
+  _app.solutionInvalidity().resetSolutionInvalidCurrentIteration();
 }
 
 void
 NonlinearSystemBase::computeResidualInternal(const std::set<TagID> & tags)
 {
+  parallel_object_only();
+
   TIME_SECTION("computeResidualInternal", 3);
 
   residualSetup();
@@ -1682,10 +1676,10 @@ NonlinearSystemBase::computeResidualInternal(const std::set<TagID> & tags)
 
   mortarConstraints(Moose::ComputeType::Residual);
 
-  if (_need_residual_copy)
+  if (_residual_copy.get())
   {
     _Re_non_time->close();
-    _Re_non_time->localize(_residual_copy);
+    _Re_non_time->localize(*_residual_copy);
   }
 
   if (_need_residual_ghosted)
@@ -1723,6 +1717,10 @@ NonlinearSystemBase::computeResidualInternal(const std::set<TagID> & tags)
     PARALLEL_CATCH;
     _Re_non_time->close();
   }
+
+  // Accumulate the occurrence of solution invalid warnings for the current iteration cumulative
+  // counters
+  _app.solutionInvalidity().solutionInvalidAccumulation();
 }
 
 void
@@ -2565,11 +2563,14 @@ NonlinearSystemBase::jacobianSetup()
   _nodal_bcs.jacobianSetup();
 
   _fe_problem.jacobianSetup();
+  _app.solutionInvalidity().resetSolutionInvalidCurrentIteration();
 }
 
 void
 NonlinearSystemBase::computeJacobianInternal(const std::set<TagID> & tags)
 {
+  TIME_SECTION("computeJacobianInternal", 3);
+
   _fe_problem.setCurrentNonlinearSystem(number());
 
   // Make matrix ready to use
@@ -2874,6 +2875,10 @@ NonlinearSystemBase::computeJacobianInternal(const std::set<TagID> & tags)
 
   if (hasDiagSaveIn())
     _fe_problem.getAuxiliarySystem().update();
+
+  // Accumulate the occurrence of solution invalid warnings for the current iteration cumulative
+  // counters
+  _app.solutionInvalidity().solutionInvalidAccumulation();
 }
 
 void
@@ -3169,8 +3174,10 @@ NonlinearSystemBase::computeDiracContributions(const std::set<TagID> & tags, boo
 NumericVector<Number> &
 NonlinearSystemBase::residualCopy()
 {
-  _need_residual_copy = true;
-  return _residual_copy;
+  if (!_residual_copy.get())
+    _residual_copy = NumericVector<Number>::build(_communicator);
+
+  return *_residual_copy;
 }
 
 NumericVector<Number> &
@@ -3246,15 +3253,15 @@ NonlinearSystemBase::augmentSparsity(SparsityPattern::Graph & sparsity,
 void
 NonlinearSystemBase::serializeSolution()
 {
-  if (_need_serialized_solution)
+  if (_serialized_solution.get())
   {
-    if (!_serialized_solution.initialized() || _serialized_solution.size() != _sys.n_dofs())
+    if (!_serialized_solution->initialized() || _serialized_solution->size() != _sys.n_dofs())
     {
-      _serialized_solution.clear();
-      _serialized_solution.init(_sys.n_dofs(), false, SERIAL);
+      _serialized_solution->clear();
+      _serialized_solution->init(_sys.n_dofs(), false, SERIAL);
     }
 
-    _current_solution->localize(_serialized_solution);
+    _current_solution->localize(*_serialized_solution);
   }
 }
 
@@ -3266,7 +3273,7 @@ NonlinearSystemBase::setSolution(const NumericVector<Number> & soln)
   auto tag = _subproblem.getVectorTagID(Moose::SOLUTION_TAG);
   associateVectorToTag(const_cast<NumericVector<Number> &>(soln), tag);
 
-  if (_need_serialized_solution)
+  if (_serialized_solution.get())
     serializeSolution();
 }
 
@@ -3297,11 +3304,13 @@ NonlinearSystemBase::setSolutionUDotDotOld(const NumericVector<Number> & u_dotdo
 NumericVector<Number> &
 NonlinearSystemBase::serializedSolution()
 {
-  if (!_serialized_solution.initialized())
-    _serialized_solution.init(_sys.n_dofs(), false, SERIAL);
+  if (!_serialized_solution.get())
+  {
+    _serialized_solution = NumericVector<Number>::build(_communicator);
+    _serialized_solution->init(_sys.n_dofs(), false, SERIAL);
+  }
 
-  _need_serialized_solution = true;
-  return _serialized_solution;
+  return *_serialized_solution;
 }
 
 void
@@ -3407,6 +3416,16 @@ NonlinearSystemBase::checkKernelCoverage(const std::set<SubdomainID> & mesh_subd
     for (auto fvik : fv_interface_kernels)
       if (auto scalar_fvik = dynamic_cast<FVScalarLagrangeMultiplierInterface *>(fvik))
         kernel_variables.insert(scalar_fvik->lambdaVariable().name());
+
+    std::vector<FVFluxBC *> fv_flux_bcs;
+    _fe_problem.theWarehouse()
+        .query()
+        .template condition<AttribSystem>("FVFluxBC")
+        .queryInto(fv_flux_bcs);
+
+    for (auto fvbc : fv_flux_bcs)
+      if (auto scalar_fvbc = dynamic_cast<FVBoundaryScalarLagrangeMultiplierConstraint *>(fvbc))
+        kernel_variables.insert(scalar_fvbc->lambdaVariable().name());
   }
 
   // Check kernel coverage of subdomains (blocks) in your mesh
@@ -3425,13 +3444,24 @@ NonlinearSystemBase::checkKernelCoverage(const std::set<SubdomainID> & mesh_subd
 
     if (!difference.empty())
     {
+      std::vector<SubdomainID> difference_vec =
+          std::vector<SubdomainID>(difference.begin(), difference.end());
+      std::vector<SubdomainName> difference_names = _mesh.getSubdomainNames(difference_vec);
+      std::stringstream missing_block_names;
+      std::copy(difference_names.begin(),
+                difference_names.end(),
+                std::ostream_iterator<std::string>(missing_block_names, " "));
       std::stringstream missing_block_ids;
       std::copy(difference.begin(),
                 difference.end(),
                 std::ostream_iterator<unsigned int>(missing_block_ids, " "));
+
       mooseError("Each subdomain must contain at least one Kernel.\nThe following block(s) lack an "
                  "active kernel: " +
-                 missing_block_ids.str());
+                     missing_block_names.str(),
+                 " (ids: ",
+                 missing_block_ids.str(),
+                 ")");
     }
   }
 
@@ -3540,6 +3570,8 @@ NonlinearSystemBase::setPreviousNewtonSolution(const NumericVector<Number> & sol
 void
 NonlinearSystemBase::mortarConstraints(const Moose::ComputeType compute_type)
 {
+  parallel_object_only();
+
   try
   {
     for (auto & map_pr : _undisplaced_mortar_functors)
@@ -3633,11 +3665,9 @@ NonlinearSystemBase::computeScaling()
 
   TIME_SECTION("computeScaling", 3, "Computing Automatic Scaling");
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   // It's funny but we need to assemble our vector of scaling factors here otherwise we will be
   // applying scaling factors of 0 during Assembly of our scaling Jacobian
   assembleScalingVector();
-#endif
 
   // container for repeated access of element global dof indices
   std::vector<dof_id_type> dof_indices;
@@ -3781,7 +3811,6 @@ NonlinearSystemBase::computeScaling()
   _auto_scaling_initd = true;
 }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
 void
 NonlinearSystemBase::assembleScalingVector()
 {
@@ -3826,4 +3855,3 @@ NonlinearSystemBase::assembleScalingVector()
     // copy into the corresponding displaced system vector because they should be the exact same
     displaced_problem->systemBaseNonlinear(number()).getVector("scaling_factors") = scaling_vector;
 }
-#endif

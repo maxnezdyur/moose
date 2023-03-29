@@ -861,12 +861,10 @@ public:
   /// Whether or not there are variables to be restarted from an Exodus mesh file
   bool hasVarCopy() const { return _var_to_copy.size() > 0; }
 
-#ifdef MOOSE_GLOBAL_AD_INDEXING
   /**
    * Add the scaling factor vector to the system
    */
   void addScalingVector();
-#endif
 
   /**
    * Whether or not the solution states have been initialized via initSolutionState()
@@ -903,13 +901,6 @@ public:
    * @return the type of variables this system holds, e.g. nonlinear or auxiliary
    */
   Moose::VarKindType varKind() const { return _var_kind; }
-
-  /**
-   * Whether or not the converged solution is valid
-   */
-  bool solutionInvalid() const { return _solution_invalid; }
-
-  void setSolutionInvalid(bool solution_invalid);
 
 protected:
   /**
@@ -979,9 +970,6 @@ protected:
 
   /// Whether or not the solution states have been initialized
   bool _solution_states_initialized;
-
-  /// whether or not the converged solution is valid
-  bool _solution_invalid;
 
 private:
   /**

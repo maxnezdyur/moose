@@ -39,7 +39,7 @@ public:
   MultiAppGeneralFieldTransfer(const InputParameters & parameters);
 
   virtual void initialSetup() override;
-
+  virtual void getAppInfo() override;
   virtual void execute() override;
 
   /// Get the source variable name, with the suffix for array/vector variables
@@ -249,6 +249,9 @@ private:
   /// Error out when some points can not be located
   bool _error_on_miss;
 
+  /// Value to use when no received data is valid for a target location
+  const Real _default_extrapolation_value;
+
   /// How much we should relax bounding boxes
   Real _bbox_factor;
 
@@ -411,24 +414,22 @@ public:
   void init_context(FEMContext &) {}
 
   Output eval_at_node(const FEMContext &,
-                      unsigned int libmesh_dbg_var(i),
+                      unsigned int /*variable_index*/,
                       unsigned int /*elem_dim*/,
                       const Node & n,
                       bool /*extra_hanging_dofs*/,
                       const Real /*time*/)
   {
-    libmesh_assert_not_equal_to(i, 0);
     _points_requested.push_back(n);
     return 0;
   }
 
   Output eval_at_point(const FEMContext &,
-                       unsigned int libmesh_dbg_var(i),
+                       unsigned int /*variable_index*/,
                        const Point & n,
                        const Real /*time*/,
                        bool /*skip_context_check*/)
   {
-    libmesh_assert_not_equal_to(i, 0);
     _points_requested.push_back(n);
     return 0;
   }
@@ -463,7 +464,7 @@ public:
   std::vector<Point> & points_requested() { return _points_requested; }
 
 private:
-  // Vector of points requested
+  /// Vector of points requested
   std::vector<Point> _points_requested;
 
   RecordRequests * _primary = nullptr;
@@ -509,13 +510,16 @@ public:
    * @param cache a map/cache to search for points in
    * @param backup a function that can be queried for a point value when the cache doesnt have it
    */
-  CachedData(const Cache & cache, const FunctionBase<Output> & backup)
-    : _cache(cache), _backup(backup.clone())
+  CachedData(const Cache & cache, const FunctionBase<Output> & backup, Real default_value)
+    : _cache(cache), _backup(backup.clone()), _default_value(default_value)
   {
   }
 
   /// Copy constructor
-  CachedData(const CachedData & primary) : _cache(primary._cache), _backup(primary._backup->clone())
+  CachedData(const CachedData & primary)
+    : _cache(primary._cache),
+      _backup(primary._backup->clone()),
+      _default_value(primary._default_value)
   {
   }
 
@@ -531,7 +535,12 @@ public:
   {
     auto it = _cache.find(n);
     if (it == _cache.end())
-      return (*_backup)(n);
+    {
+      if (_default_value != GeneralFieldTransfer::BetterOutOfMeshValue)
+        return _default_value;
+      else
+        return (*_backup)(n);
+    }
     else
       return it->second;
   }
@@ -545,7 +554,12 @@ public:
   {
     auto it = _cache.find(n);
     if (it == _cache.end())
-      return (*_backup)(n);
+    {
+      if (_default_value != GeneralFieldTransfer::BetterOutOfMeshValue)
+        return _default_value;
+      else
+        return (*_backup)(n);
+    }
     else
       return it->second;
   }
@@ -578,11 +592,14 @@ public:
   }
 
 private:
-  // Data to return for cached points
+  /// Data to return for cached points
   const Cache & _cache;
 
-  // Function to evaluate for uncached points
+  /// Function to evaluate for uncached points
   std::unique_ptr<FunctionBase<Output>> _backup;
+
+  /// Default value when no point is found
+  const Real _default_value;
 };
 
 }

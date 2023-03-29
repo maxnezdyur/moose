@@ -615,7 +615,9 @@ public:
    * Accessor for the underlying libMesh Mesh object.
    */
   MeshBase & getMesh();
+  MeshBase & getMesh(const std::string & name);
   const MeshBase & getMesh() const;
+  const MeshBase & getMesh(const std::string & name) const;
   const MeshBase * getMeshPtr() const;
 
   /**
@@ -704,7 +706,7 @@ public:
    * Get the associated subdomainIDs for the subdomain names that are passed in.
    *
    * @param subdomain_name The names of the subdomains
-   * @return The subdomain ids from the passed subdomain name.
+   * @return The subdomain ids from the passed subdomain names.
    */
   std::vector<SubdomainID> getSubdomainIDs(const std::vector<SubdomainName> & subdomain_name) const;
 
@@ -722,7 +724,16 @@ public:
   /**
    * Return the name of a block given an id.
    */
-  const std::string & getSubdomainName(SubdomainID subdomain_id);
+  const std::string & getSubdomainName(SubdomainID subdomain_id) const;
+
+  /**
+   * Get the associated subdomainNames for the subdomain ids that are passed in.
+   *
+   * @param subdomain_ids The ids of the subdomains
+   * @return The subdomain names from the passed subdomain ids.
+   */
+  std::vector<SubdomainName>
+  getSubdomainNames(const std::vector<SubdomainID> & subdomain_ids) const;
 
   /**
    * This method sets the boundary name of the boundary based on the id parameter
@@ -1509,6 +1520,12 @@ private:
    * transformation will be created if it hasn't been already
    */
   void updateCoordTransform();
+
+  /**
+   * Loop through all subdomain IDs and check if there is name duplication used for the subdomains
+   * with same ID. Throw out an error if any name duplication is found.
+   */
+  void checkDuplicateSubdomainNames();
 
   /// Holds mappings for volume to volume and parent side to child side
   std::map<std::pair<int, ElemType>, std::vector<std::vector<QpMap>>> _elem_type_to_refinement_map;

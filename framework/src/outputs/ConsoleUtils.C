@@ -280,14 +280,6 @@ outputNonlinearSystemInformation(FEProblemBase & problem)
   std::stringstream oss;
   oss << std::left;
 
-#ifndef MOOSE_SPARSE_AD
-  if (problem.haveADObjects())
-  {
-    oss << std::setw(console_field_width)
-        << "  AD size required: " << problem.getNonlinearSystemBase().requiredDerivativeSize()
-        << std::endl;
-  }
-#endif
   return outputSystemInformationHelper(oss, problem.getNonlinearSystemBase().system());
 }
 
@@ -335,6 +327,9 @@ outputExecutionInformation(const MooseApp & app, FEProblemBase & problem)
   std::string time_stepper = exec->getTimeStepperName();
   if (time_stepper != "")
     oss << std::setw(console_field_width) << "  TimeStepper: " << time_stepper << '\n';
+  std::string time_integrator = exec->getTimeIntegratorName();
+  if (time_stepper != "")
+    oss << std::setw(console_field_width) << "  TimeIntegrator: " << time_integrator << '\n';
 
   oss << std::setw(console_field_width) << "  Solver Mode: " << problem.solverTypeString() << '\n';
 

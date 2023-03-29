@@ -1006,13 +1006,7 @@ template <typename T>
 struct canBroadcast
 {
   static constexpr bool value = std::is_base_of<TIMPI::DataType, TIMPI::StandardType<T>>::value ||
-                                std::is_same<T, std::string>::value;
-};
-template <typename T>
-struct canBroadcast<std::vector<T>>
-{
-  static constexpr bool value = std::is_base_of<TIMPI::DataType, TIMPI::StandardType<T>>::value ||
-                                std::is_same<T, std::string>::value;
+                                TIMPI::Has_buffer_type<TIMPI::Packing<T>>::value;
 };
 
 ///@{ Comparison helpers that support the MooseUtils::Any wildcard which will match any value
@@ -1165,6 +1159,44 @@ get(const std::shared_ptr<T> & s)
   return s.get();
 }
 
+/**
+ * This method detects whether two sets intersect without building a result set.
+ * It exits as soon as any intersection is detected.
+ */
+template <class InputIterator>
+bool
+setsIntersect(InputIterator first1, InputIterator last1, InputIterator first2, InputIterator last2)
+{
+  while (first1 != last1 && first2 != last2)
+  {
+    if (*first1 == *first2)
+      return true;
+
+    if (*first1 < *first2)
+      ++first1;
+    else if (*first1 > *first2)
+      ++first2;
+  }
+  return false;
+}
+
+template <class T>
+bool
+setsIntersect(const T & s1, const T & s2)
+{
+  return setsIntersect(s1.begin(), s1.end(), s2.begin(), s2.end());
+}
+
+/**
+ * Courtesy https://stackoverflow.com/a/8889045 and
+ * https://en.cppreference.com/w/cpp/string/byte/isdigit
+ * @return Whether every character in the string is a digit
+ */
+inline bool
+isDigits(const std::string & str)
+{
+  return std::all_of(str.begin(), str.end(), [](unsigned char c) { return std::isdigit(c); });
+}
 } // MooseUtils namespace
 
 /**
