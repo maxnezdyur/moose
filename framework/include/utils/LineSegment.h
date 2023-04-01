@@ -77,7 +77,9 @@ private:
   Point _p0, _p1;
 };
 
+template <>
 void dataStore(std::ostream & stream, LineSegment & l, void * context);
+template <>
 void dataLoad(std::istream & stream, LineSegment & l, void * context);
 
 void to_json(nlohmann::json & json, const LineSegment & l);
