@@ -1,6 +1,6 @@
 [Tests]
   design = 'ReporterPointSource.md'
-  issues = '#15831 #18528'
+  issues = '#15831 #18528 #23736'
   [reporterPointSource]
     requirement = 'The system shall support point sources with locations and values given by a Reporter '
     [2dConstantReporter]
@@ -35,6 +35,12 @@
       cli_args = "DiracKernels/inactive='reporter_point_source'"
       expect_err = "The value and coordinate vectors are a different size"
       detail = "and shall report an error if the input arrays are not the same size"
+    []
+    [2dConstantPoint]
+      type = 'Exodiff'
+      input = '2d_vpp_point.i'
+      exodiff = '2d_vpp_point.e'
+      detail = "using Point reporters to determine the locations, reproducing the constantPointSource."
     []
   []
 []
