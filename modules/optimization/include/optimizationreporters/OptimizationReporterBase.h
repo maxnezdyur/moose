@@ -10,6 +10,7 @@
 #pragma once
 
 #include "OptimizationData.h"
+#include "libmesh/petsc_matrix.h"
 
 namespace libMesh
 {
@@ -68,6 +69,30 @@ public:
    * @return total number of parameters
    */
   dof_id_type getNumParams() const { return _ndof; }
+
+  /**
+   * Function to compute the equality constraints.
+   *
+   */
+  virtual void computeEqualityConstraints(libMesh::PetscVector<Number> & eqs_constraints) const;
+
+  /**
+   * Function to compute the inequality constraints.
+   *
+   */
+  virtual void computeInequalityConstraints(libMesh::PetscVector<Number> & ineqs_constraints) const;
+
+  /**
+   * Function to compute the jacobian of the equality constraints/
+   * This is the last call of the equality constraint jacobian routine.
+   */
+  virtual void computeEqualityJacobian(libMesh::PetscMatrix<Number> & jacobian) const;
+
+  /**
+   * Function to compute the jacobian of the inequality constraints/
+   * This is the last call of the inequality constraint jacobian routine.
+   */
+  virtual void computeInequalityJacobian(libMesh::PetscMatrix<Number> & jacobian) const;
 
 protected:
   /**
