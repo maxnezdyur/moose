@@ -131,3 +131,29 @@ OptimizationReporterBase::getUpperBound(dof_id_type i) const
 {
   return _upper_bounds[i];
 }
+
+void
+OptimizationReporterBase::computeEqualityConstraints(
+    libMesh::PetscVector<Number> & eqs_constraints) const
+{
+  eqs_constraints.zero();
+}
+
+void
+OptimizationReporterBase::computeInequalityConstraints(
+    libMesh::PetscVector<Number> & ineqs_constraints) const
+{
+  ineqs_constraints.zero();
+}
+
+void
+OptimizationReporterBase::computeEqualityJacobian(libMesh::PetscMatrix<Number> & jacobian) const
+{
+  jacobian.zero();
+}
+
+void
+OptimizationReporterBase::computeInequalityJacobian(libMesh::PetscMatrix<Number> & jacobian) const
+{
+  jacobian.zero();
+}
