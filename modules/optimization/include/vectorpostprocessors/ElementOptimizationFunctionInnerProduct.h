@@ -10,6 +10,7 @@
 #pragma once
 
 #include "ElementVariableVectorPostprocessor.h"
+#include "OptimizationAppTypes.h"
 #include "OptimizationFunctionInnerProductHelper.h"
 
 class ElementOptimizationFunctionInnerProduct : public ElementVariableVectorPostprocessor,

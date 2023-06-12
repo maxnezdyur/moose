@@ -14,6 +14,7 @@ ElementOptimizationFunctionInnerProduct::validParams()
 {
   InputParameters params = ElementVariableVectorPostprocessor::validParams();
   params += OptimizationFunctionInnerProductHelper::validParams();
+  params.set<ExecFlagEnum>("execute_on") = OptimizationAppTypes::EXEC_ADJOINT_TIMESTEP_END;
   params.addClassDescription("Computes the inner product of variable with parameterized source "
                              "function for optimization gradient computation.");
   return params;

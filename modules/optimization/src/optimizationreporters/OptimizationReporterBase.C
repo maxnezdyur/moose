@@ -7,9 +7,11 @@
 //* Licensed under LGPL 2.1, please see LICENSE for details
 //* https://www.gnu.org/licenses/lgpl-2.1.html
 
+#include "MooseTypes.h"
 #include "OptimizationReporterBase.h"
 #include "OptUtils.h"
 #include "libmesh/petsc_vector.h"
+#include <cstddef>
 
 InputParameters
 OptimizationReporterBase::validParams()
@@ -19,6 +21,10 @@ OptimizationReporterBase::validParams()
   params.addRequiredParam<std::vector<ReporterValueName>>(
       "parameter_names", "List of parameter names, one for each group of parameters.");
   params.suppressParameter<VariableName>("variable");
+  params.addParam<std::vector<ReporterValueName>>(
+      "equality_names", std::vector<ReporterValueName>(), "List of equality names.");
+  params.addParam<std::vector<ReporterValueName>>(
+      "inequality_names", std::vector<ReporterValueName>(), "List of inequality names.");
   params.registerBase("OptimizationReporterBase");
   return params;
 }
@@ -28,7 +34,11 @@ OptimizationReporterBase::OptimizationReporterBase(const InputParameters & param
     _parameter_names(getParam<std::vector<ReporterValueName>>("parameter_names")),
     _nparams(_parameter_names.size()),
     _parameters(_nparams),
-    _gradients(_nparams)
+    _gradients(_nparams),
+    _equality_names(&getParam<std::vector<ReporterValueName>>("equality_names")),
+    _n_eq_cons(_equality_names->size()),
+    _inequality_names(&getParam<std::vector<ReporterValueName>>("inequality_names")),
+    _n_ineq_cons(_equality_names->size())
 {
   for (const auto & i : make_range(_nparams))
   {
@@ -36,6 +46,20 @@ OptimizationReporterBase::OptimizationReporterBase(const InputParameters & param
         &declareValueByName<std::vector<Real>>(_parameter_names[i], REPORTER_MODE_REPLICATED);
     _gradients[i] = &declareValueByName<std::vector<Real>>("grad_" + _parameter_names[i],
                                                            REPORTER_MODE_REPLICATED);
+  }
+  for (const auto & i : make_range(_n_eq_cons))
+  {
+    _eq_constraints[i] =
+        &declareValueByName<std::vector<Real>>(_equality_names->at(i), REPORTER_MODE_REPLICATED);
+    _eq_jacobians[i] = &declareValueByName<std::vector<Real>>("grad_" + _equality_names->at(i),
+                                                              REPORTER_MODE_REPLICATED);
+  }
+  for (const auto & i : make_range(_n_ineq_cons))
+  {
+    _ineq_constraints[i] =
+        &declareValueByName<std::vector<Real>>(_inequality_names->at(i), REPORTER_MODE_REPLICATED);
+    _ineq_jacobians[i] = &declareValueByName<std::vector<Real>>("grad_" + _inequality_names->at(i),
+                                                                REPORTER_MODE_REPLICATED);
   }
 }
 
@@ -111,24 +135,42 @@ void
 OptimizationReporterBase::computeEqualityConstraints(
     libMesh::PetscVector<Number> & eqs_constraints) const
 {
-  eqs_constraints.zero();
+  OptUtils::copyReporterIntoPetscVector(_eq_constraints, eqs_constraints);
 }
 
 void
 OptimizationReporterBase::computeInequalityConstraints(
     libMesh::PetscVector<Number> & ineqs_constraints) const
 {
-  ineqs_constraints.zero();
+  OptUtils::copyReporterIntoPetscVector(_ineq_constraints, ineqs_constraints);
 }
 
 void
 OptimizationReporterBase::computeEqualityJacobian(libMesh::PetscMatrix<Number> & jacobian) const
 {
-  jacobian.zero();
+  for (const auto & p : make_range(_n_eq_cons))
+    if (_eq_jacobians[p]->size() != _nvalues[p])
+      mooseError("The equality jacobian for parameter ",
+                 _parameter_names[p],
+                 " has changed, expected ",
+                 _nvalues[p],
+                 " versus ",
+                 _eq_jacobians[p]->size(),
+                 ".");
+  OptUtils::copyReporterIntoPetscMatrix(_eq_jacobians, jacobian);
 }
 
 void
 OptimizationReporterBase::computeInequalityJacobian(libMesh::PetscMatrix<Number> & jacobian) const
 {
-  jacobian.zero();
+  for (const auto & p : make_range(_n_ineq_cons))
+    if (_ineq_jacobians[p]->size() != _nvalues[p])
+      mooseError("The inequality jacobian for parameter ",
+                 _parameter_names[p],
+                 " has changed, expected ",
+                 _nvalues[p],
+                 " versus ",
+                 _ineq_jacobians[p]->size(),
+                 ".");
+  OptUtils::copyReporterIntoPetscMatrix(_ineq_jacobians, jacobian);
 }
