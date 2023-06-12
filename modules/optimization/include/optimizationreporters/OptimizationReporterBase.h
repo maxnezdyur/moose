@@ -94,6 +94,12 @@ public:
    */
   virtual void computeInequalityJacobian(libMesh::PetscMatrix<Number> & jacobian) const;
 
+  /**
+   * Function to get the total number of parameters
+   * @return total number of parameters
+   */
+  dof_id_type getNumEqCons() const { return _n_eq_cons; }
+
 protected:
   /**
    * Function to set parameters.
@@ -110,6 +116,20 @@ protected:
   std::vector<std::vector<Real> *> _parameters;
   /// Gradient values declared as reporter data
   std::vector<std::vector<Real> *> _gradients;
+
+  const std::vector<ReporterValueName> * _equality_names;
+  const unsigned int _n_eq_cons;
+  /// Equality values declared as reporter data
+  std::vector<std::vector<Real> *> _eq_constraints;
+  /// Jacobian values declared as reporter data
+  std::vector<std::vector<Real> *> _eq_jacobians;
+
+  const std::vector<ReporterValueName> * _inequality_names;
+  const unsigned int _n_ineq_cons;
+  /// Inequality values declared as reporter data
+  std::vector<std::vector<Real> *> _ineq_constraints;
+  /// Jacobian values declared as reporter data
+  std::vector<std::vector<Real> *> _ineq_jacobians;
 
   /// Bounds of the parameters
   std::vector<Real> _lower_bounds;
