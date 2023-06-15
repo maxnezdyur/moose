@@ -33,8 +33,13 @@ public:
   virtual void execute() override;
   virtual void threadJoin(const UserObject & in_uo) override;
   virtual void finalize() override;
+  struct IndexPair
+  {
+    std::size_t local_index;
+    std::size_t global_index;
+  };
 
-  using ElementVectorMap = std::unordered_map<dof_id_type, std::size_t>;
+  using ElementVectorMap = std::unordered_map<dof_id_type, IndexPair>;
   const ElementVectorMap & getElementVectorMap() const { return _elem_to_index; }
 
 protected:

@@ -9,6 +9,7 @@
 
 // MOOSE includes
 #include "ElementMapUO.h"
+#include <cstddef>
 
 InputParameters
 ElementMapUO::validParams()
@@ -40,12 +41,15 @@ ElementMapUO::finalize()
 
   std::vector<dof_id_type> all_elem_ids(_elem_ids.begin(), _elem_ids.end());
   _communicator.allgather(all_elem_ids);
-
+  std::size_t local_index = 0;
   for (auto i : index_range(all_elem_ids))
   {
     // if local processor owns element then add the element and index into
     if (_elem_ids.count(all_elem_ids[i]))
-      _elem_to_index.insert({all_elem_ids[i], i});
+    {
+
+      _elem_to_index.insert({all_elem_ids[i], {local_index++, i}});
+    }
   }
   _elem_ids.clear();
 }
