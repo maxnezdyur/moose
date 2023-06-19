@@ -35,5 +35,8 @@ private:
   Real & _constraint;
   /// Value to hold the jacobian
   std::vector<Real> & _constraint_jacobian;
+  // Map needed to keep the gradient data consistent
   const ElementMapUO::ElementVectorMap & _elem_vec_map;
+  // Upper or equality bound for the constraint.
+  const Real _bound;
 };

@@ -26,6 +26,7 @@ ElementOptimizationConstraint::validParams()
 {
   InputParameters params = ElementReporter::validParams();
   params.addRequiredParam<UserObjectName>("element_map", "Element vector map user object");
+  params.addRequiredParam<Real>("bound_value", "The value to subtract from the constraint.");
   params.addParam<std::string>("base_name", "Name to append to reporters.");
   return params;
 }
@@ -35,7 +36,8 @@ ElementOptimizationConstraint::ElementOptimizationConstraint(const InputParamete
     _base_name(isParamValid("base_name") ? getParam<std::string>("base_name") + "_" : ""),
     _constraint(declareValueByName<Real>(_base_name + "constraint")),
     _constraint_jacobian(declareValueByName<std::vector<Real>>(_base_name + "constraint_jacobian")),
-    _elem_vec_map(getUserObject<ElementMapUO>("element_map").getElementVectorMap())
+    _elem_vec_map(getUserObject<ElementMapUO>("element_map").getElementVectorMap()),
+    _bound(getParam<Real>("bound_value"))
 {
 }
 void
@@ -58,7 +60,7 @@ ElementOptimizationConstraint::execute()
   }
   else
   {
-    mooseError("Element Vector Map did not find the element.");
+    mooseError("Element Vector Map could not find the element.");
   }
   _constraint_jacobian[local_index] = computeQpConstraintJacobian();
 }
@@ -67,6 +69,7 @@ void
 ElementOptimizationConstraint::finalize()
 {
   _communicator.sum(_constraint);
+  _constraint -= _bound;
 
   //   The ElementVectorMap makes sure that the local vectors are in the correct
   //   order on each processor so that the gather will setup the global vector
