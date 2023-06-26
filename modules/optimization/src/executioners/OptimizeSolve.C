@@ -20,7 +20,7 @@ OptimizeSolve::validParams()
 {
   InputParameters params = emptyInputParameters();
   MooseEnum tao_solver_enum("taontr taobntr taobncg taonls taobnls taontl taobntl taolmvm "
-                            "taoblmvm taonm taobqnls taoowlqn taogpcg taobmrm taoallm");
+                            "taoblmvm taonm taobqnls taoowlqn taogpcg taobmrm taoalmm");
   params.addRequiredParam<MooseEnum>(
       "tao_solver", tao_solver_enum, "Tao solver to use for optimization.");
   ExecFlagEnum exec_enum = ExecFlagEnum();
@@ -198,7 +198,7 @@ OptimizeSolve::taoSolve()
     // Create inequality vector
     ierr = VecCreate(_my_comm.get(), &_ci);
     CHKERRQ(ierr);
-    ierr = VecSetSizes(_ci, _ndof, _ndof);
+    ierr = VecSetSizes(_ci, _obj_function->getNumInEqCons(), _obj_function->getNumInEqCons());
     CHKERRQ(ierr);
     ierr = VecSetFromOptions(_ci);
     CHKERRQ(ierr);
@@ -218,7 +218,11 @@ OptimizeSolve::taoSolve()
     // Set inequality jacobian matrix
     ierr = MatCreate(_my_comm.get(), &_gradient_i);
     CHKERRQ(ierr);
-    ierr = MatSetSizes(_gradient_i, _ndof, _ndof, _ndof, _ndof);
+    ierr = MatSetSizes(_gradient_i,
+                       _obj_function->getNumInEqCons(),
+                       _ndof,
+                       _obj_function->getNumInEqCons(),
+                       _ndof);
     CHKERRQ(ierr);
     ierr = MatSetFromOptions(_gradient_i);
     CHKERRQ(ierr);
