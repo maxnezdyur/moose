@@ -113,7 +113,7 @@ OptimizationReporterBase::computeGradient(libMesh::PetscVector<Number> & gradien
 void
 OptimizationReporterBase::setInitialCondition(libMesh::PetscVector<Number> & x)
 {
-  x.init(_ndof);
+  x.init(getNumParams());
   OptUtils::copyReporterIntoPetscVector(_parameters, x);
 }
 
