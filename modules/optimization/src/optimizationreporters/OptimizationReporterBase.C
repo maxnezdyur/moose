@@ -146,6 +146,7 @@ OptimizationReporterBase::computeInequalityGradient(libMesh::PetscMatrix<Number>
                  _ineq_gradients[p]->size(),
                  ".");
   OptUtils::copyReporterIntoPetscMatrix(_ineq_gradients, jacobian);
+}
 std::vector<Real>
 OptimizationReporterBase::fillParamsVector(std::string type, Real default_value) const
 {
