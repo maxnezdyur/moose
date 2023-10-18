@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "ADRankTwoTensorForward.h"
 #include "InputParameters.h"
 #include "NonlinearSystemBase.h"
 #include "FEProblemBase.h"
@@ -18,7 +19,9 @@
 #include "NavierStokesMethods.h"
 
 #include "libmesh/elem.h"
+#include "libmesh/utility.h"
 
+#include <cmath>
 #include <vector>
 
 class INSADMaterial;
@@ -64,6 +67,7 @@ protected:
   using T::_rho;
   using T::_td_strong_residual;
   using T::_velocity;
+  using T::_velocity_dot;
   using T::_viscous_strong_residual;
 };
 
@@ -138,11 +142,14 @@ INSADTauMaterialTempl<T>::computeQpProperties()
 {
   T::computeQpProperties();
 
+  const auto accel = _has_transient ? NS::computeSpeed((*_velocity_dot)[_qp]) : 0.0;
   const auto nu = _mu[_qp] / _rho[_qp];
-  const auto transient_part = _has_transient ? 4. / (_dt * _dt) : 0.;
   const auto speed = NS::computeSpeed(_velocity[_qp]);
+  const auto transient_part = _has_transient ? accel / speed : 0.;
   _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
                                  9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
+  // _tau[_qp] = _alpha / std::sqrt(transient_part + (_velocity[_qp] * _G * _grad_velocity) +
+  //                                (30 * nu * _G * _G));
 
   _momentum_strong_residual[_qp] = _advective_strong_residual[_qp] + _grad_p[_qp];
 
