@@ -185,6 +185,7 @@ power = 3
     density_sensitivity = Dc_elem
     design_density = mat_den
     volume_fraction = ${vol_frac}
+    bisection_move = 0.5
     execute_on = TIMESTEP_BEGIN
     force_postaux = true
   []

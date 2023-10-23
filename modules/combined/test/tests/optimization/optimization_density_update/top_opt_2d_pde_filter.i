@@ -165,6 +165,7 @@ power = 2
     design_density = mat_den
     volume_fraction = ${vol_frac}
     execute_on = TIMESTEP_BEGIN
+    bisection_move = 0.5
     force_postaux = true
   []
 []

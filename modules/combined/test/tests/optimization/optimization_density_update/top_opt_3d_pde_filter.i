@@ -172,6 +172,7 @@ power = 2
     type = DensityUpdate
     density_sensitivity = Dc_elem
     design_density = mat_den
+    bisection_move = 0.5
     volume_fraction = ${vol_frac}
     execute_on = TIMESTEP_BEGIN
   []

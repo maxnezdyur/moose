@@ -136,6 +136,7 @@ power = 2
     density_sensitivity = Dc
     design_density = mat_den
     volume_fraction = ${vol_frac}
+    bisection_move = 0.5
     execute_on = TIMESTEP_BEGIN
   []
   [calc_sense]

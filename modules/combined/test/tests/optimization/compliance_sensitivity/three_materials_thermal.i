@@ -315,7 +315,7 @@ TC3 = 1.0
     force_preaux = true
   []
   [update]
-    type = DensityUpdateTwoConstraints
+    type = DensityUpdate
     density_sensitivity = Dc
     cost_density_sensitivity = Cc
     cost = Cost

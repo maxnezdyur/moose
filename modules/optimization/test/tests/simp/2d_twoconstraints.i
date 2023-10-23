@@ -143,7 +143,7 @@ vol_frac = 0.2
     force_preaux = true
   []
   [update]
-    type = DensityUpdateTwoConstraints
+    type = DensityUpdate
     density_sensitivity = Dc
     cost_density_sensitivity = Cc
     cost = Cost
