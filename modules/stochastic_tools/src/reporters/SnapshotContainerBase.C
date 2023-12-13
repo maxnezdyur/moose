@@ -60,5 +60,5 @@ SnapshotContainerBase::execute()
       return;
 
   // Store the cloned snapshot. Each derived class has to implement the cloneSnapshot() method.
-  _accumulated_data.push_back(cloneSnapshot());
+  _accumulated_data.push_back(collectSnapshot());
 }
