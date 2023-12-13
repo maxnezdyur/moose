@@ -34,13 +34,16 @@ JacobianContainer::JacobianContainer(const InputParameters & parameters)
 std::unique_ptr<NumericVector<Number>>
 JacobianContainer::cloneSnapshot()
 {
+
   auto & jac = static_cast<ImplicitSystem &>(
                    _fe_problem.getNonlinearSystem(_nonlinear_system_number).system())
                    .get_system_matrix();
+
   auto num_rows = jac.m();
   auto num_cols = jac.n();
-
-  DistributedVector<Real> flattened_jac(_communicator, num_cols * num_rows);
+  auto num_local_rows = jac.local_m();
+  DistributedVector<Real> flattened_jac(
+      _communicator, num_cols * num_rows, num_local_rows * num_cols);
   for (dof_id_type row = jac.row_start(); row < jac.row_stop(); row++)
   {
     std::vector<Real> values;
