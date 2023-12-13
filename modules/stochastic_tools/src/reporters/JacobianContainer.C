@@ -44,6 +44,9 @@ JacobianContainer::cloneSnapshot()
   auto num_local_rows = jac.local_m();
   DistributedVector<Real> flattened_jac(
       _communicator, num_cols * num_rows, num_local_rows * num_cols);
+
+  // Need to close the matrix for NONLINEAR
+  jac.close();
   for (dof_id_type row = jac.row_start(); row < jac.row_stop(); row++)
   {
     std::vector<Real> values;
