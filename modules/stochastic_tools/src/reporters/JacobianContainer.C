@@ -34,18 +34,18 @@ JacobianContainer::JacobianContainer(const InputParameters & parameters)
 std::unique_ptr<NumericVector<Number>>
 JacobianContainer::cloneSnapshot()
 {
-  auto & matrix = static_cast<ImplicitSystem &>(
-                      _fe_problem.getNonlinearSystem(_nonlinear_system_number).system())
-                      .get_system_matrix();
-  auto num_rows = matrix.m();
-  auto num_cols = matrix.n();
+  auto & jac = static_cast<ImplicitSystem &>(
+                   _fe_problem.getNonlinearSystem(_nonlinear_system_number).system())
+                   .get_system_matrix();
+  auto num_rows = jac.m();
+  auto num_cols = jac.n();
 
-  DistributedVector<Real> matrix_con(_communicator, num_cols * num_rows);
-  for (dof_id_type row = matrix.row_start(); row < matrix.row_stop(); row++)
+  DistributedVector<Real> flattened_jac(_communicator, num_cols * num_rows);
+  for (dof_id_type row = jac.row_start(); row < jac.row_stop(); row++)
   {
     std::vector<Real> values;
     std::vector<dof_id_type> cols;
-    matrix.get_row(row, cols, values);
+    jac.get_row(row, cols, values);
 
     // Adjust column indices based on the row
     for (auto & col : cols)
@@ -53,9 +53,9 @@ JacobianContainer::cloneSnapshot()
       col = row * num_cols + col; // Update column index for concatenated vector
     }
 
-    matrix_con.add_vector(values, cols);
+    flattened_jac.add_vector(values, cols);
   }
 
   // Clone the residual of the correct system
-  return matrix_con.clone();
+  return flattened_jac.clone();
 }
