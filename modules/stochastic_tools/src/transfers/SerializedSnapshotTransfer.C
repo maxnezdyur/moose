@@ -55,6 +55,9 @@ void
 SerializedSnapshotTransfer::initializeInNormalMode()
 {
   _solution_container.clear();
+  _residual_container.clear();
+  _jacobian_container.clear();
+
   const auto n = getFromMultiApp()->numGlobalApps();
   const auto & serialized_solution_reporter = getParam<std::string>("solution_container");
   const auto & serialized_residual_reporter = getParam<std::string>("residual_container");
@@ -78,7 +81,8 @@ SerializedSnapshotTransfer::initializeInBatchMode()
   // First we fetch the solution containers from the subapps. This function is used
   // in batch mode only so we will have one solution container on each rank
   _solution_container.clear();
-
+  _residual_container.clear();
+  _jacobian_container.clear();
   FEProblemBase & app_problem = getFromMultiApp()->appProblemBase(_app_index);
 
   _solution_container.push_back(&app_problem.getUserObject<SnapshotContainerBase>(
