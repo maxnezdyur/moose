@@ -51,7 +51,7 @@ SnapshotContainerBase::getSnapshot(unsigned int local_i) const
 void
 SnapshotContainerBase::execute()
 {
-  auto possible_snap = cloneSnapshot();
+  auto possible_snap = collectSnapshot();
 
   for (auto & entry : _accumulated_data)
     // Check if we already have a close enough snapshot to tolerance. If the
@@ -59,6 +59,6 @@ SnapshotContainerBase::execute()
     if (entry->local_relative_compare(*possible_snap, _save_tolerance) == -1)
       return;
 
-  // Store the cloned snapshot. Each derived class has to implement the cloneSnapshot() method.
+  // Store the cloned snapshot. Each derived class has to implement the collectSnapshot() method.
   _accumulated_data.push_back(collectSnapshot());
 }
