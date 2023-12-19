@@ -30,7 +30,7 @@ ResidualContainer::ResidualContainer(const InputParameters & parameters)
 }
 
 std::unique_ptr<NumericVector<Number>>
-ResidualContainer::cloneSnapshot()
+ResidualContainer::collectSnapshot()
 {
   // Clone the residual of the correct system
   return _fe_problem.getNonlinearSystem(_nonlinear_system_number).RHS().clone();

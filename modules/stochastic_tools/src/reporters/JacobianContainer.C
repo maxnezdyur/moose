@@ -32,7 +32,7 @@ JacobianContainer::JacobianContainer(const InputParameters & parameters)
 }
 
 std::unique_ptr<NumericVector<Number>>
-JacobianContainer::cloneSnapshot()
+JacobianContainer::collectSnapshot()
 {
 
   auto & jac = static_cast<ImplicitSystem &>(
