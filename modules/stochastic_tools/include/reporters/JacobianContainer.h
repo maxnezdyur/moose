@@ -25,5 +25,5 @@ public:
   JacobianContainer(const InputParameters & parameters);
 
 protected:
-  virtual std::unique_ptr<NumericVector<Number>> cloneSnapshot() override;
+  virtual std::unique_ptr<NumericVector<Number>> collectSnapshot() override;
 };
