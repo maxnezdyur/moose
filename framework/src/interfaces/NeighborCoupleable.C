@@ -230,6 +230,19 @@ NeighborCoupleable::coupledVectorNeighborGradient(const std::string & var_name,
   return (_c_is_implicit) ? var->gradSlnNeighbor() : var->gradSlnOldNeighbor();
 }
 
+const ADVectorVariableGradient &
+NeighborCoupleable::adCoupledVectorNeighborGradient(const std::string & var_name,
+                                                    unsigned int comp) const
+{
+  if (_neighbor_nodal)
+    mooseError("Gradients are non-sensical with nodal compute objects");
+
+  const auto * var = getVectorVar(var_name, comp);
+  // return (_c_is_implicit) ? var->adGradSlnNeighbor() :
+  // var->adGradSlnOldNeighbor();
+  return var->adGradSlnNeighbor();
+}
+
 const VectorVariableGradient &
 NeighborCoupleable::coupledVectorNeighborGradientOld(const std::string & var_name,
                                                      unsigned int comp) const

@@ -101,6 +101,9 @@ public:
 
   virtual const VectorVariableGradient & coupledVectorNeighborGradient(const std::string & var_name,
                                                                        unsigned int comp = 0) const;
+
+  virtual const ADVectorVariableGradient &
+  adCoupledVectorNeighborGradient(const std::string & var_name, unsigned int comp = 0) const;
   virtual const VectorVariableGradient &
   coupledVectorNeighborGradientOld(const std::string & var_name, unsigned int comp = 0) const;
   virtual const VectorVariableGradient &
