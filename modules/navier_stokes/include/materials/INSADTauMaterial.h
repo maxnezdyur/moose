@@ -133,6 +133,7 @@ protected:
   using T::_td_strong_residual;
   using T::_use_displaced_mesh;
   using T::_velocity;
+  using T::_velocity_dot;
   using T::_viscous_form;
   using T::getVectorVar;
 };

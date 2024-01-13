@@ -38,7 +38,7 @@ INSADMomentumViscous::INSADMomentumViscous(const InputParameters & parameters)
     _mu(getADMaterialProperty<Real>("mu_name")),
     _coord_sys(_assembly.coordSystem()),
     _form(getParam<MooseEnum>("viscous_form")),
-    _rz_radial_coord(_mesh.getAxisymmetricRadialCoord())
+    _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
     _vol_frac(coupledValue("volume_fraction"))
 {
   auto & obj_tracker = const_cast<INSADObjectTracker &>(

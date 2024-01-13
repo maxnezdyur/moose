@@ -33,7 +33,7 @@ INSADMomentumPressure::INSADMomentumPressure(const InputParameters & parameters)
     _p(adCoupledValue(NS::pressure)),
     _grad_p(adCoupledGradient(NS::pressure)),
     _coord_sys(_assembly.coordSystem()),
-    _rz_radial_coord(_mesh.getAxisymmetricRadialCoord())
+    _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
     _vol_frac(coupledValue("volume_fraction"))
 {
   // Bypass the UserObjectInterface method because it requires a UserObjectName param which we

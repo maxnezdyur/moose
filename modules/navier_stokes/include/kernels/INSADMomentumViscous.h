@@ -47,6 +47,6 @@ protected:
 
   /// The radial coordinate index for RZ coordinate systems
   const unsigned int _rz_radial_coord;
-  MooseEnum _form;
+
   const VariableValue & _vol_frac;
 };
