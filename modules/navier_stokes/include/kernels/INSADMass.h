@@ -10,6 +10,7 @@
 #pragma once
 
 #include "ADKernelValue.h"
+#include "MooseTypes.h"
 
 /**
  * This class computes the mass equation residual and Jacobian
@@ -28,4 +29,6 @@ protected:
 
   /// The strong residual of the mass equation, computed using INSADMaterial
   const ADMaterialProperty<Real> & _mass_strong_residual;
+
+  const VariableValue & _vol_frac;
 };

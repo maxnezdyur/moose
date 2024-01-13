@@ -16,17 +16,19 @@ INSADMomentumAdvection::validParams()
 {
   InputParameters params = ADVectorKernelValue::validParams();
   params.addClassDescription("Adds the advective term to the INS momentum equation");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
 INSADMomentumAdvection::INSADMomentumAdvection(const InputParameters & parameters)
   : ADVectorKernelValue(parameters),
-    _advective_strong_residual(getADMaterialProperty<RealVectorValue>("advective_strong_residual"))
+    _advective_strong_residual(getADMaterialProperty<RealVectorValue>("advective_strong_residual")),
+    _vol_frac(coupledValue("volume_fraction"))
 {
 }
 
 ADRealVectorValue
 INSADMomentumAdvection::precomputeQpResidual()
 {
-  return _advective_strong_residual[_qp];
+  return _advective_strong_residual[_qp] * _vol_frac[_qp];
 }

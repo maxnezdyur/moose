@@ -29,6 +29,7 @@ INSADMomentumViscous::validParams()
   params.addParam<MooseEnum>("viscous_form",
                              viscous_form,
                              "The form of the viscous term. Options are 'traction' or 'laplace'");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
@@ -36,7 +37,8 @@ INSADMomentumViscous::INSADMomentumViscous(const InputParameters & parameters)
   : ADVectorKernel(parameters),
     _mu(getADMaterialProperty<Real>("mu_name")),
     _coord_sys(_assembly.coordSystem()),
-    _form(getParam<MooseEnum>("viscous_form"))
+    _form(getParam<MooseEnum>("viscous_form")),
+    _vol_frac(coupledValue("volume_fraction"))
 {
   auto & obj_tracker = const_cast<INSADObjectTracker &>(
       _fe_problem.getUserObject<INSADObjectTracker>("ins_ad_object_tracker"));
@@ -48,9 +50,9 @@ ADRealTensorValue
 INSADMomentumViscous::qpViscousTerm()
 {
   if (_form == "laplace")
-    return _mu[_qp] * _grad_u[_qp];
+    return _mu[_qp] * _grad_u[_qp] * _vol_frac[_qp];
   else
-    return _mu[_qp] * (_grad_u[_qp] + _grad_u[_qp].transpose());
+    return _mu[_qp] * (_grad_u[_qp] + _grad_u[_qp].transpose()) * _vol_frac[_qp];
 }
 
 ADRealVectorValue

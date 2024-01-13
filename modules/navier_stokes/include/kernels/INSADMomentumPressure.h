@@ -31,4 +31,5 @@ protected:
   const ADVariableGradient & _grad_p;
 
   const Moose::CoordinateSystemType & _coord_sys;
+  const VariableValue & _vol_frac;
 };
