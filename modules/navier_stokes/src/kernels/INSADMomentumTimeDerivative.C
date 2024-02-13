@@ -23,12 +23,14 @@ INSADMomentumTimeDerivative::validParams()
                        "The temperature on which material properties may depend. If properties "
                        "do depend on temperature, this variable must be coupled in in order to "
                        "correctly resize the element matrix");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
 INSADMomentumTimeDerivative::INSADMomentumTimeDerivative(const InputParameters & parameters)
   : ADVectorTimeKernelValue(parameters),
-    _td_strong_residual(getADMaterialProperty<RealVectorValue>("td_strong_residual"))
+    _td_strong_residual(getADMaterialProperty<RealVectorValue>("td_strong_residual")),
+    _vol_frac(coupledValue("volume_fraction"))
 {
   // Bypass the UserObjectInterface method because it requires a UserObjectName param which we
   // don't need
@@ -41,5 +43,5 @@ INSADMomentumTimeDerivative::INSADMomentumTimeDerivative(const InputParameters &
 ADRealVectorValue
 INSADMomentumTimeDerivative::precomputeQpResidual()
 {
-  return _td_strong_residual[_qp];
+  return _td_strong_residual[_qp] * _vol_frac[_qp];
 }

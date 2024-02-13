@@ -60,5 +60,5 @@ INSADMomentumPressure::computeQpResidual()
     return residual;
   }
   else
-    return _test[_i][_qp] * _grad_p[_qp];
+    return _test[_i][_qp] * _grad_p[_qp] * _vol_frac[_qp];
 }

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "ElementIntegralVariablePostprocessor.h"
+#include "MooseTypes.h"
 
 class Function;
 
@@ -27,4 +28,5 @@ protected:
   virtual Real computeQpIntegral() override;
 
   const Function & _func;
+  const VariableValue & _indicator;
 };

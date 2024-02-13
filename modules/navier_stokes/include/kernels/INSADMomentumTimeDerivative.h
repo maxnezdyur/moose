@@ -27,4 +27,5 @@ protected:
   virtual ADRealVectorValue precomputeQpResidual() override;
 
   const ADMaterialProperty<RealVectorValue> & _td_strong_residual;
+  const VariableValue & _vol_frac;
 };

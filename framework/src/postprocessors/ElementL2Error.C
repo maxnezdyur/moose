@@ -19,11 +19,16 @@ ElementL2Error::validParams()
   params.addRequiredParam<FunctionName>("function", "The analytic solution to compare against");
   params.addClassDescription(
       "Computes L2 error between a field variable and an analytical function");
+  params.addCoupledVar(
+      "indicator", 0, "Indicator for the determining if ghost stabilization is needed.");
   return params;
 }
 
 ElementL2Error::ElementL2Error(const InputParameters & parameters)
-  : ElementIntegralVariablePostprocessor(parameters), _func(getFunction("function"))
+  : ElementIntegralVariablePostprocessor(parameters),
+    _func(getFunction("function")),
+    _indicator(coupledValue("indicator"))
+
 {
 }
 
@@ -36,6 +41,8 @@ ElementL2Error::getValue() const
 Real
 ElementL2Error::computeQpIntegral()
 {
+  if (_indicator[_qp] < 0.99)
+    return 0;
   Real diff = _u[_qp] - _func.value(_t, _q_point[_qp]);
   return diff * diff;
 }
