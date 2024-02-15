@@ -144,4 +144,5 @@ protected:
   unsigned int _disp_x_sys_num = libMesh::invalid_uint;
   unsigned int _disp_y_sys_num = libMesh::invalid_uint;
   unsigned int _disp_z_sys_num = libMesh::invalid_uint;
+  const VariableValue & _vol_frac;
 };

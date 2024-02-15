@@ -27,6 +27,7 @@ INSADMaterial::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<MaterialPropertyName>("mu_name", "mu", "The name of the dynamic viscosity");
   params.addParam<MaterialPropertyName>("rho_name", "rho", "The name of the density");
+  params.addCoupledVar("volume_fraction", 1, "volume_frac");
   return params;
 }
 
@@ -57,7 +58,8 @@ INSADMaterial::INSADMaterial(const InputParameters & parameters)
     _use_displaced_mesh(getParam<bool>("use_displaced_mesh")),
     _ad_q_point(_bnd ? _assembly.adQPointsFace() : _assembly.adQPoints()),
     _rz_radial_coord(_mesh.getAxisymmetricRadialCoord()),
-    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0)
+    _rz_axial_coord(_rz_radial_coord == 0 ? 1 : 0),
+    _vol_frac(coupledValue("volume_fraction"))
 {
   if (!_fe_problem.hasUserObject("ins_ad_object_tracker"))
   {
@@ -204,7 +206,7 @@ INSADMaterial::computeQpProperties()
 
   _advective_strong_residual[_qp] = _rho[_qp] * _grad_velocity[_qp] * _velocity[_qp];
   if (_has_transient)
-    _td_strong_residual[_qp] = _rho[_qp] * (*_velocity_dot)[_qp];
+    _td_strong_residual[_qp] = _rho[_qp] * (*_velocity_dot)[_qp] * _vol_frac[_qp];
   if (_has_gravity)
     _gravity_strong_residual[_qp] = -_rho[_qp] * _gravity_vector;
   if (_has_boussinesq)

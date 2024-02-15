@@ -350,10 +350,10 @@ INSADTauMaterialTempl<T>::computeQpProperties()
   const auto accel = _has_transient ? NS::computeSpeed((*_velocity_dot)[_qp]) : 0.0;
   const auto nu = _mu[_qp] / _rho[_qp];
   const auto speed = NS::computeSpeed(_velocity[_qp]);
-  const auto transient_part = _has_transient ? 0. : 0.;
-  // _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
-  //                                9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
-  _tau[_qp] = _alpha / std::sqrt(9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
+  const auto transient_part = _has_transient ? 0.0 : 0.;
+  _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
+                                 9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
+  // _tau[_qp] = _alpha / std::sqrt(9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
   // _tau[_qp] = _alpha / std::sqrt(transient_part + (_velocity[_qp] * _G * _grad_velocity) +
   //                                (30 * nu * _G * _G));
 
