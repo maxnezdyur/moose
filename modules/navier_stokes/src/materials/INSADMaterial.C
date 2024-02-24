@@ -27,7 +27,7 @@ INSADMaterial::validParams()
   params.addRequiredCoupledVar(NS::pressure, "The pressure");
   params.addParam<MaterialPropertyName>("mu_name", "mu", "The name of the dynamic viscosity");
   params.addParam<MaterialPropertyName>("rho_name", "rho", "The name of the density");
-  params.addCoupledVar("volume_fraction", 1, "volume_frac");
+  params.addCoupledVar("volume_fraction", 1.0, "volume_frac");
   return params;
 }
 

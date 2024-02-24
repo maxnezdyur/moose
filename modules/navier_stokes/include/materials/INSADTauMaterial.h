@@ -148,6 +148,7 @@ INSADTauMaterialTempl<T>::validParams()
   params.addClassDescription(
       "This is the material class used to compute the stabilization parameter tau.");
   params.addParam<Real>("alpha", 1., "Multiplicative factor on the stabilization parameter tau.");
+  params.addParam<bool>("advection", true, "Is there advection");
   return params;
 }
 
@@ -351,14 +352,15 @@ INSADTauMaterialTempl<T>::computeQpProperties()
   const auto nu = _mu[_qp] / _rho[_qp];
   const auto speed = NS::computeSpeed(_velocity[_qp]);
   const auto transient_part = _has_transient ? 0.0 : 0.;
-  _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
-                                 9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
-  // _tau[_qp] = _alpha / std::sqrt(9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
+  // _tau[_qp] = _alpha / std::sqrt(transient_part + (2. * speed / _hmax) * (2. * speed / _hmax) +
+  //                                9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
+  _tau[_qp] = _alpha / std::sqrt(9. * (4. * nu / (_hmax * _hmax)) * (4. * nu / (_hmax * _hmax)));
   // _tau[_qp] = _alpha / std::sqrt(transient_part + (_velocity[_qp] * _G * _grad_velocity) +
   //                                (30 * nu * _G * _G));
 
-  _momentum_strong_residual[_qp] =
-      _advective_strong_residual[_qp] + _viscous_strong_residual[_qp] + _grad_p[_qp];
+  _momentum_strong_residual[_qp] = _viscous_strong_residual[_qp] + _grad_p[_qp];
+  if (this->template getParam<bool>("advection"))
+    _momentum_strong_residual[_qp] += _advective_strong_residual[_qp];
 
   if (_has_transient)
     _momentum_strong_residual[_qp] += _td_strong_residual[_qp];
