@@ -535,10 +535,10 @@ ReporterContext<T>::transferFromVector(ReporterData & r_data,
   }
   else
   {
-    (void)r_data;
-    (void)r_name;
-    (void)index;
-    (void)time_index;
+    libmesh_ignore(r_data);
+    libmesh_ignore(r_name);
+    libmesh_ignore(index);
+    libmesh_ignore(time_index);
     mooseError("transferFromVector can only be used for reporter types that are specializatons of "
                "std::vector.");
   }
