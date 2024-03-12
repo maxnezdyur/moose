@@ -1,0 +1,78 @@
+[StochasticTools]
+[]
+
+[Distributions]
+  [S_dist]
+    type = Uniform
+    lower_bound = 0
+    upper_bound = 10
+  []
+  [D_dist]
+    type = Uniform
+    lower_bound = 0
+    upper_bound = 10
+  []
+[]
+
+[Samplers]
+  [sample]
+    type = MonteCarlo
+    num_rows = 4
+    distributions = 'S_dist D_dist'
+    execute_on = PRE_MULTIAPP_SETUP
+  []
+[]
+
+[MultiApps]
+  [worker]
+    type = SamplerFullSolveMultiApp
+    input_files = sub.i
+    sampler = sample
+    mode = batch-reset
+  []
+[]
+
+[Transfers]
+  [param_transfer]
+    type = SamplerParameterTransfer
+    to_multi_app = worker
+    sampler = sample
+    parameters = 'Kernels/source_u/value BCs/right_v/value'
+  []
+  [solution_transfer]
+    type = SerializedSnapshotTransfer
+    parallel_storage = parallel_storage
+    from_multi_app = worker
+    sampler = sample
+    solution_container = solution_storage
+    residual_container = residual_storage
+    jacobian_container = jacobian_storage
+    serialize_on_root = true
+  []
+
+[]
+
+[Controls]
+  [cmd_line]
+    type = MultiAppSamplerControl
+    multi_app = worker
+    sampler = sample
+    param_names = 'S D'
+  []
+[]
+
+[Reporters]
+  [parallel_storage]
+    type = ParallelSolutionStorage
+    variables = 'solution residual jacobian'
+    outputs = out
+  []
+[]
+
+[Outputs]
+  [out]
+    type = JSON
+    execute_on = FINAL
+    execute_system_information_on = none
+  []
+[]

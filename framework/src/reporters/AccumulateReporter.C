@@ -19,7 +19,7 @@ AccumulateReporter::validParams()
                              "over time into a vector reporter value of the same type.");
   params.addRequiredParam<std::vector<ReporterName>>("reporters", "The reporters to accumulate.");
 
-  params.set<ExecFlagEnum>("execute_on") = {EXEC_INITIAL, EXEC_TIMESTEP_END};
+  params.set<ExecFlagEnum>("execute_on") = {EXEC_MULTIAPP_FIXED_POINT_END};
   params.suppressParameter<ExecFlagEnum>("execute_on");
   return params;
 }
