@@ -12,6 +12,7 @@
 #include "NonlinearSystem.h"
 #include "libmesh/id_types.h"
 #include "libmesh/distributed_vector.h"
+#include "libmesh/petsc_vector.h"
 
 registerMooseObject("StochasticToolsApp", JacobianContainer);
 

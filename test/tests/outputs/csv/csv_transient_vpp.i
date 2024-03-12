@@ -72,6 +72,7 @@
 [Outputs]
   [out]
     type = CSV
-    execute_on = 'LINEAR'
+    # execute_on = 'LINEAR'
+    execute_on = 'final'
   []
 []

@@ -52,13 +52,15 @@ void
 SnapshotContainerBase::execute()
 {
   auto possible_snap = collectSnapshot();
+  // Do not store empty containers. This can happen for sparse jacobian representation.
+  if (possible_snap->size() == 0)
+    return;
 
   for (auto & entry : _accumulated_data)
-    // Check if we already have a close enough snapshot to tolerance. If the
-    // return value is -1 that every element is within tolerance.
-    if (entry->local_relative_compare(*possible_snap, _save_tolerance) == -1)
-      return;
+    if (entry->size() != possible_snap->size())
+      mooseError("Snapshot sizes changed midsimulation.");
 
-  // Store the cloned snapshot. Each derived class has to implement the collectSnapshot() method.
-  _accumulated_data.push_back(collectSnapshot());
+  // Store the cloned snapshot. Each derived class has to implement the collectSnapshot()
+  // method.
+  _accumulated_data.push_back(possible_snap->clone());
 }

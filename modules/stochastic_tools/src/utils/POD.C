@@ -10,6 +10,7 @@
 
 #include "MooseError.h"
 #include "POD.h"
+#include <slepcsvd.h>
 
 namespace StochasticTools
 {
@@ -118,10 +119,11 @@ POD::computePOD(const VariableName & vname,
   // Set the subspace size for the Lanczos method, we take twice as many
   // basis vectors as the requested number of POD modes. This guarantees in most of the case the
   // convergence of the singular triplets.
-  SVDSetFromOptions(svd);
-  SVDSetDimensions(
+  ierr = SVDSetFromOptions(svd);
+  LIBMESH_CHKERR(ierr);
+  ierr = SVDSetDimensions(
       svd, num_modes, std::min(2 * num_modes, global_rows), std::min(2 * num_modes, global_rows));
-
+  LIBMESH_CHKERR(ierr);
   // Compute the singular value triplets
   ierr = SVDSolve(svd);
   LIBMESH_CHKERR(ierr);
@@ -194,11 +196,11 @@ POD::determineNumberOfModes(const std::vector<Real> & singular_values,
                    [](Real sum, Real ev) { return sum + ev * ev; });
 
   // Find the first element that satisfies the threshold
-  const Real threshold = energy;
-  for (num_modes = 0; num_modes < ev_sum.size(); ++num_modes)
-    if (ev_sum[num_modes] / ev_sum.back() > 1 - threshold)
-      break;
+  // const Real threshold = energy;
+  // for (num_modes = 0; num_modes < ev_sum.size(); ++num_modes)
+  //   if (ev_sum[num_modes] / ev_sum.back() > 1 - threshold)
+  //     break;
 
-  return num_modes + 1;
+  return num_modes_compute;
 }
 }

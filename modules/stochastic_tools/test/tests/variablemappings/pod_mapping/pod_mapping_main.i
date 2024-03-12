@@ -4,21 +4,17 @@
 [Distributions]
   [S_dist]
     type = Uniform
-    lower_bound = 0
+    lower_bound = 9
     upper_bound = 10
   []
-  [D_dist]
-    type = Uniform
-    lower_bound = 0
-    upper_bound = 10
-  []
+
 []
 
 [Samplers]
   [sample]
     type = MonteCarlo
-    num_rows = 4
-    distributions = 'S_dist D_dist'
+    num_rows = 8
+    distributions = 'S_dist'
     execute_on = initial
     min_procs_per_row = 2
   []
@@ -39,18 +35,18 @@
     type = PODMapping
     solution_storage = parallel_storage
     variables = "v"
-    num_modes_to_compute = '2'
+    num_modes_to_compute = '1'
     extra_slepc_options = "-svd_monitor_all"
   []
 []
 
 [Transfers]
-  [param_transfer]
-    type = SamplerParameterTransfer
-    to_multi_app = worker
-    sampler = sample
-    parameters = 'Kernels/source_v/value BCs/right_v/value'
-  []
+  # [param_transfer]
+  #   type = SamplerParameterTransfer
+  #   to_multi_app = worker
+  #   sampler = sample
+  #   parameters = 'Kernels/source_v/value BCs/right_v/value'
+  # []
   [solution_transfer]
     type = SerializedSolutionTransfer
     parallel_storage = parallel_storage

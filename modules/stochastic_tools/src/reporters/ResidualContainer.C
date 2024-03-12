@@ -32,6 +32,21 @@ ResidualContainer::ResidualContainer(const InputParameters & parameters)
 std::unique_ptr<NumericVector<Number>>
 ResidualContainer::collectSnapshot()
 {
+
   // Clone the residual of the correct system
-  return _fe_problem.getNonlinearSystem(_nonlinear_system_number).RHS().clone();
+  auto snap = _fe_problem.getNonlinearSystem(_nonlinear_system_number).RHS().clone();
+  if (snap->l2_norm() < std::numeric_limits<Real>::epsilon())
+  {
+    // This happens on timestep_begin
+    _fe_problem.computeResidualL2Norm();
+    snap = _fe_problem.getNonlinearSystem(_nonlinear_system_number).RHS().clone();
+  }
+  Real factor = snap->l2_norm();
+  if (factor < std::numeric_limits<Real>::epsilon())
+    snap->scale(0.0);
+  else
+    // Scale the vector by the factor to normalize it
+    snap->scale(1.0 / factor);
+
+  return snap->clone();
 }
