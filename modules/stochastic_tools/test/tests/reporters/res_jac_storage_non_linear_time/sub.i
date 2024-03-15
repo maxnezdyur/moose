@@ -1,6 +1,3 @@
-S = 10
-D = 10
-
 [Mesh]
   type = GeneratedMesh
   dim = 1
@@ -10,13 +7,6 @@ D = 10
 
 [Variables]
   [u]
-  []
-  [v]
-  []
-[]
-
-[AuxVariables]
-  [u_aux]
   []
 []
 
@@ -31,33 +21,19 @@ D = 10
     variable = u
     value = 1.0
   []
-  [diffusion_v]
-    type = MatDiffusion
-    variable = v
-    diffusivity = D_v
+  [non_linear_u]
+    type = ExponentialReaction
+    variable = u
+    mu1 = 7
+    mu2 = 0.4
+    extra_matrix_tags = 'nonlin_tag'
+    extra_vector_tags = 'nonlin_tag'
   []
-  [source_v]
-    type = BodyForce
-    variable = v
-    value = 1.0
+  [time_u]
+    type = TimeDerivative
+    variable = u
   []
-[]
 
-[AuxKernels]
-  [func_aux]
-    type = FunctionAux
-    variable = u_aux
-    function = u_aux_func
-  []
-[]
-
-[Functions]
-  [u_aux_func]
-    type = ParsedFunction
-    expression = 'S * pow(x, D/10)'
-    symbol_names = 'S D'
-    symbol_values = '${S} ${D}'
-  []
 []
 
 [Materials]
@@ -86,25 +62,17 @@ D = 10
     boundary = right
     value = 0
   []
-  [left_v]
-    type = DirichletBC
-    variable = v
-    boundary = left
-    value = 0
-  []
-  [right_v]
-    type = DirichletBC
-    variable = v
-    boundary = right
-    value = 0
-  []
 []
 
 [Executioner]
-  type = Steady
+  type = Transient
+  dt = 0.01
+  num_steps = 2
   solve_type = NEWTON
   petsc_options_iname = '-pc_type -pc_hypre_type'
   petsc_options_value = 'hypre boomeramg'
+  nl_rel_tol = 1e-16
+  nl_abs_tol = 1e-12
 []
 
 [Controls]
@@ -116,14 +84,23 @@ D = 10
 [Reporters]
   [solution_storage]
     type = SolutionContainer
-    execute_on = 'FINAL'
+    execute_on = 'TIMESTEP_END'
   []
   [residual_storage]
     type = ResidualContainer
-    execute_on = 'FINAL'
+    tag_name = nonlin_tag
+    execute_on = 'NONLINEAR'
   []
   [jacobian_storage]
     type = JacobianContainer
-    execute_on = 'FINAL'
+    tag_name = nonlin_tag
+    jac_indices_reporter_name = indices
+    execute_on = 'LINEAR TIMESTEP_END'
   []
 []
+
+[Problem]
+  extra_tag_vectors = 'nonlin_tag'
+  extra_tag_matrices = 'nonlin_tag'
+[]
+

@@ -9,7 +9,10 @@
 
 #pragma once
 
+#include "MooseTypes.h"
+#include "NonlinearSystemBase.h"
 #include "SnapshotContainerBase.h"
+#include "SystemBase.h"
 #include "libmesh/petsc_vector.h"
 
 /**
@@ -26,4 +29,7 @@ public:
 
 protected:
   virtual std::unique_ptr<NumericVector<Number>> collectSnapshot() override;
+
+  const NonlinearSystem & _nl_sys;
+  const TagID _tag_id;
 };

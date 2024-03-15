@@ -10,6 +10,7 @@
 #pragma once
 
 #include "GeneralReporter.h"
+#include "TaggingInterface.h"
 #include "libmesh/petsc_vector.h"
 #include "libmesh/petsc_matrix.h"
 #include "NonlinearSystemBase.h"

@@ -1,4 +1,15 @@
-[StochasticTools]
+[Mesh]
+  [gmg]
+    type = GeneratedMeshGenerator
+    dim = 1
+  []
+[]
+
+[Problem]
+  solve = false
+[]
+[Executioner]
+  type = Steady
 []
 
 [Distributions]
@@ -20,6 +31,7 @@
     num_rows = 4
     distributions = 'S_dist D_dist'
     execute_on = PRE_MULTIAPP_SETUP
+    seed = 0
   []
 []
 
@@ -49,15 +61,14 @@
     jacobian_container = jacobian_storage
     serialize_on_root = true
   []
-
-[]
-
-[Controls]
-  [cmd_line]
-    type = MultiAppSamplerControl
-    multi_app = worker
-    sampler = sample
-    param_names = 'S D'
+  # We are only transferring the one copy of the indices. We assume that the
+  # order, number, anything does not change from one run to another. Breaking
+  # this assumption would not allow M/DEIM to work in the current configuration.
+  [jac_indices]
+    type = MultiAppCloneReporterTransfer
+    from_multi_app = worker
+    from_reporters = 'jacobian_storage/indices'
+    to_reporter = jac_indices
   []
 []
 
@@ -65,6 +76,10 @@
   [parallel_storage]
     type = ParallelSolutionStorage
     variables = 'solution residual jacobian'
+    outputs = out
+  []
+  [jac_indices]
+    type = ConstantReporter
     outputs = out
   []
 []

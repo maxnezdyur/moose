@@ -39,9 +39,7 @@ SerializedSnapshotTransfer::validParams()
 }
 
 SerializedSnapshotTransfer::SerializedSnapshotTransfer(const InputParameters & parameters)
-  : StochasticToolsTransfer(parameters),
-    _serialize_on_root(getParam<bool>("serialize_on_root")),
-    _sparse_representation(isParamSetByUser("jacobian_index_container"))
+  : StochasticToolsTransfer(parameters), _serialize_on_root(getParam<bool>("serialize_on_root"))
 {
   if (hasToMultiApp())
     paramError("to_multi_app", "To and between multiapp directions are not implemented");
@@ -61,14 +59,12 @@ SerializedSnapshotTransfer::initializeInNormalMode()
   _solution_container.clear();
   _residual_container.clear();
   _jacobian_container.clear();
-  _jacobian_index_container.clear();
 
   const auto n = getFromMultiApp()->numGlobalApps();
   const auto & serialized_solution_reporter = getParam<std::string>("solution_container");
   const auto & serialized_residual_reporter = getParam<std::string>("residual_container");
   const auto & serialized_jacobian_reporter = getParam<std::string>("jacobian_container");
-  const auto & serialized_jacobian_index_reporter =
-      _sparse_representation ? getParam<std::string>("jacobian_index_container") : "";
+
   for (MooseIndex(n) i = 0; i < n; i++)
     if (getFromMultiApp()->hasLocalApp(i))
     {
@@ -79,9 +75,6 @@ SerializedSnapshotTransfer::initializeInNormalMode()
           &app_problem.getUserObject<SnapshotContainerBase>(serialized_residual_reporter));
       _jacobian_container.push_back(
           &app_problem.getUserObject<SnapshotContainerBase>(serialized_jacobian_reporter));
-      if (_sparse_representation)
-        _jacobian_index_container.push_back(
-            &app_problem.getUserObject<SnapshotContainerBase>(serialized_jacobian_index_reporter));
     }
 }
 
@@ -93,7 +86,6 @@ SerializedSnapshotTransfer::initializeInBatchMode()
   _solution_container.clear();
   _residual_container.clear();
   _jacobian_container.clear();
-  _jacobian_index_container.clear();
   FEProblemBase & app_problem = getFromMultiApp()->appProblemBase(_app_index);
 
   _solution_container.push_back(&app_problem.getUserObject<SnapshotContainerBase>(
@@ -102,9 +94,6 @@ SerializedSnapshotTransfer::initializeInBatchMode()
       getParam<std::string>("residual_container")));
   _jacobian_container.push_back(&app_problem.getUserObject<SnapshotContainerBase>(
       getParam<std::string>("jacobian_container")));
-  if (_sparse_representation)
-    _jacobian_index_container.push_back(&app_problem.getUserObject<SnapshotContainerBase>(
-        getParam<std::string>("jacobian_index_container")));
 }
 
 void
@@ -131,17 +120,12 @@ SerializedSnapshotTransfer::execute()
         transferToSubAppRoot(app_problem, *_solution_container[local_i], i, "solution");
         transferToSubAppRoot(app_problem, *_residual_container[local_i], i, "residual");
         transferToSubAppRoot(app_problem, *_jacobian_container[local_i], i, "jacobian");
-        if (_sparse_representation)
-          transferToSubAppRoot(
-              app_problem, *_jacobian_index_container[local_i], i, "jacobian_index");
       }
       else
       {
         transferInParallel(app_problem, *_solution_container[local_i], i, "solution");
         transferInParallel(app_problem, *_residual_container[local_i], i, "residual");
         transferInParallel(app_problem, *_jacobian_container[local_i], i, "jacobian");
-        if (_sparse_representation)
-          transferInParallel(app_problem, *_jacobian_index_container[local_i], i, "jacobian_index");
       }
     }
   }
@@ -164,18 +148,12 @@ SerializedSnapshotTransfer::executeFromMultiapp()
       transferToSubAppRoot(app_problem, *_solution_container[0], _global_index, "solution");
       transferToSubAppRoot(app_problem, *_residual_container[0], _global_index, "residual");
       transferToSubAppRoot(app_problem, *_jacobian_container[0], _global_index, "jacobian");
-      if (_sparse_representation)
-        transferToSubAppRoot(
-            app_problem, *_jacobian_index_container[0], _global_index, "jacobian_index");
     }
     else
     {
       transferInParallel(app_problem, *_solution_container[0], _global_index, "solution");
       transferInParallel(app_problem, *_residual_container[0], _global_index, "residual");
       transferInParallel(app_problem, *_jacobian_container[0], _global_index, "jacobian");
-      if (_sparse_representation)
-        transferInParallel(
-            app_problem, *_jacobian_index_container[0], _global_index, "jacobian_index");
     }
   }
 }
