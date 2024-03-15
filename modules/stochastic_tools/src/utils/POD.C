@@ -204,10 +204,10 @@ POD::determineNumberOfModes(const std::vector<Real> & singular_values,
                    [](Real sum, Real ev) { return sum + ev * ev; });
 
   // Find the first element that satisfies the threshold
-  // const Real threshold = energy;
-  // for (num_modes = 0; num_modes < ev_sum.size(); ++num_modes)
-  //   if (ev_sum[num_modes] / ev_sum.back() > 1 - threshold)
-  //     break;
+  const Real threshold = energy;
+  for (num_modes = 0; num_modes < ev_sum.size(); ++num_modes)
+    if (ev_sum[num_modes] / ev_sum.back() > 1 - threshold)
+      break;
 
   return num_modes_compute;
 }

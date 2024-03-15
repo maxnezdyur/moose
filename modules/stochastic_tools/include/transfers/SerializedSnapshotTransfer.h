@@ -57,8 +57,6 @@ protected:
   std::vector<SnapshotContainerBase *> _residual_container;
   /// Link to the storage spaces on the subapplications (will only hold one in batch mode)
   std::vector<SnapshotContainerBase *> _jacobian_container;
-  /// Link to the storage spaces on the subapplications (will only hold one in batch mode)
-  std::vector<SnapshotContainerBase *> _jacobian_index_container;
 
 private:
   /// Serialize on the root processor of the subapplication and transfer the result to the main application
@@ -100,6 +98,4 @@ private:
   /// User-selected switch that determines if we want to serialize on the root of the subapp
   /// only or distribute the solutions between all the ranks of the subapp.
   const bool _serialize_on_root;
-
-  const bool _sparse_representation;
 };

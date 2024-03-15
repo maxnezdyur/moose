@@ -10,7 +10,9 @@
 #pragma once
 
 #include "SnapshotContainerBase.h"
+#include "libmesh/id_types.h"
 #include "libmesh/petsc_vector.h"
+#include "libmesh/vectormap.h"
 
 /**
  * This class is responsible for collecting jacobian row concatenated vectors in one place. The
@@ -26,4 +28,9 @@ public:
 
 protected:
   virtual std::unique_ptr<NumericVector<Number>> collectSnapshot() override;
+
+  std::vector<std::pair<dof_id_type, dof_id_type>> & _sparse_ind;
+
+  NonlinearSystem & _nl_sys;
+  const TagID _tag_id;
 };

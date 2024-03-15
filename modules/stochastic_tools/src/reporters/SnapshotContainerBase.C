@@ -13,7 +13,6 @@ InputParameters
 SnapshotContainerBase::validParams()
 {
   InputParameters params = GeneralReporter::validParams();
-
   params.addParam<NonlinearSystemName>(
       "nonlinear_system_name",
       "nl0",
@@ -52,13 +51,14 @@ void
 SnapshotContainerBase::execute()
 {
   auto possible_snap = collectSnapshot();
-  // Do not store empty containers. This can happen for sparse jacobian representation.
-  if (possible_snap->size() == 0)
+  // Do not store zero containers. These wouldn't hold any information anyway.
+  if (possible_snap->linfty_norm() <= std::numeric_limits<Real>::epsilon())
     return;
 
-  for (auto & entry : _accumulated_data)
-    if (entry->size() != possible_snap->size())
-      mooseError("Snapshot sizes changed midsimulation.");
+  // We do this check every time we add a snap, so only need to check the last one.
+  if (_accumulated_data.size() > 1)
+    if (possible_snap->size() != _accumulated_data.back()->size())
+      mooseError("Snapshot sizes changed mid-simulation.");
 
   // Store the cloned snapshot. Each derived class has to implement the collectSnapshot()
   // method.
