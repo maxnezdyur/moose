@@ -50,8 +50,8 @@ InverseRB::execute()
   if (flag == EXEC_INITIAL)
   {
     // Set the local elem/node ranges
-    _fe_problem.setAlgebraicElementRange(_red_elem_local_range.get());
-    _fe_problem.setAlgebraicNodeRange(_red_node_local_range.get());
+    _fe_problem.setCurrentAlgebraicElementRange(_red_elem_local_range.get());
+    _fe_problem.setCurrentAlgebraicNodeRange(_red_node_local_range.get());
     return;
   }
 
@@ -65,8 +65,8 @@ InverseRB::execute()
   unsigned int iter = 0;
 
   // Set the local elem/node ranges
-  _fe_problem.setAlgebraicElementRange(_red_elem_local_range.get());
-  _fe_problem.setAlgebraicNodeRange(_red_node_local_range.get());
+  _fe_problem.setCurrentAlgebraicElementRange(_red_elem_local_range.get());
+  _fe_problem.setCurrentAlgebraicNodeRange(_red_node_local_range.get());
   updateSolution(reduced_sol);
 
   while (!is_converged && iter < _max_iter)
@@ -95,8 +95,8 @@ InverseRB::execute()
     // Handle non-convergence scenario
   }
 
-  // _fe_problem.setAlgebraicElementRange(nullptr);
-  // _fe_problem.setAlgebraicNodeRange(nullptr);
+  // _fe_problem.setCurrentAlgebraicElementRange(nullptr);
+  // _fe_problem.setCurrentAlgebraicNodeRange(nullptr);
 }
 
 void
