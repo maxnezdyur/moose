@@ -1,0 +1,12 @@
+[Tests]
+    issues = '#'
+    design = ""
+
+    [heat_pinn]
+      type = 'Exodiff'
+      input = 'heat.i'
+      exodiff = 'heat_out.e'
+      libtorch = true
+      requirement = 'The system shall be able to evaluate a torchscript pinn as an auxkernel.'
+    []
+  []
