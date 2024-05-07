@@ -40,6 +40,13 @@ public:
    */
   virtual torch::Tensor forward(torch::Tensor & x) override;
 
+  /**
+   *  Most general way to call forward for torch scripts. This allows inputs
+   *  that are dictionaries, tuples, etc.
+   * @param inputs Input IValue vector. Most general input available.
+   */
+  virtual torch::jit::IValue forward(std::vector<torch::jit::IValue> & inputs);
+
 protected:
   /// Name of the torchscript containing the neural network
   const std::string _filename;

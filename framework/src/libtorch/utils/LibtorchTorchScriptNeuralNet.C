@@ -43,6 +43,11 @@ LibtorchTorchScriptNeuralNet::forward(torch::Tensor & x)
   return torch::jit::script::Module::forward(inputs).toTensor();
 }
 
+torch::jit::IValue
+LibtorchTorchScriptNeuralNet::forward(std::vector<torch::jit::IValue> & inputs)
+{
+  return torch::jit::script::Module::forward(inputs);
+}
 }
 
 #endif
