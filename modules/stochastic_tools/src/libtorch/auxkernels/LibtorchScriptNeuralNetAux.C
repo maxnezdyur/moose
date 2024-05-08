@@ -53,22 +53,25 @@ LibtorchScriptNeuralNetAux::computeValueImpl(torch::ScalarType TensorType)
   // Create a dictionary to hold the input data
   torch::Dict<std::string, torch::Tensor> input_dict;
 
+  // The location to evaluate the NN
+  const Point & p = isNodal() ? *_current_node : _q_point[_qp];
+
   // Get the current node coordinates and time
-  auto x = (*_current_node)(0);
+  auto x = p(0);
 
   torch::Tensor x_tensor = torch::tensor({static_cast<ValueType>(x)}, TensorType);
   input_dict.insert("x", x_tensor);
 
   if (_mesh.dimension() > 1)
   {
-    auto y = (*_current_node)(1);
+    auto y = p(1);
     torch::Tensor y_tensor = torch::tensor({static_cast<ValueType>(y)}, TensorType);
     input_dict.insert("y", y_tensor);
   }
 
   if (_mesh.dimension() > 2)
   {
-    auto z = (*_current_node)(2);
+    auto z = p(2);
     torch::Tensor z_tensor = torch::tensor({static_cast<ValueType>(z)}, TensorType);
     input_dict.insert("z", z_tensor);
   }
