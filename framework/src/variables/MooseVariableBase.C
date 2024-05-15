@@ -171,19 +171,48 @@ std::vector<dof_id_type>
 MooseVariableBase::componentDofIndices(const std::vector<dof_id_type> & dof_indices,
                                        unsigned int component) const
 {
+  // Initialize the new_dof_indices vector with the input dof_indices
   std::vector<dof_id_type> new_dof_indices(dof_indices);
+
+  // Only perform mapping if the component is not 0
   if (component != 0)
   {
-    if (isNodal())
-      for (auto & id : new_dof_indices)
-        id += component;
-    else
+    // Grab all DoFs for component 0; this will be used as a reference
+    std::vector<dof_id_type> comp_0_dofs;
+    _dof_map.local_variable_indices(comp_0_dofs, _mesh, _var_num);
+
+    // Determine the variable number for the specified component
+    auto comp_num = _var_num + component;
+
+    // Grab all DoFs for the specified component
+    std::vector<dof_id_type> comp_n_dofs;
+    _dof_map.local_variable_indices(comp_n_dofs, _mesh, comp_num);
+
+    // Create a map to store the index of each DoF in comp_0_dofs
+    std::unordered_map<dof_id_type, size_t> index_map;
+    for (size_t i = 0; i < comp_0_dofs.size(); ++i)
     {
-      unsigned int n = dof_indices.size();
-      for (auto & id : new_dof_indices)
-        id += component * n;
+      index_map[comp_0_dofs[i]] = i;
+    }
+    // We expect that the ordering of the dofs from one compoent to another
+    // is the same, relatively.
+    // Map the input dof_indices to the corresponding DoFs in comp_n_dofs
+    for (size_t i = 0; i < dof_indices.size(); ++i)
+    {
+      // Find the index of the current DoF in comp_0_dofs using the map
+      auto it = index_map.find(dof_indices[i]);
+      if (it != index_map.end())
+      {
+        // Use the found index to get the corresponding DoF in comp_n_dofs
+        new_dof_indices[i] = comp_n_dofs[it->second];
+      }
+      else
+      {
+        mooseError("DoF not found in comp_0_dofs");
+      }
     }
   }
+
   return new_dof_indices;
 }
 

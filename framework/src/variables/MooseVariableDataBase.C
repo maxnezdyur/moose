@@ -617,27 +617,26 @@ MooseVariableDataBase<OutputType>::getArrayDoFValues(const NumericVector<Number>
                                                      MooseArray<RealEigenVector> & dof_values) const
 {
   dof_values.resize(n);
-  if (isNodal())
+
+  std::vector<std::vector<dof_id_type>> all_dofs_indices(_count);
+  all_dofs_indices[0] = _dof_indices;
+
+  // Populate all_dofs_indices with DoFs for each component
+  for (unsigned int comp = 1; comp < _count; ++comp)
   {
-    for (unsigned int i = 0; i < n; ++i)
-    {
-      dof_values[i].resize(_count);
-      auto dof = _dof_indices[i];
-      for (unsigned int j = 0; j < _count; ++j)
-        dof_values[i](j) = sol(dof++);
-    }
+    all_dofs_indices[comp] = _var.componentDofIndices(_dof_indices, comp);
   }
-  else
+  // Iterate over each entry to populate dof_values
+  for (unsigned int i = 0; i < n; ++i)
   {
-    for (unsigned int i = 0; i < n; ++i)
+    // Resize the inner vector to hold _count components
+    dof_values[i].resize(_count);
+    for (unsigned int j = 0; j < _count; ++j)
     {
-      dof_values[i].resize(_count);
-      auto dof = _dof_indices[i];
-      for (unsigned int j = 0; j < _count; ++j)
-      {
-        dof_values[i](j) = sol(dof);
-        dof += n;
-      }
+      // Retrieve the corresponding DoF index from the correct component
+      auto dof = all_dofs_indices[j][i];
+      // Assign the solution value to the dof_values array
+      dof_values[i](j) = sol(dof);
     }
   }
 }
