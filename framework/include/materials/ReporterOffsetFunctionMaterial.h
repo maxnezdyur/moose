@@ -55,6 +55,13 @@ protected:
    */
   Real computeOffsetFunction(const Point & point_offset);
 
+  /**
+   * Coefficient to scale the function offset. This can be overidded later to
+   * coupled materials or variables.
+   * @return GenericReal<is_ad>
+   */
+  virtual GenericReal<is_ad> computeCoefficient();
+
 private:
   /// convenience vectors (these are not const because reporters can change their size)
   std::vector<Real> _zeros_vec;

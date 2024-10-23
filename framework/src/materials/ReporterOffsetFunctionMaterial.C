@@ -1,4 +1,5 @@
 #include "MooseError.h"
+#include "MooseTypes.h"
 #include "ReporterOffsetFunctionMaterial.h"
 #include "libmesh/int_range.h"
 
@@ -69,7 +70,7 @@ ReporterOffsetFunctionMaterialTempl<is_ad>::computeQpProperties()
 
     Point offset = _read_in_points ? _points[idx] : Point(_coordx[idx], _coordy[idx], _coordz[idx]);
 
-    _material[_qp] += computeOffsetFunction(offset);
+    _material[_qp] += computeCoefficient() * computeOffsetFunction(offset);
   }
 }
 template <bool is_ad>
@@ -77,6 +78,14 @@ Real
 ReporterOffsetFunctionMaterialTempl<is_ad>::computeOffsetFunction(const Point & point_offset)
 {
   return _func.value(_t, _q_point[_qp] - point_offset);
+}
+
+template <bool is_ad>
+
+GenericReal<is_ad>
+ReporterOffsetFunctionMaterialTempl<is_ad>::computeCoefficient()
+{
+  return 1.0;
 }
 
 template class ReporterOffsetFunctionMaterialTempl<true>;
