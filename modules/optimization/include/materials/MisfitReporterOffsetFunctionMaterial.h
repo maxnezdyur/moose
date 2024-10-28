@@ -32,8 +32,6 @@ protected:
   /// values at each xyz coordinate
   const std::vector<Real> & _measurement_values;
 
-  Real computeWeighting(const Point & point_shift);
-
   using ReporterOffsetFunctionMaterialTempl<is_ad>::_prop_name;
   using ReporterOffsetFunctionMaterialTempl<is_ad>::_qp;
   using ReporterOffsetFunctionMaterialTempl<is_ad>::_material;

@@ -23,8 +23,7 @@ ADCoupledVarMaterialDerivative::ADCoupledVarMaterialDerivative(const InputParame
   : DerivativeMaterialInterface<Material>(parameters),
     _coupled_var(*getVar("coupled_var", 0)),
     _ad_prop(getADMaterialProperty<Real>(getParam<MaterialPropertyName>("ad_prop_name"))),
-    _derivative_prop(
-        declarePropertyByName<Real>(getParam<MaterialPropertyName>("derivative_prop_name")))
+    _derivative_prop(declareProperty<Real>(getParam<MaterialPropertyName>("derivative_prop_name")))
 {
 }
 

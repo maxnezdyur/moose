@@ -1,31 +1,33 @@
 #include "MaterialReporterOffsetFunctionMaterial.h"
 #include "MooseError.h"
+#include "MooseTypes.h"
 #include "libmesh/int_range.h"
 #include "libmesh/libmesh_common.h"
 
-registerMooseObject("OptimizationApp", MisfitReporterOffsetFunctionMaterial);
-registerMooseObject("OptimizationApp", ADMisfitReporterOffsetFunctionMaterial);
+registerMooseObject("OptimizationApp", MaterialReporterOffsetFunctionMaterial);
+registerMooseObject("OptimizationApp", ADMaterialReporterOffsetFunctionMaterial);
 
 template <bool is_ad>
 InputParameters
-MaterialReporterOffsetFunctionMaterial<is_ad>::validParams()
+MaterialReporterOffsetFunctionMaterialTempl<is_ad>::validParams()
 {
   InputParameters params = ReporterOffsetFunctionMaterial::validParams();
   params.addClassDescription(
       "Computes the misfit and misfit gradient materials for inverse optimizations problems.");
 
-  params.addRequiredCoupledVar("sim_variable",
-                               "Variable that is being for the simulation variable.");
+  params.addRequiredParam<MaterialName>("sim_material",
+                                        "Material that is being for the computing misfit.");
   params.addRequiredParam<ReporterName>(
       "value_name", "reporter value name.  This uses the reporter syntax <reporter>/<name>.");
   return params;
 }
 
 template <bool is_ad>
-MaterialReporterOffsetFunctionMaterial<is_ad>::MaterialReporterOffsetFunctionMaterial(
+MaterialReporterOffsetFunctionMaterialTempl<is_ad>::MaterialReporterOffsetFunctionMaterialTempl(
     const InputParameters & parameters)
   : ReporterOffsetFunctionMaterialTempl<is_ad>(parameters),
-    _sim_var(this->template coupledGenericValue<is_ad>("sim_variable")),
+    _coupled_material(this->template getGenericMaterialProperty<Real, is_ad>(
+        this->template getParam<MaterialName>("sim_material"))),
     _mat_prop_gradient(
         this->template declareGenericProperty<Real, is_ad>(_prop_name + "_gradient")),
     _measurement_values(
@@ -35,7 +37,7 @@ MaterialReporterOffsetFunctionMaterial<is_ad>::MaterialReporterOffsetFunctionMat
 
 template <bool is_ad>
 void
-MaterialReporterOffsetFunctionMaterial<is_ad>::computeQpProperties()
+MaterialReporterOffsetFunctionMaterialTempl<is_ad>::computeQpProperties()
 {
   _material[_qp] = 0.0;
   _mat_prop_gradient[_qp] = 0.0;
@@ -53,17 +55,18 @@ MaterialReporterOffsetFunctionMaterial<is_ad>::computeQpProperties()
         _read_in_points ? _points[idx] : Point(_coordx[idx], _coordy[idx], _coordz[idx]);
 
     Real measurement_value = _measurement_values[idx];
-    auto simulation_value = _sim_var[_qp];
+    auto simulation_value = _coupled_material[_qp];
 
     // Compute weighting function
     Real weighting = computeOffsetFunction(offset);
 
-    // Computed weighted misfit and gradient materials
-    _material[_qp] += Utility::pow<2>(measurement_value * weighting - simulation_value * weighting);
+     // Computed weighted misfit and gradient materials
+    _material[_qp] +=
+        Utility::pow<2>(weighting) * Utility::pow<2>(measurement_value - simulation_value);
     _mat_prop_gradient[_qp] -=
-        2.0 * weighting * (measurement_value * weighting - simulation_value * weighting);
+        2.0 * Utility::pow<2>(weighting) * (measurement_value - simulation_value);
   }
 }
 
-template class MaterialReporterOffsetFunctionMaterial<true>;
-template class MaterialReporterOffsetFunctionMaterial<false>;
+template class MaterialReporterOffsetFunctionMaterialTempl<true>;
+template class MaterialReporterOffsetFunctionMaterialTempl<false>;

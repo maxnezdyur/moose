@@ -23,10 +23,16 @@ public:
   MaterialReporterOffsetFunctionMaterialTempl<is_ad>(const InputParameters & parameters);
 
 protected:
+  virtual void computeQpProperties() override;
+
   /// Coupled Material to scale by
   const GenericMaterialProperty<Real, is_ad> & _coupled_material;
 
-  // virtual GenericReal<is_ad> computeCoe
+  /// Gradient of misfit with respect to the coupled_material
+  GenericMaterialProperty<Real, is_ad> & _mat_prop_gradient;
+
+  /// values at each xyz coordinate
+  const std::vector<Real> & _measurement_values;
 
   using ReporterOffsetFunctionMaterialTempl<is_ad>::_prop_name;
   using ReporterOffsetFunctionMaterialTempl<is_ad>::_qp;
