@@ -134,6 +134,7 @@ PenetrationLocator::detectPenetration()
   // Update the patch for the secondary nodes in recheck_secondary_nodes and re-run penetration
   // thread on these nodes at every nonlinear iteration if patch update strategy is set to
   // "iteration".
+  // ! _patch_update_strategy == Moose::Always too?
   if (recheck_secondary_nodes.size() > 0 && _patch_update_strategy == Moose::Iteration &&
       _subproblem.currentlyComputingJacobian())
   {

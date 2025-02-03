@@ -248,6 +248,8 @@ findContactPoint(PenetrationInfo & p_info,
   }
 
   p_info._closest_point_ref = ref_point;
+
+  // Is the closest point always on the element side?
   p_info._closest_point = phys_point[0];
   p_info._distance = d.norm();
 
