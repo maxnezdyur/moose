@@ -287,7 +287,7 @@ ExplicitDynamicsContactConstraint::solveImpactEquations(const Node & node,
   auto & u_dot = *_sys.solutionUDot();
 
   // Get lumped mass value
-  auto & diag = _sys.getVector("mass_matrix_diag_inverted");
+  const auto & diag = _sys.getVector("mass_matrix_diag_inverted");
 
   Real mass_node = 1.0 / diag(dof_x);
   Real mass_face = computeFaceMass(diag);

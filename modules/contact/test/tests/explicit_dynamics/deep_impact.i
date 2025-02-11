@@ -195,13 +195,11 @@
 [ExplicitDynamicsContact]
   [my_contact]
     model = frictionless_balance
-    penalty = 1e+10
     primary = 'base_front ball_back'
     secondary = 'ball_back base_front'
     vel_x = 'vel_x'
     vel_y = 'vel_y'
     vel_z = 'vel_z'
-    optimized = true
   []
 []
 

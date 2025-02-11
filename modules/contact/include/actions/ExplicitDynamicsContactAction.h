@@ -56,7 +56,7 @@ protected:
   typedef std::vector<VariableName> CoupledName;
 
   /// Whether to run in an optimized form.
-  const bool _optimized;
+  const bool _verbose;
 
 private:
   /**

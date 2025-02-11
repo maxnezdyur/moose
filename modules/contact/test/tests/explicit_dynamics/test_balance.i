@@ -243,6 +243,7 @@
     vel_x = 'vel_x'
     vel_y = 'vel_y'
     vel_z = 'vel_z'
+    verbose = true
   []
 []
 

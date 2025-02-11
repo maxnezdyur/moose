@@ -70,8 +70,7 @@ ExplicitDynamicsContactAction::validParams()
                                 "Offset to gap distance from secondary side");
   params.addParam<VariableName>("mapped_primary_gap_offset",
                                 "Offset to gap distance mapped from primary side");
-  params.addParam<bool>(
-      "optimized", false, "Run contact in optimized form. Same results but less outputs.");
+  params.addParam<bool>("verbose", false, "Verbose output. May increase runtime.");
 
   return params;
 }
@@ -80,7 +79,7 @@ ExplicitDynamicsContactAction::ExplicitDynamicsContactAction(const InputParamete
   : Action(params),
     _boundary_pairs(getParam<BoundaryName, BoundaryName>("primary", "secondary")),
     _model(getParam<MooseEnum>("model").getEnum<ExplicitDynamicsContactModel>()),
-    _optimized(getParam<bool>("optimized"))
+    _verbose(getParam<bool>("verbose"))
 {
   // The resulting velocity of the contact algorithm is applied, as the code stands, by modifying
   // the old position. This causes artifacts in the internal forces as old position, new position,
@@ -112,7 +111,7 @@ ExplicitDynamicsContactAction::act()
 
   addNodeFaceContact();
 
-  if (_current_task == "add_aux_kernel" && !_optimized)
+  if (_current_task == "add_aux_kernel" && _verbose)
   { // Add ContactPenetrationAuxAction.
     if (!_problem->getDisplacedProblem())
       mooseError("Contact requires updated coordinates.  Use the 'displacements = ...' line in the "
@@ -169,7 +168,7 @@ ExplicitDynamicsContactAction::act()
       var_params.set<MooseEnum>("family") = "LAGRANGE";
       _problem->addAuxVariable("MooseVariable", "gap_rate", var_params);
     }
-    if (!_optimized)
+    if (_verbose)
     {
       // Add ContactPenetrationVarAction
       {
@@ -213,7 +212,7 @@ ExplicitDynamicsContactAction::act()
     }
   }
 
-  if (_current_task == "add_user_object" && !_optimized)
+  if (_current_task == "add_user_object" && _verbose)
   {
     {
       auto var_params = _factory.getValidParams("NodalArea");
@@ -297,7 +296,7 @@ ExplicitDynamicsContactAction::addContactPressureAuxKernel()
   ed_contact_action_counter++;
 
   // Add auxiliary kernel if we are the last contact action object.
-  if (ed_contact_action_counter == actions.size() && !_optimized)
+  if (ed_contact_action_counter == actions.size() && _verbose)
   {
     std::vector<BoundaryName> boundary_vector;
     std::vector<BoundaryName> pair_boundary_vector;
