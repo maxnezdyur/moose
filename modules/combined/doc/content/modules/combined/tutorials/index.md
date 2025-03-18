@@ -24,3 +24,6 @@ All the following examples employ SIMP topology optimization (see, e.g., [!cite]
 - [Multi-load with multiapp](modules/optimization/examples/topology_optimization/multiload.md)
 - [Thermal and mechanical optimization](modules/optimization/examples/topology_optimization/thermomechanical.md)
 - [Multimaterial](modules/optimization/examples/topology_optimization/multimaterial.md)
+
+
+[Slides](thermo_mechanical/index.md)
