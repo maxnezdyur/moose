@@ -23,6 +23,968 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 
 !---
 
+# Moose Introduction
+
+
+A basic MOOSE input file requires six parts, each of which will be covered in greater detail later.
+
+- `[Mesh]`: Define the geometry of the domain
+- `[Variables]`: Define the unknown(s) of the problem
+- `[Kernels]`: Define the equation(s) to solve
+- `[BCs]`: Define the boundary condition(s) of the problem
+- `[Executioner]`: Define how the problem will be solved
+- `[Outputs]`: Define how the solution will be returned
+
+!---
+
+
+# [Mesh System](syntax/Mesh/index.md)
+
+A system for defining a finite element / volume mesh.
+
+!---
+
+## Creating a Mesh
+
+For complicated geometries, we often use CUBIT from Sandia National Laboratories
+[cubit.sandia.gov](https://cubit.sandia.gov).
+
+Other mesh generators can work as long as they output a file format that libMesh reads.
+
+!---
+
+## Mesh generators
+
+Meshes in MOOSE are built or loaded using [MeshGenerators](syntax/Mesh/index.md).
+
+To only generate the mesh without running the simulation, you can pass `--mesh-only` on the command line.
+
+!---
+
+## FileMeshGenerator
+
+`FileMeshGenerator` is the MeshGenerator to load external meshes:
+
+!listing test/tests/meshgenerators/file_mesh_generator/file_mesh_generator.i block=Mesh
+
+MOOSE supports reading and writing a large number of formats and could be extended to read more.
+
+!---
+
+| Extension   | Description                              |
+| :-          | :-                                       |
+| .dat        | Tecplot ASCII file                       |
+| .e, .exd    | Sandia's ExodusII format                 |
+| .fro        | ACDL's surface triangulation file        |
+| .gmv        | LANL's GMV (General Mesh Viewer) format  |
+| .mat        | Matlab triangular ASCII file (read only) |
+| .msh        | GMSH ASCII file                          |
+| .n, .nem    | Sandia's Nemesis format                  |
+| .plt        | Tecplot binary file (write only)         |
+| .node, .ele; .poly | TetGen ASCII file (read; write)   |
+| .inp        | Abaqus .inp format (read only)           |
+| .ucd        | AVS's ASCII UCD format                   |
+| .unv        | I-deas Universal format                  |
+| .xda, .xdr  | libMesh formats                          |
+| .vtk, .pvtu | Visualization Toolkit                    |
+
+!---
+
+## Generating Meshes in MOOSE
+
+!row!
+
+!col! width=40%
+
+Built-in mesh generation is implemented for lines, rectangles, or rectangular prisms.
+
+!style! fontsize=50%
+
+!listing face_info_tri.i block=Mesh
+
+!style-end!
+
+!col-end!
+
+!col! width=10%
+\\
+!col-end!
+
+!col! width=60%
+
+
+The sides are named in a logical way and are numbered:
+
+- 1D: left = 0, right = 1
+- 2D: bottom = 0, right = 1, top = 2, left = 3
+- 3D: back = 0, bottom = 1, right = 2, top = 3, left = 4, front = 5
+
+The capability is very convenient for parametric mesh optimization!
+
+
+!col-end!
+
+!row-end!
+
+!---
+
+## Named Entity Support
+
+Human-readable names can be assigned to blocks, sidesets, and nodesets that can be used throughout
+an input file.
+
+A parameter that requires an ID will accept either numbers or "names".
+
+Names can be assigned to IDs for existing meshes to ease input file maintenance.
+
++Note+
+
+- Nodesets and sidesets should have different ids.
+- At construction all sets with the same id are merged.
+
+!---
+
+## Replicated Mesh
+
+When running in parallel the default mode for operation is to use a replicated mesh, which
+creates a complete copy of the mesh for each processor.
+
+```text
+parallel_type = replicated
+```
+
+!---
+
+## Distributed Mesh
+
+Changing the type to distributed when running in parallel operates such that only the portion of the
+mesh owned by a processor is stored on that processor.
+
+```text
+parallel_type = distributed
+```
+
+If the mesh is too large to read in on a single processor, it can be split prior to the simulation.
+
+1. Copy the mesh to a large memory machine
+1. Use the `--split-mesh` option to split the mesh into $n$ pieces
+1. Run the executable with `--use-split`
+
+!---
+
+## Displaced Mesh
+
+Calculations can take place in either the initial mesh configuration or, when requested, the
+"displaced" configuration.
+
+To enable displacements, provide a vector of displacement variable names for each spatial dimension
+in the Mesh block.
+
+!row!
+
+!col! width=45%
+
+!style! fontsize=60%
+
+
+
+!listing /displaced/child.i block=Mesh
+
+!style-end!
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=45%
+
+Objects can enforce the use of the displaced mesh within the validParams function.
+
+!style! fontsize=60%
+
+!listing PenetrationAux.C line=use_displaced_mesh
+
+!listing modules/solid_mechanics/test/tests/volumetric_eigenstrain/volumetric_mechanical.i block=Postprocessors/vol
+
+!style-end!
+
+!col-end!
+
+!row-end!
+
+
+!---
+
+# [Output System](syntax/Outputs/index.md)
+
+A system for outputting simulation data to the screen or files.
+
+!---
+
+The output system is designed to be just like any other system in MOOSE: modular and expandable.
+
+It is possible to create multiple output objects for outputting:
+
+- at specific time or timestep intervals,
+- custom subsets of variables, and
+- to various file types.
+
+There exists a short-cut syntax for common output types as well as common parameters.
+
+!---
+
+## Short-cut Syntax
+
+The following two methods for creating an Output object are equivalent within the internals of MOOSE.
+
+```text
+[Outputs]
+  exodus = true
+[]
+```
+
+```text
+[Outputs]
+  [out]
+    type = Exodus
+  []
+[]
+```
+
+!---
+
+## Customizing Output
+
+The content of each `Output` can customized, see for example for an [Exodus](Exodus.md) output:
+
+```
+[Outputs]
+  [out]
+    type = Exodus
+    output_material_properties = true
+    # removes some quantities from the output
+    hide = 'power_pp pressure_var'
+  []
+[]
+```
+
+!---
+
+## Common Parameters
+
+```text
+[Outputs]
+  interval = 10 # this is a time step interval
+  [exo]
+    type = Exodus
+    interval = 1 # overrides interval from top-level
+  []
+  [cp]
+    type = Checkpoint # Uses interval specified from top-level
+  []
+[]
+```
+
+!---
+
+## Output Names
+
+The default naming scheme for output files utilizes the input file name (e.g., input.i) with a suffix
+that differs depending on how the output is defined: An "_out" suffix is used for Outputs created
+using the short-cut syntax.  sub-blocks use the actual sub-block name as the suffix.
+
+```text
+[Outputs]
+  exodus = true    # creates input_out.e
+  [other]          # creates input_other.e
+     type = Exodus
+     interval = 2
+  []
+  [base]
+    type = Exodus
+    file_base = out # creates out.e
+  []
+[]
+```
+
+!---
+
+!style fontsize=85%
+!include output_types.md
+
+Paraview can read many of these (CSV, Exodus, Nemesis, VTK, GMV)
+
+
+!---
+
+# [Material System](syntax/Materials/index.md)
+
+A system for defining material properties to be used by multiple systems and allow for variable
+coupling.
+
+!---
+
+The material system operates by creating a producer/consumer relationship among objects
+
+- `Material` objects +produce+ properties.
+- Other MOOSE objects (including materials) +consume+ these properties.
+
+!---
+
+## Producing Properties
+
+1. Each property to be produced must be declared to be available for use, the
+   `declareProperty<TYPE>()` method does this and returns a writable reference.
+1. Override `computeQpProperties()` to compute all of the declared properties at one quadrature point.
+   Within this method, the references obtained from declaring the property are updated.
+
+!---
+
+## Consuming Properties
+
+To consume a material property, call the correct get method in an object and store the
+constant reference as a member variable.
+
+`getMaterialProperty<TYPE>()`\\
+Use within non-AD objects to retrieve non-AD material properties.
+
+`getADMaterialProperty<TYPE>()`\\
+Use within AD objects to retrieve AD material properties.
+
+
+!---
+
+## Material Property Evaluation
+
+Quantities are recomputed at quadrature points, as needed.
+
+Multiple `Material` objects may define the same "property" for different parts of the subdomain or
+boundaries.
+
+!---
+
+## Stateful Material Properties
+
+The values are not stored between timesteps unless "stateful" properties are enabled, which is
+accomplished by calling `getMaterialPropertyOld<TYPE>()` or `getMaterialPropertyOlder<TYPE>()`
+
+It can be useful to have "old" values of `Material` properties available in a simulation, such as
+in solid mechanics plasticity constitutive models.
+
+Traditionally, this type of value is called a "state variable"; in MOOSE, they are called
+"stateful material properties".
+
+Stateful `Material` properties require more memory.
+
+!---
+
+## Default Material Properties
+
+Default values for material properties may be assigned within the `validParams` function.
+
+```cpp
+addParam<MaterialPropertyName>("combination_property_name", 12345,
+ "The name of the property providing the luggage combination");
+```
+
+Only scalar (`Real`) values may have defaults.
+
+When `getMaterialProperty<Real>("combination_property_name")` is called, the default will be returned
+if the value has not been computed via a `declareProperty` call within a `Material` object.
+
+!---
+
+## Material Property Output
+
+Output of `Material` properties is enabled by setting the "outputs" parameter.
+
+The following example creates additional variables called "real_property", "tensor_property", and "vector_property" that will show up in
+the output file.
+
+!listing output_block.i block=Materials Outputs
+
+!---
+
+## Supported Property Types for Output
+
+`Material` properties can be of arbitrary (C++) type, but not all types can be output.
+
+| Type | AuxKernel | Variable Name(s) |
+| :- | :- | :- |
+| Real | `MaterialRealAux` | prop |
+| RealVectorValue | `MaterialRealVectorValueAux` | prop_1, prop_2, and prop_3 |
+| RealTensorValue | `MaterialRealTensorValueAux` | prop_11, prop_12, prop_13, prop_21, etc. |
+
+
+!---
+
+# [Auxiliary System](syntax/AuxVariables/index.md)
+
+A system for direct calculation of field variables ("AuxVariables") that is designed for
+postprocessing, coupling, and proxy calculations.
+
+!---
+
+The term "nonlinear variable" is defined, in MOOSE language, as a variable that is being solved for
+using a nonlinear system of [!ac](PDEs) using `Kernel` and `BoundaryCondition` objects.
+
+
+The term "auxiliary variable" is defined, in MOOSE language, as a variable that is directly
+calculated using an `AuxKernel` object.
+
+!---
+
+## AuxVariables
+
+Auxiliary variables are declared in the `[AuxVariables]` input file block
+
+Auxiliary variables are field variables that are associated with finite element shape functions
+and can serve as a proxy for nonlinear variables
+
+Auxiliary variables currently come in two flavors:
+
+- Element (e.g. constant or higher order monomials)
+- Nodal (e.g. linear Lagrange)
+
+Auxiliary variables have "old" and "older" states, from previous time steps, just like nonlinear variables
+
+!---
+
+### Elemental Auxiliary Variables
+
+Element auxiliary variables can compute:
+
+- average values per element, if stored in a constant monomial variable
+- spatial profiles using higher order variables
+
+AuxKernel objects computing elemental values can couple to nonlinear variables and both element and
+nodal auxiliary variables
+
+```text
+[AuxVariables]
+  [aux]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+```
+
+!---
+
+### Nodal Auxiliary Variables
+
+Nodal auxiliary variables are computed at each node and are stored as linear Lagrange variables
+
+AuxKernel objects computing nodal values can +only+ couple to nodal nonlinear variables and
+other nodal auxiliary variables
+
+```text
+[AuxVariables]
+  [aux]
+    order = LAGRANGE
+    family = FIRST
+  []
+[]
+```
+
+!---
+
+# [Executioner System](syntax/Executioner/index.md)
+
+A system for dictating the simulation solving strategy.
+
+!---
+
+## Steady-state Executioner
+
+Steady-state executioners generally solve the nonlinear system just once.
+
+!listing steady_time.i block=Executioner
+
+The Steady executioner can solve the nonlinear system multiple times while adaptively
+refining the mesh to improve the solution.
+
+!---
+
+## Transient Executioners
+
+Transient executioners solve the nonlinear system at least once per time step.
+
+| Option | Definition
+| :- | :- |
+| `dt` | Starting time step size |
+| `num_steps` | Number of time steps |
+| `start_time` | The start time of the simulation |
+| `end_time` | The end time of the simulation |
+| `scheme` | Time integration scheme (discussed next) |
+
+
+!listing executioner/transient.i block=Executioner
+
+!---
+
+### Steady-State Detection
+
+| Option | Definition |
+| :- | :- |
+| `steady_state_detection` | Whether to try and detect achievement of steady-state (Default = `false`) |
+| `steady_state_tolerance` | Used for determining a steady-state; Compared against the difference in solution vectors between current and old time steps (Default = `1e-8`) |
+
+!---
+
+## Common Executioner Options
+
+There are a number of options that appear in the executioner block and are used to control the
+solver. Here are a few common options:
+
+| Option | Definition |
+| :- | :- |
+| `l_tol` | Linear Tolerance (default: 1e-5) |
+| `l_max_its` | Max Linear Iterations (default: 10000) |
+| `nl_rel_tol` | Nonlinear Relative Tolerance (default: 1e-8) |
+| `nl_abs_tol` | Nonlinear Absolute Tolerance (default: 1e-50) |
+| `nl_max_its` | Max Nonlinear Iterations (default: 50) |
+
+
+!---
+
+# [Time Integrator System](syntax/Executioner/TimeIntegrator/index.md)
+
+A system for defining schemes for numerical integration in time.
+
+!---
+
+
+The TimeIntegrator can be set using "scheme" parameter within the `[Executioner]` block, if
+the "type = Transient", the following options exist:
+
+- `implicit-euler`: Backward Euler (default)
+- `bdf2`: Second order backward difference formula
+- `crank-nicolson`: Second order Crank-Nicolson method
+- `dirk`: Second order Diagonally-Implicit Runge-Kutta (DIRK)
+- `newmark-beta`: Second order Newmark-beta method (structural dynamics)
+
+!---
+
+## TimeIntegrator Block
+
+It is also possible to specify a time integrator as a separate sub-block within the input file.
+This allows for additional types and parameters to be defined, including custom TimeIntegrator
+objects.
+
+!listing newmark_beta_prescribed_parameters.i block=Executioner
+
+!---
+
+## Convergence Rates
+
+Consider the test problem:
+
+!equation
+\begin{array}{rl}
+\frac{\partial u}{\partial t} - \nabla^2 u &= f
+\\
+u(t=0)&= u_0
+\\
+\left. u \right|_{\partial \Omega} &= u_D
+\end{array}
+
+for $t=(0,T]$, and $\Omega=(-1,1)^2$, $f$ is chosen so the exact solution is given by
+$u = t^3 (x^2 + y^2)$ and $u_0$ and $u_D$ are the initial and Dirichlet boundary conditions
+corresponding to this exact solution.
+
+!---
+
+!media darcy_thermo_mech/time_convergence_implicit.png style=width:90%
+
+
+!---
+
+#  [Time Stepper System](Executioner/TimeSteppers/index.md)
+
+A system for suggesting time steps for transient executioners.
+
+!---
+
+!listing adapt_tstep_grow_dtfunc.i block=Executioner
+
+Custom objects are created by inheriting from `TimeStepper` overriding `computeDT()`.
+
+!---
+
+## Built-in TimeSteppers
+
+MOOSE includes many built-in TimeStepper objects:
+
+- `ConstantDT`
+- `IterationAdaptiveDT`
+- `FunctionDT`
+- `PostprocessorDT`
+- `FixedPointIterationAdaptiveDT`
+- `TimeSequenceStepper`
+
+!---
+
+## IterationAdaptiveDT
+
+IterationAdaptiveDT grows or shrinks the time step based on the number of iterations taken to obtain
+a converged solution in the last converged step.
+
+!listing adapt_tstep_shrink_init_dt.i block=Executioner
+
+!---
+
+## TimeSequenceStepper
+
+Provide a vector of time points using parameter `time_sequence`, the object simply moves through
+these time points.
+
+The $t_{start}$ and $t_{end}$ parameters are automatically added to the sequence.
+
+Only time points satisfying $t_{start} < t <t_{end}$ are considered.
+
+If a solve fails at step $n$ an additional time point $t_{new} = \frac{1}{2}(t_{n+1}+t_n)$ is
+inserted and the step is resolved.
+
+!---
+
+## Composing TimeSteppers
+
+Time steppers can now be composed to follow complex time histories.
+By default, the minimum of all the time steps computed by all the time steppers is used!
+
+What steps will be taken, starting at time = 0s?
+
+```bash
+[TimeSteppers]
+  [constant]
+    type = ConstantDT
+    dt = 0.2
+  []
+  [hit_these_times]
+    type = TimeSequenceStepper
+    time_sequence = '0.5 1 1.5 2.1'
+  []
+[]
+```
+
+!---
+
+# [Boundary Condition System](syntax/BCs/index.md)
+
+System for computing residual contributions from boundary terms of a [!ac](PDE).
+
+!---
+
+A `BoundaryCondition` (BC) object computes a residual on a boundary (or internal side) of a domain.
+
+There are two flavors of BC objects: Nodal and Integrated.
+
+!---
+
+## Integrated BC
+
+Integrated BCs are integrated over a boundary or internal side and should inherit
+from `ADIntegratedBC`.
+
+The structure is very similar to Kernels: objects must override `computeQpResidual`
+
+!---
+
+## ADIntegratedBC Object Members
+
+`_u`, `_grad_u`\\
+Value and gradient of the variable this Kernel is operating on
+
+`_test`, `_grad_test`\\
+Value ($\psi$) and gradient ($\nabla \psi$) of the test functions at the quadrature points
+
+`_phi`, `_grad_phi`\\
+Value ($\phi$) and gradient ($\nabla \phi$) of the trial functions at the quadrature points
+
+`_i`, `_j`, `_qp`\\
+Current index for test function, trial functions, and quadrature point, respectively
+
+`_normals`:\\
+Outward normal vector for boundary element
+
+`_boundary_id`\\
+The boundary ID
+
+`_current_elem`, `_current_side`\\
+A pointer to the element and index to the current boundary side
+
+!---
+
+## Non-Integrated BC
+
+Non-integrated BCs set values of the residual directly on a boundary or internal side and
+should inherit from `ADNodalBC`.
+
+The structure is very similar to Kernels: objects must override `computeQpResidual`.
+
+!---
+
+## NodalBC Object Members
+
+`_u`\\
+Value of the variable this Kernel is operating on
+
+`_qp`\\
+Current index, used for interface consistency
+
+`_boundary_id`\\
+The boundary ID
+
+`_current_node`\\
+A pointer to the current node that is being operated on.
+
+!---
+
+## Dirichlet BCs
+
+Set a condition on the `value` of a variable on a boundary:
+
+!equation
+u = g_1 \quad \text{on} \quad \partial\Omega_1
+
+becomes
+
+!equation
+u - g_1 = 0 \quad \text{on} \quad \partial\Omega_1
+
+!---
+
+ If you see this you missed a todo:
+
+<!-- TODO Add input files for Bcs  -->
+
+!---
+
+## Integrated BCs
+
+Integrated BCs (including Neumann BCs) are actually integrated over the external face of an element.
+
+!equation
+\left\{
+   \begin{array}{rl}
+     (\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle \nabla u\cdot \hat{\boldsymbol n}, \psi_i\rangle &= 0 \quad \forall i
+    \\
+      \nabla u \cdot \hat{\boldsymbol n} &= g_1\quad \text{on} \quad\partial\Omega
+   \end{array}
+\right.
+
+becomes:
+
+!equation
+(\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle g_1, \psi_i\rangle = 0 \quad \forall i
+
+If $\nabla u \cdot \hat{\boldsymbol n} = 0$, then the boundary integral is zero
+("natural boundary condition").
+
+
+!---
+
+## Periodic BCs
+
+Periodic boundary conditions are useful for modeling quasi-infinite domains and systems with
+conserved quantities.
+
+- 1D, 2D, and 3D
+- With mesh adaptivity
+- Can be restricted to specific variables
+- Supports arbitrary translation vectors for defining periodicity
+
+!---
+
+# [Postprocessor System](syntax/Postprocessors/index.md)
+
+A system for computing a "reduction" or "aggregation" calculation based on the solution variables
+that results in a +single+ scalar value.
+
+!---
+
+## Types of Postprocessors
+
+The operation defined in the `::compute...` routine is applied at various locations
+depending on the Postprocessor type.
+
+ElementPostprocessor: operates on each element
+
+NodalPostprocessor: operates on each node
+
+SidePostprocessor: operates on each element side on a boundary
+
+InternalSidePostprocessor: operates on internal element sides
+
+InterfacePostprocessor: operates on each element side on subdomain interfaces
+
+GeneralPostprocessor: operates once per execution
+
+!---
+
+## Postprocessor Anatomy
+
+`Postprocessor` is a UserObject, so `initialize`, `execute`, `threadJoin`, and `finalize` methods
+can be defined.
+
+`initialize()`\\
+This is called once before every execution. Useful to reset accumulated quantities
+
+`execute()`\\
+This defines the operation performed on a per element/side/node/mesh (depending on type) basis.
+The quadrature integration is often defined there, and users generally do not need to define this.
+
+`Real getValue()`\\
+This is called internally within MOOSE to retrieve the final scalar value, the value returned by
+this function is referenced by all other objects that are using the postprocessor.
+
+Most Postprocessor base classes will already define these routines for you!
+
+!---
+
+## Aggregation Routines
+
+If the Postprocessor created has custom data it must be ensured that the value is communicated
+properly in (both MPI and thread-based) parallel simulations.
+
+For MPI several utility methods exist to perform common aggregation operations:
+
+- `gatherSum(scalar)`: sum across all processors.
+- `gatherMin(scalar)`: min from all processors.
+- `gatherMax(scalar)`: max from all processors.
+
+!---
+
+## Built-in Postprocessor Types
+
+MOOSE includes a large number built-in `Postprocessors`: `ElementAverageValue`, `SideAverageValue`,
+`ElementL2Error`, `ElementH1Error`, and many more
+
+By default, `Postprocessors` will output to a formatted table on the screen and optionally using
+the `[Outputs]` block be stored in CSV file.
+
+```text
+[Output]
+  csv = true
+[]
+```
+
+!---
+
+## Using a Postprocessor
+
+Postprocessor values are used within an object by creating a `const` reference to a
+`PostprocessorValue` and initializing the reference in the initialization list of the object constructor.
+
+In the header, we declare a reference,
+
+!listing PostprocessorDT.h line=PostprocessorValue
+
+In the source, we retrieve a reference to the value of the Postprocessor,
+
+!listing PostprocessorDT.C line=getPostprocessorValue
+
+!---
+
+## Default Postprocessor Values
+
+It is possible to set default values for `Postprocessors` to allow an object to operate without
+creating or specifying a `Postprocessor` object.
+
+```cpp
+params.addParam<PostprocessorName>("postprocessor", 1.2345, "Doc String");
+```
+
+Additionally, a value may be supplied in the input file in lieu of a `Postprocessor` name.
+
+
+!---
+
+# [VectorPostprocessor System](syntax/VectorPostprocessors/index.md)
+
+A system for "reduction" or "aggregation" calculations based on the solution variables
+that results in one or many vectors of values.
+
+!---
+
+## Types of VectorPostprocessors
+
+The operation defined in the `::compute...` routine is applied at various locations
+depending on the VectorPostprocessor type.
+
+ElementVectorPostprocessor: operates on each element
+
+NodalVectorPostprocessor: operates on each node
+
+SideVectorPostprocessor: operates on each element side on a boundary
+
+InternalSideVectorPostprocessor: operates on internal element sides
+
+GeneralVectorPostprocessor: operates once per execution
+
+!---
+
+## VectorPostprocessor Anatomy
+
+`VectorPostprocessor` is a UserObject, so `initialize`, `execute`, `threadJoin`, and `finalize` methods
+are used for implementing the aggregation operation.
+
+`virtual VectorPostprocessorValue & getVector (const std::string &vector_name)`
+This is called internally within MOOSE to retrieve the final vector value for the given name, the
+value returned by this function is referenced by all other objects that are using the vector
+postprocessor.
+
+!---
+
+VectorPostprocessor objects operate a bit like Material objects, each vector is declared and then
+within the `initialize`, `execute`, `threadJoin`, and `finalize` methods the vectors are updated
+with the desired data.
+
+Create a member variable, as a reference, for the vector data
+
+!listing WorkBalance.h line=_pid
+
+
+Initialize the reference using the `declareVector` method with a name
+
+!listing WorkBalance.C line=declareVector("pid")
+
+
+!---
+
+## Built-in VectorPostprocessor Types
+
+MOOSE includes a large number built-in `VectorPostprocessors`: `NodalValueSampler`,
+`LineValueSampler`, `PointValueSampler`, and many more.
+
+`VectorPostprocessors` output is optionally enabled using the `[Outputs]` block. A CSV file
+for each vector and timestep will be created.
+
+```text
+[Output]
+  csv = true
+[]
+```
+
+!---
+
+## Using a VectorPostprocessor
+
+Postprocessor values are used within an object by creating a `const` reference to a
+`VectorPostprocessorValue` and initializing the reference in the initialization list.
+
+!listing LeastSquaresFit.h line=_x_values;
+
+!listing LeastSquaresFit.C line=_x_values(get
+
+
+!---
+
+
+
 
 # Introduction to Solid Mechanics
 
@@ -1008,6 +1970,38 @@ h_{\text{gap}} = h_{\text{contact}} + h_{\text{gas}} + h_{\text{radiation}}
 !equation
 k_{\text{eff}} = \frac{k_1 k_2}{(k_1 + k_2)} \cdot f(p, \sigma, h, T)
 
+!---
+
+# Gap Heat
+
+The principle is that the heat leaving one body must equal that entering another. For bodies (i) and (j) with heat transfer surface $(\Gamma)$:
+
+!equation
+\int_{\Gamma_i} h \Delta T , dA_i = \int_{\Gamma_j} h \Delta T , dA_j
+
+Gap heat transfer is modeled using the relation:
+
+!equation
+h_{\text{gap}} = h_g + h_s + h_r
+
+Where:
+
+- $(h_{\text{gap}})$ is the total conductance across the gap
+- $(h_g)$ is the gas conductance
+- $(h_s)$ is the increased conductance due to solid-solid contact
+- $(h_r)$ is the conductance due to radiative heat transfer
+
+!---
+
+In MOOSE modules, only the gas and radiation conductance components are active by default. The form of $(h_g)$ in MOOSE modules is:
+
+!equation
+h_g = \frac{k_g}{d_g}
+
+where:
+
+$(k_g)$ is the conductivity in the gap
+$(d_g)$ is the gap distance
 
 !---
 
@@ -1175,7 +2169,290 @@ k_{\text{eff}} = \frac{k_1 k_2}{(k_1 + k_2)} \cdot f(p, \sigma, h, T)
 
 !---
 
+# Restart and Recovery System
+
+!---
+
+## Definitions
+
++Restart+\\
+Running a simulation that uses data from a previous simulation, using different input files
+
++Recover+\\
+Resuming an existing simulation after a premature termination
+
++Solution file+\\
+A mesh format containing field data in addition to the mesh (i.e. a normal output file)
+
++Checkpoint+\\
+A snapshot of the simulation including all meshes, solutions, and stateful data
+
++N to N+\\
+In a restart context, this means the number of processors for the previous and current simulations match
+
++N to M+\\
+In a restart context, different numbers of processors may be used for the previous and current simulations
+
+!---
+
+## Variable Initialization
+
+This method is best suited for restarting a simulation when the mesh in the previous simulation
+exactly matches the mesh in the current simulation and only initial conditions need to be set for one
+more variables.
+
+- This method requires only a valid solution file
+- MOOSE supports N to M restart when using this method
+
+!---
+
+```text
+[Mesh]
+  # MOOSE supports reading field data from ExodusII, XDA/XDR, and mesh checkpoint files (.e, .xda, .xdr, .cp)
+  file = previous.e
+  # This method of restart is only supported on serial meshes
+  distribution = serial
+[]
+
+[Variables/nodal]
+  family = LAGRANGE
+  order = FIRST
+  initial_from_file_var = nodal
+  initial_from_file_timestep = 10
+[]
+
+[AuxVariables/elemental]
+  family = MONOMIAL
+  order = CONSTANT
+  initial_from_file_var = elemental
+  initial_from_file_timestep = 10
+[]
+```
+
+!---
+
+## Checkpoints
+
+Advanced restart and recovery in MOOSE require checkpoint files
+
+Checkpoints are automatically enabled by default and are output every 1 hour of wall time (customizable interval), but can be disabled with:
+```text
+[Outputs]
+  wall_time_checkpoint = false
+[]
+```
+
+Checkpoints can be output at every time step with the following shortcut syntax:
+
+```text
+[Outputs]
+  checkpoint = true
+[]
+```
+
+!---
+
+For more control over the checkpoint system, create a sub-block in the input file that will allow you
+to change the file format, suffix, frequency of output, the number of checkpoint files to keep, etc.
+
+- Set `num_files` to at least 2 to minimize the chance of ending up with a corrupt restart file
+
+  !listing outputs/checkpoint/checkpoint_interval.i block=Outputs
+
+!---
+
+## Advanced Restart
+
+This method is best suited for situations when the mesh from the previous simulation and the current
+simulation match and the variables and stateful data should be loaded from the pervious simulation.
+
+- Support for modifying some variables is supported such as `dt` and `time_step`. By default, MOOSE
+  will automatically use the last values found in the checkpoint files
+- Only N to N restarts are supported using this method
+
+```text
+[Mesh]
+  # Serial number should match corresponding Executioner parameter
+  file = out_cp/0010-mesh.cpr
+  # This method of restart is only supported on serial meshes
+  distribution = serial
+[]
+
+[Problem]
+  # Note that the suffix is left off in the parameter below.
+  restart_file_base = out_cp/LATEST  # You may also use a specific number here
+[]
+```
+
+!---
+
+## Reloading Data
+
+It is possible to load and project data onto a different mesh from a solution file usually as an
+initial condition in a new simulation.
+
+MOOSE supports this through the use of a SolutionUserObject
+
+!---
+
+## Recover
+
+A simulation that has terminated due to a fault can be recovered simply by using the `--recover`
+command-line flag, but it +requires a checkpoint file+.
+
+```bash
+./frog-opt -i input.i --recover
+```
+
+!---
+
+## Multiapp Restart
+
+When running a multiapp simulation you do +not+ need to enable checkpoint output in each sub app
+input file. The parent app stores the restart data for all sub apps in its file.
+
+
+
+!---
+
+# Troubleshooting
+
+Most mistakes in an input file will cause wrong results,
+usually affecting convergence of the solve as well. We cover here two common problems:
+
+- Input file mistakes and how to find them
+
+- Non-convergence of the solver
+
+!---
+
+## Input file mistakes
+
+If a careful review of the input does not find the error,
+the next thing to pay attention to is the simulation log.
+
+- Are there any warnings? By default MOOSE will not error on warnings
+- Are there any unused parameters? They could be misspelled!
+
+If that does work, it is time to examine how the simulation evolves in MOOSE
+
+!---
+
+## Additional outputs
+
+By default, MOOSE outputs on the end of timesteps
+
+```
+[Outputs]
+  execute_on = TIMESTEP_END
+```
+
+We can change this parameter to output as often as linear iterations!
+We make sure to output material properties as well, in case the problem lies there:
+
+```bash
+[Outputs]
+  [exo]  # filename suffix
+    type = Exodus
+    execute_on = 'LINEAR TIMESTEP_END'
+    output_material_properties = true
+  []
+[]
+```
+
+Add any output you need to understand the root cause!
+
+!---
+
+## Using the [Debug system](syntax/Debug/index.md)
+
+To look for an issue during setup, we can list the objects created by MOOSE for numerous systems. For example, for material properties,
+
+```bash
+[Debug]
+  show_material_props = true
+[]
+```
+
+For a general log on the entire setup:
+
+```bash
+[Debug]
+  show_actions = true
+[]
+```
+
+!---
+
+To look for an issue during the execution,
+
+```bash
+[Debug]
+  show_execution_order = ALWAYS
+[]
+```
+
+This will output to the console, the execution of all MOOSE's objects, in their respective nodal/elemental/side loops on the mesh.
+
+!---
+
+## Troubleshooting failed solves
+
+A comprehensive list of techniques is available in the [documentation](application_usage/failed_solves.md)
+
+First, you should diagnose the non-convergence by printing the residuals for all variables:
+
+```bash
+[Debug]
+  show_var_residual_norms = true
+[]
+```
+
+You can then identify which variable is not converging.
+Equation scaling issues have been covered earlier. Let's explore two other common causes:
+
+- initialization
+
+- bad mesh
+
+!---
+
+Make sure to initialize every nonlinear variable using the `[ICs]` block.
+To check initialization, use the [Exodus](Exodus.md) output:
+
+```bash
+[Outputs]
+  exodus = true
+  execute_on = INITIAL
+[]
+```
+
+!---
+
+Meshing is hard. We have some tools to help in the [MeshGenerator system](syntax/Mesh/index.md) but generally you should:
+
+- visually inspect your mesh. Look for unsupported features: non-conformality (except from libMesh refinement), overlapping cells...
+- use the [MeshDiagnosticsGenerator](MeshDiagnosticsGenerator.md) and turn on the relevant checks
+- use `show_info = true` in the [FileMeshGenerator](FileMeshGenerator.md) and verify that the output is as expected
+- replace your mesh with a simple MOOSE-generated rectangular mesh to check if the mesh is at fault
+
+!---
+
+## Summary of helpful resources
+
+[Documentation for every object](syntax/index.md)
+
+[Troubleshooting failed solves](application_usage/failed_solves.md)
+
+[Debug system](syntax/Debug/index.md)
+
+[FAQ](https://mooseframework.inl.gov/help/faq/index.html)
+
+[GitHub discussions forum](https://github.com/idaholab/moose/discussions) : please follow the [guidelines](https://github.com/idaholab/moose/discussions/18270) before posting
+
+!---
 
 # Questions?
 
+!---
 
