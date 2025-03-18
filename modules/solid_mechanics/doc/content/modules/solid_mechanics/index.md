@@ -148,3 +148,10 @@ Follow the MOOSE standards for [contributing](framework/contributing.md).
 
 The Solid Mechanics module follows strict software quality guidelines, refer to
 [Solid Mechanics SQA](solid_mechanics/sqa/index.md) for more information.
+
+
+## ThermoMechanical Slides
+
+Slides: [Slides](intro/thermo_index.md)
+
+
