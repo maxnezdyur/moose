@@ -7,6 +7,7 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 - Numerical solution strategies
 - Contact mechanics and gap heat transfer
 
+
 !---
 
 
@@ -31,7 +32,9 @@ A basic MOOSE input file requires six parts, each of which will be covered in gr
 - `[Mesh]`: Define the geometry of the domain
 - `[Variables]`: Define the unknown(s) of the problem
 - `[Kernels]`: Define the equation(s) to solve
+- `[Materials]`: Define the physical properties of materials in the domain
 - `[BCs]`: Define the boundary condition(s) of the problem
+- `[AuxVariables]`:  Define secondary variables for postprocessing and visualization
 - `[Executioner]`: Define how the problem will be solved
 - `[Outputs]`: Define how the solution will be returned
 
@@ -217,105 +220,284 @@ Objects can enforce the use of the displaced mesh within the validParams functio
 
 !---
 
-# [Output System](syntax/Outputs/index.md)
+# [Variable System](syntax/Variables/index.md)
 
-A system for outputting simulation data to the screen or files.
-
-!---
-
-The output system is designed to be just like any other system in MOOSE: modular and expandable.
-
-It is possible to create multiple output objects for outputting:
-
-- at specific time or timestep intervals,
-- custom subsets of variables, and
-- to various file types.
-
-There exists a short-cut syntax for common output types as well as common parameters.
+A system for defining primary unknown variables to be solved for using a nonlinear system of PDEs.
 
 !---
 
-## Short-cut Syntax
+## Variables
 
-The following two methods for creating an Output object are equivalent within the internals of MOOSE.
+- Defines the primary "unknowns" in the system of PDEs
+- Variables are associated with finite element shape functions
+- Referenced by `Kernel` objects to define the governing equations
+- Form the solution vector in the nonlinear system
 
-```text
-[Outputs]
-  exodus = true
-[]
+!---
+
+## Variable Declaration
+
+Variables are declared in the `[Variables]` input file block:
+
 ```
-
-```text
-[Outputs]
-  [out]
-    type = Exodus
+[Variables]
+  [temp]
+    order = FIRST
+    family = LAGRANGE
   []
 []
 ```
 
+- `order`: Polynomial order (FIRST, SECOND, etc.)
+- `family`: Shape function family (LAGRANGE, HERMITE, MONOMIAL, etc.)
+
 !---
 
-## Customizing Output
+## Variable Types
 
-The content of each `Output` can customized, see for example for an [Exodus](Exodus.md) output:
+MOOSE supports several variable types:
+
+- *Nodal Variables*: Standard finite element variables using Lagrange basis
+- *Elemental Variables*: Variables defined at element level using monomial basis
+- *Scalar Variables*: Variables that are constant in space but evolve in time
+- *Finite Volume Variables*: Variables for cell-centered finite volume methods
+
+!---
+
+## Variable Initial Conditions
+
+Variables can be assigned initial conditions:
 
 ```
-[Outputs]
-  [out]
-    type = Exodus
-    output_material_properties = true
-    # removes some quantities from the output
-    hide = 'power_pp pressure_var'
+[Variables]
+  [u]
+    order = FIRST
+    family = LAGRANGE
+    [InitialCondition]
+      type = FunctionIC
+      function = x*y
+    []
   []
 []
 ```
 
+- Initial conditions can be constant, function-based, or random
+- More complex ICs can be defined in a separate `[ICs]` block
+
 !---
 
-## Common Parameters
+## Variable Scaling
 
-```text
-[Outputs]
-  interval = 10 # this is a time step interval
-  [exo]
-    type = Exodus
-    interval = 1 # overrides interval from top-level
+Variable scaling improves solver convergence for multiphysics problems:
+
+```
+[Variables]
+  [pressure]
+    scaling = 1e-6  # Scale down for better conditioning
   []
-  [cp]
-    type = Checkpoint # Uses interval specified from top-level
+  [temperature]
+    scaling = 1.0
   []
 []
 ```
 
+- Helps balance variables with different physical units
+- Improves conditioning of the Jacobian matrix
+- Particularly important for coupled multiphysics problems
+
 !---
 
-## Output Names
+## Coupling Variables
 
-The default naming scheme for output files utilizes the input file name (e.g., input.i) with a suffix
-that differs depending on how the output is defined: An "_out" suffix is used for Outputs created
-using the short-cut syntax.  sub-blocks use the actual sub-block name as the suffix.
+Variables can be explicitly coupled when necessary:
 
-```text
-[Outputs]
-  exodus = true    # creates input_out.e
-  [other]          # creates input_other.e
-     type = Exodus
-     interval = 2
-  []
-  [base]
-    type = Exodus
-    file_base = out # creates out.e
+```
+[Kernels]
+  [heat_conduction]
+    type = HeatConduction
+    variable = temperature
+    coupled_variables = displacement
   []
 []
 ```
 
+- Coupling indicates dependencies between physics
+- Allows MOOSE to construct proper Jacobian terms
+- Enables preconditioning optimization
+
+
 !---
 
-!style fontsize=85%
-!include output_types.md
 
-Paraview can read many of these (CSV, Exodus, Nemesis, VTK, GMV)
+# [Kernel System](syntax/Kernels/index.md)
 
+A system for implementing the physics of a PDE by defining the residual and Jacobian contributions.
+
+!---
+
+## Kernels: The Physics Building Blocks
+
+- A "Kernel" represents a piece of physics
+- Implements terms in the weak form of PDEs
+- Evaluates residuals at integration points
+- Assembled to form the complete system of equations
+- Available in standard and AD (Automatic Differentiation) versions
+
+!---
+
+## Kernel Structure
+
+For standard `Kernel` objects:
+
+- *Must override:* `computeQpResidual()`
+- *Optionally override:* `computeQpJacobian()`, `computeQpOffDiagJacobian()`
+
+For `ADKernel` objects:
+
+- *Only override:* `computeQpResidual()`
+- Jacobians calculated automatically through AD
+
+!---
+
+## Kernel Member Variables
+
+- `_i`, `_j`: Current test and trial function indices
+- `_qp`: Current quadrature point index
+- `_u`, `_grad_u`: Variable value and gradient
+- `_test`, `_grad_test`: Test function value and gradient
+- `_phi`, `_grad_phi`: Trial function value and gradient
+- `_q_point`: Coordinates of current quadrature point
+- `_current_elem`: Pointer to current element
+
+!---
+
+
+
+## Custom Kernel Example: Diffusion
+
+!row!
+
+!col! width=45%
+
++Weak Form+
+
+!equation
+(\nabla \phi_j, \nabla \psi_i)\quad \forall\,\psi_i
+
++Standard Implementation+
+
+!style! fontsize=70%
+
+```cpp
+Real
+Diffusion::computeQpResidual()
+{
+  return _grad_u[_qp] * _grad_test[_i][_qp];
+}
+```
+
+!style-end!
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=45%
+
++Jacobian Term+
+
+!equation
+(\nabla \phi_j, \nabla \psi_i)\quad \forall\,\psi_i
+
++Standard Jacobian+
+
+!style! fontsize=70%
+
+```cpp
+Real
+Diffusion::computeQpJacobian()
+{
+  return _grad_phi[_j][_qp] * _grad_test[_i][_qp];
+}
+```
+
+!style-end!
+
+!col-end!
+
+!row-end!
+
+!---
+
+## AD Version: Simpler Implementation
+
+!row!
+
+!col! width=50%
+
++AD Implementation+
+
+!style! fontsize=70%
+
+```cpp
+ADReal
+ADDiffusion::precomputeQpResidual()
+{
+  return _grad_u[_qp] * _grad_test[_i][_qp];
+}
+```
+
+!style-end!
+
++Benefits+
+
+- No need to implement Jacobian
+- Automatic calculation of derivatives
+- Less error-prone
+- Better for complex physics
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=50%
+
++How AD Works+
+
+- Uses dual numbers approach
+- Tracks derivatives along with values
+- Applies chain rule automatically
+- Computes exact Jacobian entries
+
+
+!col-end!
+
+!row-end!
+
+
+!---
+
+
+## Example: Complete Diffusion Input
+
+```
+[Kernels]
+  [diffusion]
+    type = ADDiffusion
+    variable = temperature
+  []
+  [time_derivative]
+    type = ADTimeDerivative
+    variable = temperature
+  []
+[]
+```
+
+This defines a simple heat equation with diffusion and time derivative terms.
 
 !---
 
@@ -417,6 +599,134 @@ the output file.
 | RealVectorValue | `MaterialRealVectorValueAux` | prop_1, prop_2, and prop_3 |
 | RealTensorValue | `MaterialRealTensorValueAux` | prop_11, prop_12, prop_13, prop_21, etc. |
 
+!---
+
+# [Boundary Condition System](syntax/BCs/index.md)
+
+System for computing residual contributions from boundary terms of a [!ac](PDE).
+
+!---
+
+A `BoundaryCondition` (BC) object computes a residual on a boundary (or internal side) of a domain.
+
+There are two flavors of BC objects: Nodal and Integrated.
+
+!---
+
+## Integrated BC
+
+Integrated BCs are integrated over a boundary or internal side and should inherit
+from `ADIntegratedBC`.
+
+The structure is very similar to Kernels: objects must override `computeQpResidual`
+
+!---
+
+## ADIntegratedBC Object Members
+
+`_u`, `_grad_u`\\
+Value and gradient of the variable this Kernel is operating on
+
+`_test`, `_grad_test`\\
+Value ($\psi$) and gradient ($\nabla \psi$) of the test functions at the quadrature points
+
+`_phi`, `_grad_phi`\\
+Value ($\phi$) and gradient ($\nabla \phi$) of the trial functions at the quadrature points
+
+`_i`, `_j`, `_qp`\\
+Current index for test function, trial functions, and quadrature point, respectively
+
+`_normals`:\\
+Outward normal vector for boundary element
+
+`_boundary_id`\\
+The boundary ID
+
+`_current_elem`, `_current_side`\\
+A pointer to the element and index to the current boundary side
+
+!---
+
+## Non-Integrated BC
+
+Non-integrated BCs set values of the residual directly on a boundary or internal side and
+should inherit from `ADNodalBC`.
+
+The structure is very similar to Kernels: objects must override `computeQpResidual`.
+
+!---
+
+## NodalBC Object Members
+
+`_u`\\
+Value of the variable this Kernel is operating on
+
+`_qp`\\
+Current index, used for interface consistency
+
+`_boundary_id`\\
+The boundary ID
+
+`_current_node`\\
+A pointer to the current node that is being operated on.
+
+!---
+
+## Dirichlet BCs
+
+Set a condition on the `value` of a variable on a boundary:
+
+!equation
+u = g_1 \quad \text{on} \quad \partial\Omega_1
+
+becomes
+
+!equation
+u - g_1 = 0 \quad \text{on} \quad \partial\Omega_1
+
+!---
+
+ If you see this you missed a todo:
+
+<!-- TODO Add input files for Bcs  -->
+
+!---
+
+## Integrated BCs
+
+Integrated BCs (including Neumann BCs) are actually integrated over the external face of an element.
+
+!equation
+\left\{
+   \begin{array}{rl}
+     (\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle \nabla u\cdot \hat{\boldsymbol n}, \psi_i\rangle &= 0 \quad \forall i
+    \\
+      \nabla u \cdot \hat{\boldsymbol n} &= g_1\quad \text{on} \quad\partial\Omega
+   \end{array}
+\right.
+
+becomes:
+
+!equation
+(\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle g_1, \psi_i\rangle = 0 \quad \forall i
+
+If $\nabla u \cdot \hat{\boldsymbol n} = 0$, then the boundary integral is zero
+("natural boundary condition").
+
+
+!---
+
+## Periodic BCs
+
+Periodic boundary conditions are useful for modeling quasi-infinite domains and systems with
+conserved quantities.
+
+- 1D, 2D, and 3D
+- With mesh adaptivity
+- Can be restricted to specific variables
+- Supports arbitrary translation vectors for defining periodicity
+
+
 
 !---
 
@@ -490,6 +800,9 @@ other nodal auxiliary variables
 ```
 
 !---
+
+
+
 
 # [Executioner System](syntax/Executioner/index.md)
 
@@ -672,132 +985,109 @@ What steps will be taken, starting at time = 0s?
 
 !---
 
-# [Boundary Condition System](syntax/BCs/index.md)
+# [Output System](syntax/Outputs/index.md)
 
-System for computing residual contributions from boundary terms of a [!ac](PDE).
-
-!---
-
-A `BoundaryCondition` (BC) object computes a residual on a boundary (or internal side) of a domain.
-
-There are two flavors of BC objects: Nodal and Integrated.
+A system for outputting simulation data to the screen or files.
 
 !---
 
-## Integrated BC
+The output system is designed to be just like any other system in MOOSE: modular and expandable.
 
-Integrated BCs are integrated over a boundary or internal side and should inherit
-from `ADIntegratedBC`.
+It is possible to create multiple output objects for outputting:
 
-The structure is very similar to Kernels: objects must override `computeQpResidual`
+- at specific time or timestep intervals,
+- custom subsets of variables, and
+- to various file types.
 
-!---
-
-## ADIntegratedBC Object Members
-
-`_u`, `_grad_u`\\
-Value and gradient of the variable this Kernel is operating on
-
-`_test`, `_grad_test`\\
-Value ($\psi$) and gradient ($\nabla \psi$) of the test functions at the quadrature points
-
-`_phi`, `_grad_phi`\\
-Value ($\phi$) and gradient ($\nabla \phi$) of the trial functions at the quadrature points
-
-`_i`, `_j`, `_qp`\\
-Current index for test function, trial functions, and quadrature point, respectively
-
-`_normals`:\\
-Outward normal vector for boundary element
-
-`_boundary_id`\\
-The boundary ID
-
-`_current_elem`, `_current_side`\\
-A pointer to the element and index to the current boundary side
+There exists a short-cut syntax for common output types as well as common parameters.
 
 !---
 
-## Non-Integrated BC
+## Short-cut Syntax
 
-Non-integrated BCs set values of the residual directly on a boundary or internal side and
-should inherit from `ADNodalBC`.
+The following two methods for creating an Output object are equivalent within the internals of MOOSE.
 
-The structure is very similar to Kernels: objects must override `computeQpResidual`.
+```text
+[Outputs]
+  exodus = true
+[]
+```
 
-!---
-
-## NodalBC Object Members
-
-`_u`\\
-Value of the variable this Kernel is operating on
-
-`_qp`\\
-Current index, used for interface consistency
-
-`_boundary_id`\\
-The boundary ID
-
-`_current_node`\\
-A pointer to the current node that is being operated on.
+```text
+[Outputs]
+  [out]
+    type = Exodus
+  []
+[]
+```
 
 !---
 
-## Dirichlet BCs
+## Customizing Output
 
-Set a condition on the `value` of a variable on a boundary:
+The content of each `Output` can customized, see for example for an [Exodus](Exodus.md) output:
 
-!equation
-u = g_1 \quad \text{on} \quad \partial\Omega_1
-
-becomes
-
-!equation
-u - g_1 = 0 \quad \text{on} \quad \partial\Omega_1
-
-!---
-
- If you see this you missed a todo:
-
-<!-- TODO Add input files for Bcs  -->
+```
+[Outputs]
+  [out]
+    type = Exodus
+    output_material_properties = true
+    # removes some quantities from the output
+    hide = 'power_pp pressure_var'
+  []
+[]
+```
 
 !---
 
-## Integrated BCs
+## Common Parameters
 
-Integrated BCs (including Neumann BCs) are actually integrated over the external face of an element.
+```text
+[Outputs]
+  interval = 10 # this is a time step interval
+  [exo]
+    type = Exodus
+    interval = 1 # overrides interval from top-level
+  []
+  [cp]
+    type = Checkpoint # Uses interval specified from top-level
+  []
+[]
+```
 
-!equation
-\left\{
-   \begin{array}{rl}
-     (\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle \nabla u\cdot \hat{\boldsymbol n}, \psi_i\rangle &= 0 \quad \forall i
-    \\
-      \nabla u \cdot \hat{\boldsymbol n} &= g_1\quad \text{on} \quad\partial\Omega
-   \end{array}
-\right.
+!---
 
-becomes:
+## Output Names
 
-!equation
-(\nabla u, \nabla \psi_i) - (f, \psi_i) - \langle g_1, \psi_i\rangle = 0 \quad \forall i
+The default naming scheme for output files utilizes the input file name (e.g., input.i) with a suffix
+that differs depending on how the output is defined: An "_out" suffix is used for Outputs created
+using the short-cut syntax.  sub-blocks use the actual sub-block name as the suffix.
 
-If $\nabla u \cdot \hat{\boldsymbol n} = 0$, then the boundary integral is zero
-("natural boundary condition").
+```text
+[Outputs]
+  exodus = true    # creates input_out.e
+  [other]          # creates input_other.e
+     type = Exodus
+     interval = 2
+  []
+  [base]
+    type = Exodus
+    file_base = out # creates out.e
+  []
+[]
+```
+
+!---
+
+!style fontsize=85%
+!include output_types.md
+
+Paraview can read many of these (CSV, Exodus, Nemesis, VTK, GMV)
 
 
 !---
 
-## Periodic BCs
 
-Periodic boundary conditions are useful for modeling quasi-infinite domains and systems with
-conserved quantities.
-
-- 1D, 2D, and 3D
-- With mesh adaptivity
-- Can be restricted to specific variables
-- Supports arbitrary translation vectors for defining periodicity
-
-!---
 
 # [Postprocessor System](syntax/Postprocessors/index.md)
 
@@ -985,12 +1275,30 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 
 
-
 # Introduction to Solid Mechanics
+
+!row!
+
+!col! width=50%
 
 - Fundamental concepts and principles
 - Stress and strain tensors
 - Conservation equations
+
+!col-end!
+
+!col! width=50%
+
+
+!media solid_mechanics/mechanics_potatoes.png
+       id=potato
+       style=width:100%;
+       caption=Reference and Current Configuration
+
+!col-end!
+
+!row-end!
+
 
 !---
 
@@ -1445,6 +1753,691 @@ Where:
 !---
 
 
+# Contact Methods Overview
+
+!row!
+
+!col! width=50%
+
++Node-Face Method+
+
+- Point-to-surface discretization
+- Traditional contact approach
+- Uses penalty or Lagrange multiplier enforcement
+- Computationally efficient
+- Challenges with non-matching meshes
+
+!col-end!
+
+!col! width=50%
+
++Mortar Method+
+
+- Surface-to-surface discretization
+- Weak enforcement of constraints
+- Better for non-matching meshes
+- More accurate interface field distribution
+- Uses separate space of Lagrange multipliers
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Node-Face Method: General Formulation
+
+!row!
+
+!col! width=48%
+
++Concept+
+
+- Discrete nodes on secondary surface
+- Project onto primary surface elements
+- Enforce constraints at node locations
+- Simple to implement
+- Historically common in FEM
+
+!media node_face_contact.svg
+       style=width:90%;
+
+!col-end!
+
+!col! width=48%
+
++Mathematical Approach+
+
+!equation
+\begin{aligned}
+g_n &= (\mathbf{x}_{\text{secondary}} - \mathbf{x}_{\text{primary}}) \cdot \mathbf{n} \\
+R &= \sum_{i=1}^{n_p} \delta u \cdot \lambda_i
+\end{aligned}
+
+where:
+
+- $g_n$ is the normal gap
+- $\mathbf{n}$ is the surface normal
+- $R$ is the residual contribution
+- $\delta u$ is the test function for the field variable
+- $\lambda_i$ is the interface quantity at point $i$
+- $n_p$ is the number of interface points
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Mortar Method: General Formulation
+
+!row!
+
+!col! width=48%
+
++Concept+
+
+- Uses weighted integrals over contact surface
+- Introduces Lagrange multiplier field
+- Enforces constraints in weak sense
+- Maintains patch test consistency
+- Handles non-matching meshes naturally
+
+!media mortar_contact.png
+ style=width:90%;
+
+!col-end!
+
+!col! width=48%
+
++Mathematical Approach+
+
+!equation
+\begin{aligned}
+\int_{\Gamma_c} \lambda \cdot c(u_1, u_2) \, d\Gamma &= 0 \\
+\int_{\Gamma_c} \delta\lambda \cdot c(u_1, u_2) \, d\Gamma &= 0
+\end{aligned}
+
+where:
+
+- $\Gamma_c$ is the interface surface
+- $\lambda$ is the Lagrange multiplier field
+- $c(u_1, u_2)$ is the constraint function
+- $u_1, u_2$ are the primary field variables
+- $\delta\lambda$ is the test function for $\lambda$
+
+!col-end!
+
+!row-end!
+
+
+!---
+
+# Mechanical Contact: Fundamentals
+
+*Contact Constraints:*
+
+!equation
+\begin{aligned}
+g &\leq 0 \quad \text{(non-penetration)} \\
+t_N &\geq 0 \quad \text{(compressive normal force)} \\
+t_N g &= 0 \quad \text{(complementarity condition)}
+\end{aligned}
+
+*Key Concepts:*
+
+- Gap ($g$): Penetration distance between contacting bodies
+- Contact force ($t_N$): Force opposing penetration
+- Either penetration is zero or contact force is zero
+
+*Constraint Enforcement Methods:*
+
+- *Penalty Method*: Applies force proportional to penetration
+- *Lagrange Multiplier*: Adds variables to enforce constraints exactly
+- *Augmented Lagrangian*: Hybrid approach combining both methods
+
+!---
+
+# Gap Heat Transfer: Fundamentals
+
+!row!
+
+!col! width=48%
+
++Basic Principle+
+
+The heat leaving one body must equal that entering another:
+
+!equation
+\int_{\Gamma_i} h_{\text{gap}} \Delta T , dA_i = \int_{\Gamma_j} h_{\text{gap}} \Delta T , dA_j
+
++Total Gap Conductance+
+
+!equation
+h_{\text{gap}} = h_{\text{contact}} + h_{\text{gas}} + h_{\text{radiation}}
+
+!col-end!
+
+!col! width=48%
+
++Heat Transfer Mechanisms:+
+
+- *Contact conductance*
+
+  - Direct solid-solid conduction
+  - Depends on: pressure, roughness, hardness
+
+- *Gas conductance*
+
+  - Through gap medium
+  - Depends on: gap width, gas properties
+
+- *Radiation*
+
+  - Important at high temperatures
+  - Depends on: surface emissivities
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Gap Heat Transfer: Mathematical Model
+
+!row!
+
+!col! width=48%
+
++Gap Conductance Model+
+
+!equation
+h_{\text{gap}} = h_g + h_s + h_r
+
+!col-end!
+
+!col! width=48%
+
++Components+
+
+- $h_{\text{gap}}$: Total conductance across the gap
+- $h_g$: Gas conductance
+- $h_s$: Solid-solid (contact) conduction
+- $h_r$: Radiative conductance
+
+!col-end!
+
+!row-end!
+
+!---
+
+
+## Gas Conductance
+
+!equation
+h_g = \frac{k_g}{d_g}
+
+
+where:
+
+- $k_g$ is the thermal conductivity of the gap (gas)
+- $d_g$ is the gap distance
+
+
+!---
+
+## Solid-Solid Contact Conductance
+
+A pressure-dependent model for the solid-solid contact conduction is given by:
+
+!equation
+C_T = \alpha \, k_{\text{harm}} \frac{P}{H_{\text{harm}}}
+
+
+where:
+
+- $\alpha$ is a fitting parameter,
+- $P$ is the contact pressure,
+- $k_{\text{harm}}$ is the harmonic mean of the thermal conductivities:
+
+  !equation
+  k_{\text{harm}} = \frac{2 k_1 k_2}{k_1 + k_2}
+
+- $H_{\text{harm}}$ is the harmonic mean of the material hardnesses.
+
+
+
+!---
+
+
+## Radiative Heat Transfer Conductance
+
+
+!equation
+q_r = \sigma F_e (T_s^4 - T_f^4) \sim h_r (T_s - T_f)
+
+!equation
+h_r = \sigma F_e \frac{(T_s^4 - T_f^4)}{(T_s - T_f)} = \sigma F_e (T_s^2 + T_f^2)(T_s + T_f)
+
+
+!row!
+
+!col! width=50%
+
+
+
++Variables & Emissivity+
+
+- $\sigma$ is the Stefan-Boltzmann constant
+- $F_e$ is the emissivity function
+- $T_s$ is the surface temperature
+- $T_f$ is the far-field temperature
+- $h_r$ is the radiative gap conductance
+
+!col-end!
+
+!col! width=50%
+
+
+
+Cartesian systems:
+
+!equation
+F_e = \frac{1}{\left(\frac{1}{e_s} + \frac{1}{e_f} - 1\right)}
+
+
+Axisymmetric systems:
+
+!equation
+F_e = \frac{e_s e_f r_f}{e_f r_f + e_s r_s (1-e_f)}
+
+!col-end!
+
+!row-end!
+
+
+!---
+
+## Summary
+
+Combining all components, the overall gap conductance model becomes:
+
+!equation
+h_{\text{gap}} = \frac{k_g}{d_g} + C_T + \sigma F_e \left( T_s^2 + T_f^2 \right) \left( T_s + T_f \right)
+
+
+where:
+
+- $\frac{k_g}{d_g}$ represents gas conduction ($h_g$),
+- $C_T$ represents pressure-dependent solid-solid conduction ($h_s$),
+- $\sigma F_e \left( T_s^2 + T_f^2 \right) \left( T_s + T_f \right)$ represents radiative conductance ($h_r$).
+
+
+!---
+
+# Node-Face vs. Mortar for Heat Transfer
+
+!row!
+
+!col! width=48%
+
++Node-Face Heat Transfer+
+
+- Point evaluation of temperatures
+- Heat flux applied at discrete points
+- Conservation:
+
+!equation
+q_i = h \cdot (T_{\text{secondary}} - T_{\text{primary}}) \cdot A_i
+
+where:
+
+- $q_i$ is heat flux at node $i$
+- $A_i$ is the tributary area
+- $h$ is the gap conductance
+- $T$ are nodal temperatures
+
+!col-end!
+
+!col! width=48%
+
++Mortar Heat Transfer+
+
+- Integrated heat flux balance
+- Weak enforcement through test functions
+- Conservation:
+
+!equation
+\int_{\Gamma_c} \psi \cdot \lambda \cdot (T_1 - T_2) \, d\Gamma = 0
+
+where:
+
+- $\psi$ is the test function
+- $\Gamma_c$ is the contact interface
+- $\lambda$ is the Lagrange multiplier field
+- $T_1, T_2$ are temperature fields
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Node-Face vs. Mortar for Mechanical Contact
+
++Complementarity Conditions:+
+
+!equation
+g_n \leq 0 \\ \lambda \geq 0 \\ \lambda\, g_n = 0
+
+!row!
+
+!col! width=48%
+
++Node-Face Mechanical Contact+
+
+- *Mechanism:* Contact forces are applied at discrete nodes.
+
+- *Penalty Contact Force:*
+  Given a penalty ($\kappa$) contact traction is computed as
+
+  !equation
+  t_n = \kappa\,\max(g_n, 0)
+
+- *Residual Assembly:*
+  The contribution to the displacement residual is given by the virtual work of the penalty forces:
+
+  !equation
+  R_c = \sum_{i=1}^{n_p} \delta \mathbf{u}_i \cdot (t_n \mathbf{n}_i)
+
+
+
+!col-end!
+
+!col! width=48%
+
++Mortar Mechanical Contact+
+
+- *Mechanism:* Contact pressures are distributed continuously over the contact interface.
+- *Constraint Enforcement:*
+
+  !equation
+  \int_{\Gamma_c} \psi\, \lambda\, g_n\, d\Gamma = 0
+
+  *This formulation implicitly incorporates the complementarity conditions in a weak sense.*
+
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Contact in MOOSE: Node-Face
+
+!row!
+
+!col! width=45%
+
++Node-Face Contact Setup+
+
+!style! fontsize=85%
+
+```
+
+[Contact]
+  [mechanical_contact]
+    secondary = secondary_boundary
+    primary = primary_boundary
+    model = frictionless
+    formulation = penalty
+    penalty = 1e8
+    normal_smoothing_distance = 0.1
+    normalize_penalty = true
+  []
+[]
+
+```
+
+!style-end!
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=45%
+
++Key Parameters:+
+
+- primary/secondary: boundary IDs
+- `model`: frictionless, coulomb, glued
+- `formulation`: penalty or kinematic
+- `penalty`: contact stiffness
+- `normal_smoothing_distance`: stabilization
+- `normalize_penalty`: scales by element size
+
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Contact in MOOSE: Mortar
+
+!row!
+
+!col! width=50%
+
++Mortar Contact Setup+
+
+!style! fontsize=85%
+
+```
+[Contact]
+  [mortar_contact]
+    secondary = 10
+    primary = 20
+    model = coulomb
+    formulation = mortar
+    c_normal = 1e1
+    c_tangential = 1e3
+    normalize_c = true
+    correct_edge_dropping = true
+    use_dual = true
+  []
+[]
+```
+
+!style-end!
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=50%
+
++Key Parameters:+
+
+!style! fontsize=85%
+
+- primary/secondary: boundary IDs
+- `model`: frictionless, coulomb, glued
+- `formulation`: mortar
+- `friction_coefficient`: for coulomb friction
+- `c_normal`: convergence parameter for normal contact
+- `c_tangential`: convergence parameter for normal tangential contact
+- `normalize_c`: Normalize by weighting function norm (recommended to set to true)
+- `correct_edge_dropping`: improves contact modeling (recommended to set to true)
+- `use_dual`: enables dual mortar approach (recommended to set to true)
+
+!style-end!
+
+!col-end!
+
+!row-end!
+
+!---
+
+
+
+# Gap Heat Transfer in MOOSE: Node-Face
+
+<!-- TODO  I do not know the best options here or what people normally use -->
+
+!row!
+
+!col! width=45%
+
++Node-Face Gap Heat Transfer Setup+
+
+!style! fontsize=85%
+
+```
+[ThermalContact]
+  [thermal_contact]
+    type = GapHeatTransfer
+    variable = temp
+    primary = primary_boundary
+    secondary = secondary_boundary
+    gap_conductivity = 1.0
+    gap_conductivity_function = gap_cond
+    min_gap = 0.001
+  []
+[]
+
+```
+
+!style-end!
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=45%
+
++Key Parameters:+
+
+- `variable`: temperature variable
+- primary/secondary: boundary IDs
+- `gap_conductivity`: constant thermal conductance
+- `gap_conductivity_function`: function for variable conductance
+- `min_gap`: regularization parameter to avoid numerical issues
+
+!col-end!
+
+!row-end!
+
+
+!---
+
+# Gap Heat Transfer in MOOSE: Mortar
+
+!row!
+
+!col! width=45%
+
++Mortar-Based Heat Transfer Setup+
+
+!style! fontsize=65%
+
+```
+[Constraints]
+  [thermal_contact]
+    type = ModularGapConductanceConstraint
+    variable = lambda
+    secondary_variable = temperature
+    primary_boundary = primary
+    primary_subdomain = primary_block
+    secondary_boundary = secondary
+    secondary_subdomain = primary_block
+    gap_flux_models = 'radiation pressure gas'
+    use_displaced_mesh = true
+    correct_edge_dropping = true
+  []
+[]
+```
+
+!style-end!
+
+
+!col-end!
+
+!col! width=5%
+\\
+!col-end!
+
+!col! width=45%
+
++Key Parameters:+
+
+- `variable`: Lagrange multiplier field
+- primary_variable/secondary_variable: temperature variables for the primary and secondary sides, respectively
+- primary_boundary/primary_subdomain: primary side boundary and subdomain identifiers
+- secondary_boundary/secondary_subdomain: secondary side boundary and subdomain identifiers
+- `gap_flux_models`: specifies the gap flux models (e.g., 'radiation pressure gas')
+- `correct_edge_dropping`: improves contact modeling (recommended to set to true)
+
+!col-end!
+
+!row-end!
+
+!---
+
+
+
+
+# Saddle Point Problems in Mortar Contact
+
+!row!
+
+!col! width=50%
+
++Mathematical Formulation+
+
+- Saddle point problems arise in constrained optimization
+- Characterized by indefinite system matrices:
+  $\begin{pmatrix} A & B^T \\ B & 0 \end{pmatrix} \begin{pmatrix} u \\ λ \end{pmatrix} = \begin{pmatrix} f \\ g \end{pmatrix}$
+- System has both positive and negative eigenvalues
+- Stability depends on satisfying the inf-sup condition
+
+!col-end!
+
+!col! width=50%
+
++Connection to Mortar Contact+
+
+- Mortar method for contact naturally creates saddle points
+- In contact problems:
+
+  - $A$ is the stiffness matrix
+  - $B$ represents contact constraints
+  - $λ$ are Lagrange multipliers
+- Challenge: maintaining stability while accurately representing contact interface
+
+!col-end!
+
+!row-end!
+
+!---
+
+
+
+# Combined Thermomechanical Problems
+
+- Coupled physics
+- Implementation strategies
+
+!---
+
+
+
 # Newton's Method for Nonlinear Systems
 
 *Newton's Method in Update Form:*
@@ -1651,8 +2644,8 @@ J_{ij}(\vec{u}_n) = \dfrac{\partial R_i(\vec{u}_n)}{\partial u_j}
 
 *Implementation Options:*
 
-- SuperLU_DIST: Distributed memory parallel
-- MUMPS: Robust multifrontal solver
+- SuperLU_DIST
+- MUMPS
 
 *Advantages:*
 
@@ -1669,29 +2662,37 @@ J_{ij}(\vec{u}_n) = \dfrac{\partial R_i(\vec{u}_n)}{\partial u_j}
 
 !---
 
-
 # Iterative Linear Solvers
 
 *GMRES (Generalized Minimal RESidual):*
 
 - Default in MOOSE/PETSc
 - Works for general non-symmetric systems
-- Memory increases with iterations
-- Restart parameter balances memory vs. convergence
 
-*BiCGStab (Biconjugate Gradient Stabilized):*
+*Preconditioner Types:*
 
-- Non-symmetric systems
-- Sometimes more stable than GMRES
-- Constant memory requirements
+- *ASM (Additive Schwarz Method):*
 
-*Key Advantages:*
+  - Domain decomposition approach
+  - Solves local problems on subdomains
+  - Configurable overlap between subdomains
 
-- Better scaling with problem size
-- Lower memory requirements
-- Better parallel performance
+- *GAMG (Geometric Algebraic MultiGrid):*
+
+  - Hierarchical approach using coarse and fine grids
+  - Rapidly eliminates low-frequency error components
+  - Excellent scalability for elliptic problems
+
+- *hypre:*
+
+  - Library of high-performance preconditioners
+  - Includes BoomerAMG (algebraic multigrid)
+  - Highly effective for elliptic equations
+  - Strong parallel scaling properties
+
 
 !---
+
 
 
 # Linear Solver Configuration
@@ -1705,8 +2706,8 @@ J_{ij}(\vec{u}_n) = \dfrac{\partial R_i(\vec{u}_n)}{\partial u_j}
  petsc_options_value='lu mumps'
 
 # Iterative solver
- petsc_options_iname = '-pc_type -sub_pc_type -ksp_type'
- petsc_options_value = 'asm lu gmres'
+ petsc_options_iname = '-pc_type -sub_pc_type '
+ petsc_options_value = 'asm lu '
 []
 ```
 
@@ -1768,156 +2769,39 @@ $\frac{\|\vec{R}(\vec{u}_n)\|}{\|\vec{R}(\vec{u}_0)\|} < \text{tolerance}$
 
 # Reference Residual: Implementation
 
-*Key Components:*
+!row!
+
+!col! width=50%
+
++Key Components+
 
 - `ReferenceResidualProblem` object
 - Reference vector from physically relevant quantities
 - Tagging key objects with `extra_vector_tags`
 
-*Example Input:*
+!col-end!
+
+!col! width=0%
+
++Example Input+
 
 ```
 [Problem]
-  type = ReferenceResidualProblem
-  extra_tag_vectors = 'ref'
-  reference_vector = 'ref'
-  group_variables = 'disp_x disp_y disp_z'
+ type = ReferenceResidualProblem
+ extra_tag_vectors = 'ref'
+ reference_vector = 'ref'
+ group_variables = 'disp_x disp_y disp_z'
 []
 [BCs]
   [fixed_x]
-    type = DirichletBC
-    variable = disp_x
-    boundary = 'left'
-    value = 0.0
-    extra_vector_tags = 'ref'
+  type = DirichletBC
+  variable = disp_x
+  boundary = 'left'
+  value = 0.0
+  extra_vector_tags = 'ref'
   []
 []
 ```
-
-!---
-
-# Time Integration
-
-!row!
-
-!col! width=50%
-
-+First-Order: Implicit Euler+
-
-!equation
-\frac{u^{n+1} - u^n}{\Delta t} = \dot u(u^{n+1}, t^{n+1})
-
-*Properties:*
-
-- First-order accurate in time
-- L-stable (strong damping)
-- Unconditionally stable
-- More numerical dissipation
-
-!col-end!
-
-!col! width=50%
-
-+Second-Order: BDF2+
-
-!equation
-\frac{3u^{n+1} - 4u^n + u^{n-1}}{2\Delta t} = \dot u(u^{n+1}, t^{n+1})
-
-*Properties:*
-
-- Second-order accurate in time
-- A-stable (no error growth)
-- Requires two previous steps
-- Better accuracy for same $\Delta t$
-
-!col-end!
-
-!row-end!
-
-*MOOSE Configuration:*
-
-```
-[Executioner]
-  type = Transient
-  scheme = 'bdf2'  # or 'implicit-euler'
-[]
-```
-
-!---
-
-
-# Contact Mechanics: Fundamentals
-
-*Contact Constraints:*
-
-!equation
-\begin{aligned}
-g &\leq 0 \quad \text{(non-penetration)} \\
-t_N &\geq 0 \quad \text{(compressive normal force)} \\
-t_N g &= 0 \quad \text{(complementarity condition)}
-\end{aligned}
-
-
-*Key Concepts:*
-
-- Gap ($g$): Penetration distance between contacting bodies
-- Contact force ($t_N$): Force opposing penetration
-- Either penetration is zero or contact force is zero
-
-*Constraint Enforcement Methods:*
-
-- *Penalty Method*: Applies force proportional to penetration
-- *Lagrange Multiplier*: Adds variables to enforce constraints exactly
-- *Augmented Lagrangian*: Hybrid approach combining both methods
-
-!---
-
-
-# Node-Face Contact Approach
-
-![Node-face contact diagram](graphics/node_face_contact.png)
-
-!equation
-\lambda_n = \kappa\,g_n^+,
-\quad
-g_n =
-\bigl(\mathbf{u}_{\mathrm{secondary}} - \mathbf{u}_{\mathrm{primary}}\bigr)\cdot \mathbf{n},
-\quad
-g_n^+ = \max\{\,g_n,\,0\}.
-
-
-- $\lambda_n$ is the normal contact traction (force per unit area).
-- $\kappa$ is the *penalty parameter* (often treated as a stiff spring constant).
-- $g_n$ is the *normal gap* between primary and secondary surfaces.
-
-!---
-
-
-# Mortar-Based Contact Methods
-
-![Mortar contact visualization](graphics/mortar_contact.png)
-
-!row!
-
-!col! width=48%
-
-+Mortar Concept+
-
-- Uses separate space of Lagrange multipliers
-- Weak enforcement of constraints
-- Integrated over contact interface
-- Avoids over-constraint problems
-
-!col-end!
-
-!col! width=48%
-
-+Implementation+
-
-- Defines mortar space on a lower-dimensional interface
-- Transfers variables between non-matching meshes
-- Enforces constraints in a weighted-integral sense
-- Supports primal (displacement) and dual (contact pressure) variables
 
 !col-end!
 
@@ -1925,241 +2809,6 @@ g_n^+ = \max\{\,g_n,\,0\}.
 
 !---
 
-
-# Gap Heat Transfer: Physics
-
-!equation
-h_{\text{gap}} = h_{\text{contact}} + h_{\text{gas}} + h_{\text{radiation}}
-
-
-*Heat Transfer Mechanisms:*
-
-- *Contact conductance*
-
-  - Direct solid-solid conduction
-  - Depends on: pressure, roughness, hardness
-- *Gas conductance*
-
-  - Through gap medium
-  - Depends on: gap width, gas properties
-- *Radiation*
-
-  - Important at high temperatures
-  - Depends on: surface emissivities
-
-!---
-
-
-# Gap Heat Transfer: MOOSE Implementation
-
-*Implementation Options:*
-
-- *GapHeatTransfer*
-
-  - Node-to-face approach
-  - Works with mechanical contact
-
-
-- *ModularGapConductanceConstraint*
-
-  - Mortar-based approach
-  - Better for non-matching meshes
-
-*Gap Conductivity Model:*
-
-!equation
-k_{\text{eff}} = \frac{k_1 k_2}{(k_1 + k_2)} \cdot f(p, \sigma, h, T)
-
-!---
-
-# Gap Heat
-
-The principle is that the heat leaving one body must equal that entering another. For bodies (i) and (j) with heat transfer surface $(\Gamma)$:
-
-!equation
-\int_{\Gamma_i} h \Delta T , dA_i = \int_{\Gamma_j} h \Delta T , dA_j
-
-Gap heat transfer is modeled using the relation:
-
-!equation
-h_{\text{gap}} = h_g + h_s + h_r
-
-Where:
-
-- $(h_{\text{gap}})$ is the total conductance across the gap
-- $(h_g)$ is the gas conductance
-- $(h_s)$ is the increased conductance due to solid-solid contact
-- $(h_r)$ is the conductance due to radiative heat transfer
-
-!---
-
-In MOOSE modules, only the gas and radiation conductance components are active by default. The form of $(h_g)$ in MOOSE modules is:
-
-!equation
-h_g = \frac{k_g}{d_g}
-
-where:
-
-$(k_g)$ is the conductivity in the gap
-$(d_g)$ is the gap distance
-
-!---
-
-
-# MOOSE Implementation: Contact Block
-
-*Contact Block Syntax:*
-
-```
-[Contact]
-  [block_to_block]
-    primary = 1
-    secondary = 2
-    model = frictionless
-    formulation = kinematic
-    normal_smoothing_distance = 0.1
-  []
-[]
-```
-
-*Available Contact Models:*
-
-- `model = frictionless`: No tangential forces
-- `model = coulomb`: Friction with Coulomb's law
-- `model = glued`: No relative motion
-
-*Contact Formulations:*
-
-- `formulation = kinematic`: Exact enforcement (node/face or mortar)
-- `formulation = penalty`: Approximate enforcement with penalty parameter
-- `formulation = augmented_lagrange`: Hybrid approach
-- `formulation = mortar`: Mortar-based discretization
-
-!---
-
-
-# Gap Heat Transfer Implementation
-
-*Traditional Node-Face Approach:*
-
-```
-[ThermalContact]
-  [thermal_contact]
-    type = GapHeatTransfer
-    variable = temp
-    primary = 1
-    secondary = 2
-    gap_conductivity = 1.0
-    gap_conductivity_function = gap_cond
-  []
-[]
-```
-
-*Mortar-Based Approach:*
-
-```
-[Constraints]
-  [mortar_thermal]
-    type = ModularGapConductanceConstraint
-    variable = lambda
-    primary_variable = temp_primary
-    secondary_variable = temp_secondary
-    primary_boundary = 10
-    secondary_boundary = 20
-    gap_conductance = 1000.0
-  []
-[]
-```
-
-*Gap Conductance Models:*
-
-- Constant: Fixed conductance value
-- Pressure-dependent: Function of contact pressure
-- Temperature-dependent: Function of surface temperatures
-- Gap-width-dependent: Varies with physical separation
-
-!---
-
-
-# Introduction to Mortar Methods
-
-- Mathematical foundation
-- Domain decomposition
-- Non-matching meshes
-
-!---
-
-
-# Implementation in MOOSE (Mortar Methods)
-
-- Mortar constraints
-- Input file syntax
-- Practical examples
-
-!---
-
-
-# Edge Dropping
-
-- Problem statement
-- Mathematical treatment
-- Implementation in MOOSE
-- Effect on solution accuracy
-
-!---
-
-
-# Solver Considerations for Node/Face Contact
-
-- Key aspects of numerical solution
-- Stability and convergence
-- Implementation details in MOOSE
-
-!---
-
-
-# Introduction to Saddle Point Problems
-
-- Mathematical formulation
-- Stability conditions
-
-!---
-
-
-# Lagrange Multiplier Method
-
-- Formulation
-- Implementation in MOOSE
-- Connection to contact and mortar methods
-
-!---
-
-
-# Continuum Mechanics Review
-
-- Lagrangian vs Eulerian descriptions
-- Deformation gradient
-
-!---
-
-
-# MOOSE Implementation (Reference & Current Config)
-
-- Reference configuration for:
-  - Time integration
-  - Volumetric source terms
-- Current configuration applications
-- Code examples demonstrating proper usage
-
-!---
-
-
-# Combined Thermomechanical Problems
-
-- Coupled physics
-- Implementation strategies
-
-!---
 
 
 # Real-World Applications
