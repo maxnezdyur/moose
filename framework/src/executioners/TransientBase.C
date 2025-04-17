@@ -392,6 +392,11 @@ TransientBase::incrementStepOrReject()
 void
 TransientBase::advanceState()
 {
+  const auto & tis = getTimeIntegrators();
+  for (auto & ti : tis)
+    // We do not want to advance state all if this is an explicit time integrator
+    if (ti->controlsState())
+      return;
   _problem.advanceState();
 }
 
