@@ -165,8 +165,8 @@ ParameterMesh::getIndexAndWeight(const Point & pt,
   if (!elem)
     mooseError("No element was found to contain point ", test_point);
 
-  // Get the  in the dof_indices for our element
-  // variable name is hard coded to _parameter_mesh_var
+  // Get the dof_indices for our element
+  // variable id is hard coded to _param_var_id
   // this is probably the only variable in the ParameterMesh system used by ParameterMeshFunction
   _dof_map->dof_indices(elem, dof_indices, _param_var_id);
 
@@ -193,8 +193,8 @@ ParameterMesh::getIndexAndWeight(const Point & pt,
   // Locate the element the point is in
   const Elem * elem = (*_point_locator)(test_point);
 
-  // Get the  in the dof_indices for our element
-  // variable name is hard coded to _parameter_mesh_var
+  // Get the dof_indices for our element
+  // variable id is hard coded to _param_var_id
   // this is probably the only variable in the ParameterMesh system used by ParameterMeshFunction
   _dof_map->dof_indices(elem, dof_indices, _param_var_id);
 
