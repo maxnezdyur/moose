@@ -1,0 +1,42 @@
+[Tests]
+  design = '/raykernels/ADLineHeatSinkRayKernel.md'
+  issues = '#NNNN'
+
+  [line_heat_sink]
+    requirement = 'The system shall provide a ray-kernel-based line heat sink for a temperature variable that'
+
+    [heat_sink]
+      type = CSVDiff
+      input = 'line_heat_sink.i'
+      csvdiff = 'line_heat_sink_out.csv'
+      cli_args = 'Outputs/file_base=line_heat_sink_out'
+      mesh_mode = REPLICATED
+      recover = false
+      abs_zero = 1e-10
+      detail = 'traverses the full polyline chord length, integrates the linear function x to 0.5 exactly, and perturbs T measurably relative to the Laplace solution,'
+    []
+
+    [function_coefficients]
+      type = CSVDiff
+      input = 'line_heat_sink.i'
+      csvdiff = 'line_heat_sink_function.csv'
+      cli_args = 'RayKernels/sink/h=h_var RayKernels/sink/T_sink=T_sink_var Outputs/file_base=line_heat_sink_function'
+      mesh_mode = REPLICATED
+      recover = false
+      abs_zero = 1e-10
+      detail = 'accepts spatially-varying Function inputs for h(x,t) and T_sink(x,t),'
+    []
+
+    [ad_jacobian]
+      type = PetscJacobianTester
+      input = 'line_heat_sink.i'
+      run_sim = True
+      ratio_tol = 1e-7
+      difference_tol = 1e-6
+      mesh_mode = REPLICATED
+      # Random IC in [0, 1] so the Jacobian is sampled against a non-trivial T field.
+      cli_args = 'ICs/T_ic/type=RandomIC ICs/T_ic/variable=T ICs/T_ic/min=0 ICs/T_ic/max=1 ICs/T_ic/seed=42'
+      detail = 'and produces the exact Jacobian via automatic differentiation, verified against finite differences with a randomized initial T field.'
+    []
+  []
+[]
