@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="140 215 420 120" width="60" height="20">
+  <!-- Straight line (Primary surface) -->
+  <line x1="150" y1="250" x2="550" y2="250" stroke="black" stroke-width="2.5"/>
+    <!-- Gap visualization - just a dashed line, no arrows -->
+  <line x1="350" y1="225" x2="350" y2="250" stroke="black" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+  <!-- Primary surface nodes -->
+  <circle cx="150" cy="250" r="4" fill="black"/>
+  <circle cx="200" cy="250" r="4" fill="black"/>
+  <circle cx="250" cy="250" r="4" fill="black"/>
+  <circle cx="450" cy="250" r="4" fill="black"/>
+  <circle cx="500" cy="250" r="4" fill="black"/>
+  <circle cx="550" cy="250" r="4" fill="black"/>
+
+  <!-- Secondary surface group with steeper curve -->
+  <g id="secondary_surface" transform="translate(0,85)">
+    <!-- Curved blue line (Secondary surface) - made steeper by adjusting y-value of middle point -->
+    <polyline points="200,220 257,180 350,140 443,180 500,220"
+             stroke="blue" stroke-width="2.5" fill="none"/>
+
+    <!-- Secondary surface nodes - adjusted to match new curve -->
+    <circle cx="200" cy="220" r="4" fill="blue"/>
+    <circle cx="257" cy="180" r="4" fill="blue"/>
+    <circle cx="350" cy="140" r="4" fill="blue"/>
+    <circle cx="443" cy="180" r="4" fill="blue"/>
+    <circle cx="500" cy="220" r="4" fill="blue"/>
+
+    <!-- Label for secondary surface -->
+    <text x="200" y="240" fill="blue" font-family="serif" font-style="italic" font-size="16">Γs</text>
+  </g>
+
+
+  <!-- Other labels -->
+  <text x="225" y="240" fill="black" font-family="serif" font-style="italic" font-size="16">Γp</text>
+  <text x="360" y="245" fill="black" font-family="serif" font-style="italic" font-size="16">g</text>
+</svg>
