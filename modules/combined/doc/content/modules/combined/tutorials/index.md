@@ -27,4 +27,4 @@ All the following examples employ SIMP topology optimization (see, e.g., [!cite]
 - [Multimaterial](modules/optimization/examples/topology_optimization/multimaterial.md)
 
 
-[Slides](thermo_mechanical/index.md)
+[Slides](intro/thermo_index.md optional=True)

@@ -38,6 +38,6 @@ Extensions:
     MooseDocs.extensions.listing:
         modal-link: False
     MooseDocs.extensions.reveal:
-        translate: modules/solid_mechanics/doc/thermo_mechanical/intro/thermo_index.md
+        translate: intro/thermo_index.md
         background_image: INL_Hex_Light_Presentation_Background_Thin.png
     MooseDocs.extensions.datetime: default

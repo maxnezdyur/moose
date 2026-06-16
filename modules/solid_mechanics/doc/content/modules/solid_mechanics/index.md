@@ -151,6 +151,6 @@ The Solid Mechanics module follows strict software quality guidelines, refer to
 
 ## ThermoMechanical Slides
 
-Slides: [Slides](intro/thermo_index.md)
+Slides: [Slides](intro/thermo_index.md optional=True)
 
 
