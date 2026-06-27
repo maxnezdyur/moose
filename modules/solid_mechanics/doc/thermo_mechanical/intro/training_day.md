@@ -35,6 +35,12 @@
 - Scaling (manual and automatic) and its effect on convergence
 - Troubleshooting non-converging solves: distinguishing linear vs. nonlinear failure
 
+**Inverse problems & optimization**
+- Recovering unknown sources, properties, or loads from measurements with the Optimization module (adjoint-based gradients)
+
+**Parameter studies**
+- Parameter studies with the Stochastic Tools module: samplers, MultiApp batch execution, parameter/result transfers, and statistics reporters
+
 ## Afternoons (all three days)
 
 Hands-on sessions: open time for student questions and guided work on the

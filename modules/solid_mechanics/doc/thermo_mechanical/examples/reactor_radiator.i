@@ -1,0 +1,86 @@
+# Day 3 worked example: a space-reactor radiator panel.
+# Waste heat enters at the heat-pipe root, conducts along the panel, and is
+# rejected to deep space by surface-to-ambient (gray-body) radiation.
+#
+# Demonstrates: transient conduction with a volumetric source, and
+# FunctionRadiativeBC (Stefan-Boltzmann surface-to-ambient) to a 3 K sink.
+
+[Mesh]
+  [gmg]
+    type = GeneratedMeshGenerator
+    dim = 2
+    nx = 48
+    ny = 16
+    xmax = 0.60 # radiator length (m)
+    ymax = 0.10 # panel thickness (m)
+  []
+[]
+
+[Variables]
+  [temperature]
+    initial_condition = 600 # K
+  []
+[]
+
+[Kernels]
+  [conduction]
+    type = ADHeatConduction
+    variable = temperature
+  []
+  [time]
+    type = ADHeatConductionTimeDerivative
+    variable = temperature
+    specific_heat = specific_heat
+    density_name = density
+  []
+  [waste_heat]
+    type = BodyForce
+    variable = temperature
+    value = 2e5 # distributed waste heat (W/m^3)
+  []
+[]
+
+[Materials]
+  [aluminum]
+    type = ADGenericConstantMaterial
+    prop_names = 'thermal_conductivity specific_heat density'
+    prop_values = '180 900 2700' # W/m-K, J/kg-K, kg/m^3
+  []
+[]
+
+[BCs]
+  [radiating_surfaces]
+    type = FunctionRadiativeBC
+    variable = temperature
+    boundary = 'top bottom'
+    emissivity_function = '0.85' # surface emissivity
+    Tinfinity = 3 # deep-space sink temperature (K)
+  []
+  [heat_pipe_root]
+    type = DirichletBC
+    variable = temperature
+    boundary = left
+    value = 600 # K
+  []
+[]
+
+[Postprocessors]
+  [peak_temperature]
+    type = NodalExtremeValue
+    variable = temperature
+  []
+[]
+
+[Executioner]
+  type = Transient
+  num_steps = 30
+  dt = 20
+  solve_type = NEWTON
+  petsc_options_iname = '-pc_type'
+  petsc_options_value = 'lu'
+  nl_rel_tol = 1e-7
+[]
+
+[Outputs]
+  exodus = true
+[]

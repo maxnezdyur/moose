@@ -11,7 +11,7 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 - Solid mechanics principles and formulations
 - Heat conduction implementation
 - Numerical solution strategies
-- Contact mechanics and gap heat transfer
+- Thermal radiation and solver strategies
 
 !---
 
@@ -33,6 +33,7 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 
 - Black/gray-body radiation; surface-to-ambient & enclosure radiation
 - Nonlinear & linear solvers, preconditioning, scaling, troubleshooting
+- Inverse problems & design optimization
 - Parameter studies with stochastic tools
 
 !---
@@ -121,14 +122,16 @@ Built-in mesh generation is implemented for lines, rectangles, or rectangular pr
 
 !style! fontsize=50%
 
-!listing face_info_tri.i block=Mesh
+!listing face_info_tri.i block=Mesh link=False
 
 !style-end!
 
 !col-end!
 
 !col! width=10%
+
 \\
+
 !col-end!
 
 !col! width=60%
@@ -209,14 +212,16 @@ in the Mesh block.
 
 
 
-!listing /displaced/child.i block=Mesh
+!listing /displaced/child.i block=Mesh link=False
 
 !style-end!
 
 !col-end!
 
 !col! width=5%
+
 \\
+
 !col-end!
 
 !col! width=45%
@@ -225,9 +230,9 @@ Objects can enforce the use of the displaced mesh within the validParams functio
 
 !style! fontsize=60%
 
-!listing PenetrationAux.C line=use_displaced_mesh
+!listing modules/solid_mechanics/src/kernels/StressDivergenceRZTensors.C line=use_displaced_mesh link=False
 
-!listing modules/solid_mechanics/test/tests/volumetric_eigenstrain/volumetric_mechanical.i block=Postprocessors/vol
+!listing modules/solid_mechanics/test/tests/volumetric_eigenstrain/volumetric_mechanical.i block=Postprocessors/vol link=False
 
 !style-end!
 
@@ -414,7 +419,9 @@ Diffusion::computeQpResidual()
 !col-end!
 
 !col! width=5%
+
 \\
+
 !col-end!
 
 !col! width=45%
@@ -476,7 +483,9 @@ ADDiffusion derives from `ADKernelGrad`: `precomputeQpResidual` returns the grad
 !col-end!
 
 !col! width=5%
+
 \\
+
 !col-end!
 
 !col! width=50%
@@ -1267,6 +1276,106 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 !---
 
+# From PDE to Weak Form
+
+MOOSE is a finite-element framework: it builds an approximate solution from *shape functions* multiplied by coefficients — just like the polynomial fit from Day 1.
+
+- The +strong form+ (the PDE) is what we want to solve
+- MOOSE actually solves the +weak form+: the PDE multiplied by a *test function* $\psi$ and integrated over the domain
+- This lowers the derivative order on the solution and naturally exposes boundary terms
+
+Every term in the weak form maps to a MOOSE object: +Kernel+ (volume integral), +BoundaryCondition+ (surface integral), +Material+ (coefficients).
+
+!---
+
+# Recipe: Strong Form $\rightarrow$ Weak Form
+
+1. Write the strong form of the PDE
+2. Move every term to one side (set equal to zero)
+3. Multiply by a test function $\psi$
+4. Integrate over the domain $\Omega$
+5. Integrate by parts (divergence theorem) to lower the derivative order and expose boundary integrals
+
+The result is the +weighted residual+ $R(u) = 0$ that MOOSE assembles and drives to zero. The *same* recipe produces the heat-conduction and solid-mechanics weak forms used throughout today.
+
+!---
+
+# Integration by Parts & the Divergence Theorem
+
+For a scalar $\varphi$ and vector $\vec{v}$, the product rule and divergence theorem combine to:
+
+!equation
+\int_\Omega \varphi\,(\nabla\cdot\vec{v})\,dV = \int_{\partial\Omega} \varphi\,\vec{v}\cdot\hat{n}\,ds - \int_\Omega \vec{v}\cdot\nabla\varphi\,dV
+
+- Moves a derivative off $\vec{v}$ and onto the test function $\varphi$
+- The surface term becomes the +natural (Neumann / flux) boundary condition+
+
+This single identity turns a second-order PDE into a first-order weak form.
+
+!---
+
+# Worked Example: Weak Form of Heat Conduction
+
++(1)+ Strong form — transient heat conduction with a volumetric source:
+
+!equation
+\rho c_p \pf{T}{t} - \nabla\cdot(k\nabla T) - q = 0
+
++(2)+ Multiply by the test function $\psi$ and +(3)+ integrate over $\Omega$:
+
+!equation
+\int_\Omega \psi\,\rho c_p \pf{T}{t}\,dV \;-\; \int_\Omega \psi\,\nabla\cdot(k\nabla T)\,dV \;-\; \int_\Omega \psi\,q\,dV = 0
+
+!---
+
+# Weak Form of Heat Conduction (cont.)
+
++(4)+ Integrate the conduction term by parts (divergence theorem), grouping each term under the MOOSE object that implements it:
+
+!style! fontsize=85%
+
+!equation
+\underbrace{\left(\psi,\, \rho c_p \pf{T}{t}\right)}_{\text{HeatConductionTimeDerivative}} +
+\underbrace{\left(\nabla\psi,\, k\nabla T\right)}_{\text{HeatConduction}} -
+\underbrace{\langle\psi,\, k\nabla T\cdot\hat{n}\rangle}_{\text{flux BC}} -
+\underbrace{\left(\psi,\, q\right)}_{\text{HeatSource}} = 0
+
+!style-end!
+
+- $(\cdot,\cdot)$ = volume inner product $\rightarrow$ +Kernel+; $\langle\cdot,\cdot\rangle$ = surface $\rightarrow$ +BoundaryCondition+
+- Each term is exactly one object you add to the input file — nothing hidden
+
+!---
+
+# Shape Functions & the Residual Vector
+
+The solution is expanded in basis functions $\phi_j$:
+
+!equation
+T \approx T_h = \sum_{j=1}^N T_j\,\phi_j, \qquad \nabla T_h = \sum_{j=1}^N T_j\,\nabla\phi_j
+
++Galerkin+ method: the test functions are the same basis, $\psi = \phi_i$. Substituting yields the $i^{\text{th}}$ +residual+:
+
+!equation
+R_i(T_h) = \left(\nabla\phi_i,\, k\nabla T_h\right) - \langle\phi_i,\, k\nabla T_h\cdot\hat{n}\rangle - \left(\phi_i,\, q\right) = 0,\quad i = 1,\ldots,N
+
+Common families: +Lagrange+ (nodal, the default), Hermite, Monomial, Hierarchic — set per-variable in the `[Variables]` block.
+
+!---
+
+# From Residual to Numbers: Quadrature
+
+MOOSE evaluates each integral element-by-element using +numerical (Gauss) quadrature+:
+
+!equation
+\int_{\Omega_e} f\,dV \approx \sum_{q} w_q\, f(\vec{x}_q)\, |J_q|
+
+- $\vec{x}_q$ are quadrature points, $w_q$ the weights, $|J_q|$ the element Jacobian
+- A +Kernel+ returns the integrand at a single quadrature point (`computeQpResidual`); MOOSE performs the sum and global assembly
+- This is the bridge from the weak form above to the Kernel objects from Day 1
+
+!---
+
 # Introduction to Solid Mechanics
 
 !row!
@@ -1341,6 +1450,87 @@ Where:
   - $(\cdot)$ represents volume integrals
   - $\left< \cdot \right>$ represents boundary integrals
   - $\phi_m$ are the test functions
+
+!---
+
+# The Isotropic Elasticity Tensor $C_{ijkl}$
+
+!style! fontsize=68%
+
+The +4th-order+ stiffness tensor maps strain to stress: 81 components in 3D, reduced by stress/strain symmetry to a $6\times 6$ matrix (Voigt notation).
+
+For an +isotropic+ material it is fixed by just +two+ constants — the Lamé parameters $\lambda$ and $\mu = G$ (shear modulus):
+
+!equation
+\mathbb{C}^{\text{iso}} =
+\begin{bmatrix}
+\lambda + 2\mu & \lambda & \lambda & 0 & 0 & 0 \\
+\lambda & \lambda + 2\mu & \lambda & 0 & 0 & 0 \\
+\lambda & \lambda & \lambda + 2\mu & 0 & 0 & 0 \\
+0 & 0 & 0 & \mu & 0 & 0 \\
+0 & 0 & 0 & 0 & \mu & 0 \\
+0 & 0 & 0 & 0 & 0 & \mu
+\end{bmatrix}
+
+- `ComputeIsotropicElasticityTensor` accepts +any two+ of $\{E,\nu,\lambda,\mu{=}G,K\}$, converting internally to Lamé.
+- `youngs_modulus`$=E$, `poissons_ratio`$=\nu$; $\lambda = \tfrac{E\nu}{(1+\nu)(1-2\nu)},\ \mu = G = \tfrac{E}{2(1+\nu)}$.
+
+!listing modules/solid_mechanics/test/tests/elastic_patch/elastic_patch_quadratic.i block=Materials/elast_tensor
+
+!style-end!
+
+!---
+
+# Generalized Hooke's Law: $\boldsymbol{\sigma} = \mathbb{C} : \boldsymbol{\epsilon}$
+
+Linear elasticity is one constitutive line: stress is the elasticity tensor +double-contracted+ ("$:$") with the *elastic* strain.
+
+!equation
+\boldsymbol{\sigma} = \mathbb{C} : \boldsymbol{\epsilon}^{\text{el}}
+\qquad\Longleftrightarrow\qquad
+\sigma_{ij} = C_{ijkl}\,\epsilon^{\text{el}}_{kl}
+
+- Substituting the isotropic tensor gives the explicit form $\;\sigma_{ij} = \lambda\,\epsilon_{kk}\,\delta_{ij} + 2\mu\,\epsilon_{ij}$.
+- The $\lambda\,\epsilon_{kk}$ term resists +volume change+; the $2\mu\,\epsilon_{ij}$ term scales each strain component (+shear / distortion+).
+- In MOOSE: `ComputeLinearElasticStress` (small strain) or `ComputeFiniteStrainElasticStress` (finite strain) consume the elasticity tensor and the elastic strain to produce the `stress` property.
+- Only the +elastic+ strain enters — thermal and other eigenstrains are subtracted first ($\boldsymbol{\epsilon}^{\text{el}} = \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_0$).
+
+!---
+
+# Splitting Stress: Hydrostatic + Deviatoric
+
+Any symmetric stress tensor splits into a +mean (hydrostatic)+ part and a +deviatoric+ part — a decomposition that underlies every plasticity model.
+
+- +Mean stress+ $\;\sigma_m = \tfrac{1}{3}\,\mathrm{tr}(\boldsymbol{\sigma}) = \tfrac{1}{3}\sigma_{kk}\;$ — the isotropic pressure that drives +volume change+.
+- +Deviatoric stress+ $s_{ij}$ — the traceless remainder that drives +shape change (distortion)+:
+
+!equation
+s_{ij} = \sigma_{ij} - \sigma_m\,\delta_{ij} = \sigma_{ij} - \tfrac{1}{3}\sigma_{kk}\,\delta_{ij}
+
+- The distortion magnitude is captured by the deviator's +second invariant+ $\;J_2 = \tfrac{1}{2}\,s_{ij}s_{ij} \ \ge 0$.
+- Why bother? Metals yield from +distortion+, not from pressure — so the yield criterion is built on $s_{ij}$ and $J_2$, never on $\sigma_m$.
+
+!---
+
+# von Mises Equivalent Stress
+
+Collapse the deviatoric state to a single positive scalar that can be compared against a uniaxial yield strength:
+
+!equation
+\sigma_{vm} = \sqrt{3\,J_2} = \sqrt{\tfrac{3}{2}\,s_{ij}s_{ij}}
+
+- Equivalently, in principal stresses $\;\sigma_{vm} = \sqrt{\tfrac{1}{2}\big[(\sigma_1-\sigma_2)^2 + (\sigma_2-\sigma_3)^2 + (\sigma_3-\sigma_1)^2\big]}$.
+- It is an +invariant+ (orientation-independent) and ignores hydrostatic pressure — one number summarizing how hard the material is being distorted.
+- +von Mises (J2) yield+: the material yields when $\sigma_{vm} \ge \sigma_y$. MOOSE's radial-return plasticity drives the trial $\sigma_{vm}$ back onto the yield surface (the $3G$ shear term you saw in the stress-update relation).
+- This is exactly the scalar the deck outputs as `vonmises_stress` (a `RankTwoScalarAux` quantity), requested from the action:
+
+```text
+[Physics/SolidMechanics/QuasiStatic]
+  [all]
+    generate_output = 'vonmises_stress'
+  []
+[]
+```
 
 !---
 
@@ -1572,7 +1762,9 @@ Where:
 !col-end!
 
 !col! width=1%
+
 \\
+
 !col-end!
 
 !col! width=40%
@@ -1667,6 +1859,185 @@ Where:
 
 !---
 
+# Three Pieces Every Solid-Mechanics Problem Needs
+
+Solid mechanics in MOOSE is *plug-n-play*: you assemble a model from small,
+swappable material classes plus one kernel. Every problem needs the same trio.
+
+- +Strain calculator+ — a `Material` that turns displacements into strain
+  $\boldsymbol{\epsilon}$ (e.g. `ComputeSmallStrain`, `ComputeFiniteStrain`)
+- +Stress calculator+ — a `Material` that maps strain to stress
+  $\boldsymbol{\sigma}$, using the elasticity tensor $\boldsymbol{\mathcal{C}}$
+  (e.g. `ComputeLinearElasticStress`)
+- +Stress-divergence kernel+ — the equilibrium PDE, weak form, one component per
+  displacement (`StressDivergenceTensors`)
+
+!equation
+\mathbb{R} = \left( \boldsymbol{\sigma},\ \nabla \phi \right) - \left< \boldsymbol{t},\ \phi \right> - \left( \boldsymbol{b},\ \phi \right) = \boldsymbol{0}
+
+The kernel supplies $\nabla\phi$; the stress material supplies $\boldsymbol{\sigma}$;
+the strain material feeds $\boldsymbol{\sigma}(\boldsymbol{\epsilon})$. Swap any one,
+keep the rest.
+
+!---
+
+# The QuasiStatic Action: One Block, Many Objects
+
+!style! fontsize=74%
+
+Wiring those pieces by hand is error-prone. The
+`[Physics/SolidMechanics/QuasiStatic]` action does it from one short block:
+
+- +Displacement variables+ `disp_x/y/z` at correct order (`add_variables`)
+- A +stress-divergence kernel+ per displacement (active coord system)
+- The matching +strain material+ for the chosen formulation
+- +Output+ AuxVariables/AuxKernels for stresses/strains, plus the correct `use_displaced_mesh` automatically
+
+!style-end!
+
+!listing modules/solid_mechanics/test/tests/finite_strain_elastic/finite_strain_elastic_new_test.i block=Physics/SolidMechanics/QuasiStatic
+
+!---
+
+# QuasiStatic: Key Parameters
+
+!style! fontsize=70%
+
+Set once at the block level; they default for every sub-block.
+
+- `strain = SMALL | FINITE` — kinematics (next slides)
+- `incremental = true` — incremental small-strain formulation
+- `add_variables = true` — action creates the displacement variables
+- `generate_output = '...'` — auto outputs (`stress_xx`, `vonmises_stress`)
+- `eigenstrain_names = '...'` — stress-free strains to subtract (thermal)
+- `temperature = T` — couple temperature for eigenstrains & properties
+
+!style-end!
+
+!listing modules/solid_mechanics/test/tests/thermal_expansion/constant_expansion_coeff.i block=Physics/SolidMechanics/QuasiStatic
+
+!---
+
+# Reference vs Deformed Configuration
+
+Equilibrium can be written on the +reference+ (undeformed) mesh or the
++deformed+ (current) mesh. The two must stay consistent with the strain measure.
+
+!equation
+\nabla_X \cdot \boldsymbol{\sigma}(X) = \boldsymbol{0} \qquad\text{vs}\qquad \nabla_x \cdot \boldsymbol{\sigma}(x) = \boldsymbol{0}
+
+- Small-strain elasticity: stress and test-function gradients on the reference
+  mesh $\Rightarrow$ `use_displaced_mesh = false`
+- Large deformation (finite strain, creep, plasticity): everything on the
+  deformed mesh $\Rightarrow$ `use_displaced_mesh = true`
+- `use_displaced_mesh` lives on the +kernel+, not the materials — it sets which
+  mesh the test-function gradients $\nabla\phi$ are taken on
+- The QuasiStatic action sets this flag for you based on `strain`, which is why
+  it is the recommended way to build a model
+
+!---
+
+# Choosing a Strain Formulation
+
+Three kinematics, selected by two parameters. Pair each with a matching stress
+material; the action keeps the mesh choice consistent.
+
+!style! fontsize=85%
+
+!row!
+
+!col! width=33%
+
++Total small+
+
+`strain = SMALL`
+
+$\boldsymbol{\epsilon}=\tfrac{1}{2}(\nabla\boldsymbol{u}+\nabla\boldsymbol{u}^{T})$.
+Path-independent, no stored history. Reference mesh. Pairs with
+`ComputeLinearElasticStress`.
+
+!col-end!
+
+!col! width=33%
+
++Incremental small+
+
+`strain = SMALL` `incremental = true`
+
+Same small measure, but builds $\Delta\boldsymbol{\epsilon}$ each step and stores
+old state. Needed for history-dependent (inelastic) models at small strain.
+
+!col-end!
+
+!col! width=33%
+
++Finite+
+
+`strain = FINITE`
+
+Large strains and rotations: incremental $\Delta\boldsymbol{\epsilon}$ with a
+rotation increment, evaluated on the deformed mesh. Pairs with finite-strain /
+inelastic stress.
+
+!col-end!
+
+!row-end!
+
+!style-end!
+
+Total small strain stores no old values; the incremental and finite forms keep
+`stress_old`/`strain_old` so the next slide's inelastic models can use them.
+
+!---
+
+# Inelasticity Teaser: Splitting the Strain
+
+!style! fontsize=82%
+
+The mechanical strain increment splits into a recoverable +elastic+ part and an +inelastic+ part:
+
+!equation
+\Delta \boldsymbol{\epsilon}^{\,\text{mech}} = \Delta \boldsymbol{\epsilon}^{\,\text{el}} + \Delta \boldsymbol{\epsilon}^{\,\text{inel}}, \qquad \boldsymbol{\sigma} = \boldsymbol{\mathcal{C}} : \boldsymbol{\epsilon}^{\,\text{el}}
+
+where $\boldsymbol{\epsilon}^{\,\text{inel}} = \boldsymbol{\epsilon}^{\,\text{plastic}} + \boldsymbol{\epsilon}^{\,\text{creep}} + \dots$
+
+- `ComputeMultipleInelasticStress` subtracts the inelastic part, then computes $\boldsymbol{\sigma}$ from what's left
+- It drives one or more +`*StressUpdate`+ models that return the inelastic strain increment (e.g. creep + plasticity)
+- `RadialReturnStressUpdate` is the common base for isotropic plasticity and creep models
+
+!style-end!
+
+!listing modules/solid_mechanics/test/tests/combined_creep_plasticity/combined_creep_plasticity.i block=Materials/creep_plas
+
+!---
+
+# Inelasticity Teaser: History and Why Creep Matters
+
+!style! fontsize=80%
+
+Inelastic response is +path-dependent+ — the material must remember its own state.
+
+- State variables are MOOSE +stateful material properties+: read the prior step with `getMaterialPropertyOld<...>()`
+- Needs an +incremental+ or +finite+ strain formulation — total small strain keeps no history
+- +Creep+ accumulates inelastic strain over time under sustained load and heat — the duty cycle of a hot space reactor
+
+```text
+[Materials]
+  [creep]                         # a *StressUpdate model
+    type = PowerLawCreepStressUpdate
+    coefficient = 0.5e-7          # temperature- and stress-driven creep rate
+    n_exponent = 5                # stress exponent
+    activation_energy = 0
+  []
+[]
+```
+
+Takeaway: swap the stress calculator for `ComputeMultipleInelasticStress` plus a creep model — the structure now relaxes and ratchets like real hot hardware.
+
+!style-end!
+
+!---
+
 # Motivation: One System for Both Regimes
 
 The +traditional MOOSE path+ uses separate kernel and material workflows:
@@ -1674,7 +2045,7 @@ The +traditional MOOSE path+ uses separate kernel and material workflows:
 - *Small strain:* `StressDivergenceTensors` + `ComputeSmallStrain` + `ComputeLinearElasticStress`
 - *Finite strain:* `StressDivergenceTensors` + `ComputeFiniteStrain` + hyperelastic materials
 
-The +new Lagrangian system+ unifies these into AD-native kernels with explicit stress measures:
+The +new Lagrangian system+ unifies these into one kernel family with explicit stress measures and exact hand-coded (analytic) Jacobians — no AD:
 
 - Single kernel interface: `TotalLagrangianStressDivergence` or `UpdatedLagrangianStressDivergence`
 - Decoupled kinematics: `ComputeLagrangianStrain` handles both small (linearized) and large deformation
@@ -1748,9 +2119,9 @@ Cauchy (true) stress from PK1:
 !equation
 \boldsymbol{\sigma} = \frac{1}{|\mathbf{F}|} \mathbf{P} \mathbf{F}^T
 
-- **Total Lagrangian** works naturally with PK2 and Green-Lagrange strain
-- **Updated Lagrangian** outputs Cauchy stress and uses incremental strains
-- **Objective stresses** (Truesdell, Jaumann, Green-Naghdi) maintain frame invariance during finite rotations
+- *Total Lagrangian* works naturally with PK2 and Green-Lagrange strain
+- *Updated Lagrangian* outputs Cauchy stress and uses incremental strains
+- *Objective stresses* (Truesdell, Jaumann, Green-Naghdi) maintain frame invariance during finite rotations
 
 !---
 
@@ -1839,13 +2210,124 @@ The strain material computes Green-Lagrange strain $\mathbf{E}$ and deformation 
 
 # Key Advantages
 
-1. +AD-native+: Full automatic differentiation throughout; no hand-coded Jacobians
+1. +Exact analytic Jacobians+: Hand-coded consistent tangent throughout — no AD, giving full quadratic Newton convergence
 2. +Unified kinematics+: One `ComputeLagrangianStrain` handles both small and large deformation via flag
 3. +Explicit stress measures+: Choose PK2, Cauchy, or objective stresses via the stress material—not buried in kernel code
 4. +Modular materials+: Swap stress calculator without rewriting kinematics or kernels
 5. +Frame invariance+: Built-in objective stress options for corotational dynamics
 
 Legacy (`StressDivergenceTensors` + `ComputeSmallStrain`/`ComputeFiniteStrain`) remains fully supported; use `new_system = false` (default) to preserve existing inputs.
+
+!---
+
+# Displacement (Dirichlet) BCs
+
+Dirichlet BCs prescribe the *value* of a displacement component on a sideset — the part of the structure you hold fixed.
+
+!equation
+u_i = \bar{u}_i \quad \text{on } \Gamma_D
+
+- `DirichletBC` pins one variable (`disp_x`, `disp_y`, ...) to a constant `value` on a `boundary`.
+- `boundary` takes sideset names or IDs; use one block per component you want to hold.
+- Below the bottom face is clamped in x; an identical `bottom_y` block sets `disp_y = 0`.
+- Need motion that varies in time or space? Use `FunctionDirichletBC` instead.
+
+!listing modules/solid_mechanics/tutorials/introduction/mech_step02.i block=BCs/bottom_x
+
+!---
+
+# Applied Loads: the +Pressure+ Action
+
+A pressure acts along a surface's inward normal — a traction (Neumann) load.
+
+!equation
+\mathbf{t} = -\,p\,\mathbf{n}
+
+- `[Pressure]` is an +action+: it auto-creates a `Pressure` BC for *every* displacement variable — one block instead of N.
+- `function = 1e7*t` ramps the load from zero — parsed-function shorthand (any `FunctionName` slot accepts an inline expression).
+- Smaller load increments per step ease convergence.
+- For reuse or non-parsed types, define under `[Functions]` and pass the name.
+
+!listing modules/solid_mechanics/tutorials/introduction/mech_step02.i block=BCs/Pressure
+
+!---
+
+# Pinning Out Rigid-Body Modes
+
+If the body can drift or spin freely, the stiffness matrix is +singular+ — the #1 cause of a mechanics solve that will not converge.
+
+- Loads alone do not fix *position*: free translation + rotation are zero-energy (rigid-body) modes that make the Jacobian singular.
+- Pin only what you must: 2D needs 3 constraints removed; 3D needs 6 (apply on 3 non-colinear nodes as 3 + 2 + 1 DOFs).
+- Single-node BCs beat clamping a whole face: they kill rigid-body modes without +overconstraining+ (e.g. without blocking thermal expansion along the base).
+
+!---
+
+# Pinning Out Rigid-Body Modes (cont.)
+
+`ExtraNodesetGenerator` builds a nodeset at exact coordinates (a node must actually exist there) — here a single `pin` node at the origin.
+
+!row!
+
+!col! width=50%
+
+!listing modules/solid_mechanics/tutorials/introduction/mech_step03a.i block=Mesh/pin link=False
+
+!col-end!
+
+!col! width=50%
+
+!listing modules/solid_mechanics/tutorials/introduction/mech_step03a.i block=BCs link=False
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Visualizing Tensors: Stress & Strain
+
+Stress/strain are rank-two material tensors — copy into AuxVariables to view in Paraview.
+
+- `RankTwoAux` extracts one component via `index_i`/`index_j` (0,1,2) into a `CONSTANT MONOMIAL` aux var — e.g. $\sigma_{xx}$ is (0,0), $\epsilon_{yy}$ is (1,1).
+- `RankTwoScalarAux` computes invariants: `scalar_type = VonMisesStress`, `Hydrostatic`, or `L2norm`.
+- Shortcut: `generate_output = 'vonmises_stress stress_xx'` on the QuasiStatic Physics wires up these aux vars.
+
+!equation
+\sigma_{vm} = \sqrt{\tfrac{3}{2}\, s_{ij}\, s_{ij}}, \qquad s_{ij} = \sigma_{ij} - \tfrac{1}{3}\,\sigma_{kk}\,\delta_{ij}
+
+!row!
+
+!col! width=50%
+
+!listing modules/combined/test/tests/eigenstrain/inclusion.i block=AuxKernels/matl_s11 link=False
+
+!col-end!
+
+!col! width=50%
+
+!listing modules/solid_mechanics/test/tests/auxkernels/ranktwoscalaraux.i block=AuxKernels/vonmises link=False
+
+!col-end!
+
+!row-end!
+
+!---
+
+# Reducing Fields to CSV
+
+For plotting and regression tests you want numbers, not a whole field — collapse an aux var to one value per timestep.
+
+- A `Postprocessor` reduces a field to a single scalar each step; `ElementAverageValue` averages an AuxVariable over the domain.
+- Point it at the `vonmises` (or `s11_aux`) aux var built on the previous slide.
+- Add `csv = true` to `[Outputs]` to get one column per postprocessor and one row per timestep — ready for plotting.
+
+!listing modules/solid_mechanics/test/tests/auxkernels/ranktwoscalaraux.i block=Postprocessors/vonmises
+
+```text
+[Outputs]
+  csv = true
+[]
+```
 
 !---
 
@@ -1862,7 +2344,6 @@ Legacy (`StressDivergenceTensors` + `ComputeSmallStrain`/`ComputeFiniteStrain`) 
   - Associated boundary conditions
   - Radiation between gray, diffuse surfaces
   - Temperature coupling with fluid domains
-  - Gap heat transfer models
 
 !---
 
@@ -1909,6 +2390,247 @@ Where:
 - $h$ is the convective heat transfer coefficient
 - $\sigma$ is the Stefan-Boltzmann constant
 - $S$ depends on geometry and surface properties
+
+!---
+
+# The Conduction Term: `HeatConduction`
+
+From S1, the conduction term of the energy equation:
+
+!equation
+\underbrace{-\nabla\cdot(k\,\nabla T)}_{\texttt{HeatConduction}} + \dots = 0
+
+In MOOSE this is one +Kernel+. Its weak (residual) form is
+
+!equation
+R_i = \left(\nabla\psi_i,\; k\,\nabla T\right)
+
+- `diffusion_coefficient` names the material property for $k$ (default: `thermal_conductivity`).
+- +`ADHeatConduction`+ is the *same* physics with an exact, automatically-differentiated Jacobian — prefer it for nonlinear (e.g. temperature-dependent) problems.
+
+!listing modules/heat_transfer/tutorials/introduction/therm_step02.i block=Kernels
+
+!---
+
+# Transient: `HeatConductionTimeDerivative`
+
+For time-dependent problems add the storage term
+
+!equation
+\underbrace{\rho\, c_p\,\pf{T}{t}}_{\texttt{HeatConductionTimeDerivative}} + \dots = 0
+
+Weak form:
+
+!equation
+R_i = \left(\psi_i,\; \rho\, c_p\,\pf{T}{t}\right)
+
+!---
+
+# Transient: `HeatConductionTimeDerivative` (cont.)
+
+- Reads `density` and `specific_heat` material properties (not assumed constant).
+- Sits in `[Kernels]` alongside `HeatConduction`; needs a `Transient` executioner.
+
+!listing modules/heat_transfer/tutorials/introduction/therm_step03.i block=Kernels
+
+!---
+
+# Thermal Properties: `HeatConductionMaterial`
+
+!style! fontsize=56%
+
+Supplies the property names the kernels expect:
+
+- `thermal_conductivity` -> $k$, `specific_heat` -> $c_p$ at each quadrature point.
+- +Density lives elsewhere+: set it separately, e.g. `GenericConstantMaterial` with `prop_names = 'density'`.
+- Constant: `thermal_conductivity = 45.0`.
+- +$k(T)$+: use `thermal_conductivity_temperature_function = <fn>` and couple `temp = T`. Problem becomes nonlinear; the kernel uses `thermal_conductivity_dT` for the Jacobian.
+
+!style-end!
+
+!listing modules/heat_transfer/tutorials/introduction/therm_step03.i block=Materials
+
+!---
+
+# Volumetric Heat Source: `HeatSource`
+
+Adds a body source $\dot q$ (W/m$^3$) to the right-hand side — e.g. fission or decay heat in a fuel region:
+
+!equation
+\rho\, c_p\,\pf{T}{t} = \nabla\cdot(k\,\nabla T) + \dot q
+
+- `value = <const>` for a uniform source, or `function = <fn>` for a spatially/time-varying source.
+- Restrict it to a `block` so only the heated region carries the source.
+
+!listing modules/heat_transfer/tutorials/introduction/therm_step03a.i block=Kernels/heat_source
+
+!---
+
+# Thermal Boundary Conditions: the Taxonomy
+
+Three families cover almost everything:
+
+!equation
+\begin{aligned}
+&\textbf{Dirichlet:} && T = T_D &&\text{(fixed temperature)}\\
+&\textbf{Neumann:} && -k\,\hat n\cdot\nabla T = q_n &&\text{(prescribed flux)}\\
+&\textbf{Robin:} && -k\,\hat n\cdot\nabla T = h\,(T - T_\infty) &&\text{(convection)}
+\end{aligned}
+
+!style! fontsize=85%
+```text
+[BCs]
+  [fixedT]   type = DirichletBC          # or FunctionDirichletBC
+  [flux]     type = NeumannBC            # or FunctionNeumannBC; q_n=0 => insulated
+  [convect]  type = ConvectiveHeatFluxBC # Robin / Newton cooling
+[]
+```
+!style-end!
+
+- A *Neumann* with `value = 0` (or simply no BC) is a natural +insulated+ wall.
+
+!---
+
+# Convective BC: `ConvectiveHeatFluxBC`
+
+Newton's law of cooling — couples the surface to a far-field fluid temperature:
+
+!equation
+\vec{q}\cdot\hat{n} = h\,(T - T_\infty)
+
+- `heat_transfer_coefficient` -> $h$, `T_infinity` -> $T_\infty$ (both may be material properties or constants).
+- Adds to the residual on the named `boundary`; no extra variable is solved.
+- Larger $h$ pushes the surface toward $T_\infty$; $h\to 0$ recovers an insulated wall.
+
+!listing modules/heat_transfer/test/tests/convective_heat_flux/equilibrium.i block=BCs/right
+
+!---
+
+# The Action: `[Physics/HeatConduction]/HeatConductionCG`
+
+One block builds the whole CG heat-conduction problem for you:
+
+- conduction via `ADHeatConduction`, transient storage via `ADHeatConductionTimeDerivative`, and an optional heat source.
+- BCs from short lists: `fixed_temperature_boundaries`, `heat_flux_boundaries`, `insulated_boundaries`, and convective options.
+
+!---
+
+# The Action: `HeatConductionCG` (cont.)
+
+!style! fontsize=80%
+!listing modules/heat_transfer/test/tests/physics/test_cg.i block=Physics
+!style-end!
+
+- Great for standard setups; drop back to explicit `[Kernels]`/`[BCs]` when you need full control.
+
+!---
+
+# Practical Note: Consistent Units and K vs degC
+
+MOOSE is +unit-agnostic+ — *you* pick a consistent system and every input must agree.
+
+!style! fontsize=90%
+```text
+SI:  k [W/(m K)]   c_p [J/(kg K)]   rho [kg/m^3]
+     q_dot [W/m^3]  h [W/(m^2 K)]   T [K]
+```
+!style-end!
+
+- Pure linear conduction only sees $\nabla T$, so a constant offset cancels — but +absolute Kelvin is required+ whenever $T$ itself enters: radiation ($\sigma T^4$), any $k(T)$/$c_p(T)$, or a fixed-temperature value.
+- For space-reactor work: +always use K+. Mixing degC and K is the most common silent error.
+
+!---
+
+# Example 1 — Geometry & Problem
+
+A reactor fuel-element-like rod generates heat throughout its volume (fission) and is cooled at its outer surface — the classic conduction setup.
+
+!media media/thermo_mechanical/reactor_conduction_geom.png
+       style=width:72%;display:block;margin-left:auto;margin-right:auto;
+       alt=Axisymmetric reactor rod, internally heated and cooled at its outer surface
+
+- +Domain:+ axisymmetric (RZ) rod — length 0.30 m, radius 0.05 m, steel ($k=18$ W/m·K)
+- +Drive:+ volumetric source $q'''=8$ MW/m³; cooled outer surface at 350 K; ends insulated
+- +Solve for:+ $T(r,x,t)$ → a radial gradient, hot centerline (peak $\approx 627$ K)
+
+!---
+
+# Hands-On: Heat Conduction in a Reactor Component
+
+Transient conduction in an axisymmetric (RZ) rod with +internal heat generation+, cooled at its outer surface.
+
+- Governing equation: $\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + \dot q$
+- Runnable input blocks from the weak-form slides — `reactor_conduction.i`
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Mesh
+
+!---
+
+# The Physics: Kernels
+
+!style! fontsize=80%
+
+Three kernels build the weak form: conduction, transient, source.
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Kernels
+
+- `ADHeatConduction` $\rightarrow (\nabla\psi,\, k\nabla T)$
+- `ADHeatConductionTimeDerivative` $\rightarrow (\psi,\, \rho c_p \dot T)$
+- `BodyForce` $\rightarrow$ volumetric source $\dot q$ (fission heating)
+
+!style-end!
+
+!---
+
+# Properties & Boundary Conditions
+
+!style! fontsize=62%
+
+!row!
+
+!col! width=50%
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Materials link=False
+
+!col-end!
+
+!col! width=50%
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=BCs link=False
+
+!col-end!
+
+!row-end!
+
+!style-end!
+
+- `ADGenericConstantMaterial` supplies $k$, $c_p$, $\rho$
+- One Dirichlet (coolant) boundary; every other surface is insulated by the natural BC, $k\nabla T\cdot\hat{n}=0$
+
+!---
+
+# Solve & Run
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Executioner
+
+Run it:
+
+```bash
+combined-opt -i reactor_conduction.i
+```
+
+- `Transient` executioner, `solve_type = NEWTON`, algebraic-multigrid preconditioning
+- Newton converges quadratically each step (residual $\sim 10^{-5}\rightarrow 10^{-11}$)
+
+!---
+
+# Result
+
+The rod heats from the volumetric source and settles into the classic radial profile: hot centerline, cool surface.
+
+- Hot centerline, cool outer surface — peak $\approx 627$ K against the 350 K coolant
+- Inspect `temperature` (and the `peak_temperature` postprocessor) in the Exodus output (ParaView)
+- +Try it:+ change the heat-source `value` or the coolant temperature and rerun
 
 !---
 
@@ -1996,14 +2718,13 @@ The `eigenstrain_name` links the material output to the strain calculator's `eig
 
 # Constrained Heating: Thermal Stress Example
 
-- Two blocks in thermal contact; temperature is imposed by a `FunctionDirichletBC` on the contacting boundaries and conducted through each block by the source-free `HeatConduction` kernel
-- Thermal expansion (different $\alpha$ per block) is resisted by the fixed boundaries and the contact constraint, producing thermal stress
-- This input also demonstrates FDP with `implicit_geometric_coupling` preconditioning
+- A multi-block body is heated; temperature is imposed by a `FunctionDirichletBC` and conducted through each block by the source-free `HeatConduction` kernel
+- Thermal expansion (different $\alpha$ per block) is resisted by the fixed boundaries, producing thermal stress
 
 !equation
 \sigma_{\text{th}} = -\alpha E (T - T_{\text{ref}})
 
-!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Kernels
+!listing modules/combined/test/tests/thermal_strain/thermal_strain.i block=Kernels
 
 !---
 
@@ -2033,7 +2754,7 @@ In MOOSE, both are solved monolithically; one-way is recovered by omitting the H
 
 Both temperature and displacement are primary variables:
 
-!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Variables
+!listing modules/combined/test/tests/thermal_strain/thermal_strain.i block=Variables
 
 !---
 
@@ -2041,9 +2762,91 @@ Both temperature and displacement are primary variables:
 
 Each block can have different eigenstrain objects:
 
-!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Physics/SolidMechanics/QuasiStatic
+!listing modules/combined/test/tests/thermal_strain/thermal_strain.i block=Physics/SolidMechanics/QuasiStatic
 
 Temperature is passed to the QuasiStatic Physics action via the `temperature` parameter; the action forwards it to the eigenstrain calculators.
+
+!---
+
+# Example 2 — Geometry & Problem
+
+A clamped, heated cylinder: temperature drives thermal expansion, but the clamped ends resist it, producing +thermal stress+. Temperature and displacement solve together.
+
+!media media/thermo_mechanical/reactor_thermomech_geom.png
+       style=width:50%;display:block;margin-left:auto;margin-right:auto;
+       alt=Clamped, heated axisymmetric cylinder that develops thermal stress
+
+- +Domain:+ axisymmetric (RZ) cylinder — length 0.20 m, radius 0.04 m, steel ($E=200$ GPa)
+- +Drive:+ hot end ramped to 550 K, cool end 300 K; both ends clamped axially ($u_z=0$)
+- +Solve for:+ $T$ and $\mathbf{u}$ together → von Mises stress (peak $\approx 151$ MPa)
+
+!---
+
+# Capstone: Coupled Thermo-Mechanics
+
+The payoff for Day 2: a +single monolithic solve+ of temperature *and* displacement. A heated, axially-constrained reactor component expands against its supports, producing +thermal stress+.
+
+- Conduction sets $T(\mathbf{x},t)$
+- Thermal expansion enters as an +eigenstrain+: $\boldsymbol{\epsilon}_{\text{th}} = \alpha\,(T-T_{\text{ref}})\,\mathbf{I}$
+- Constrained expansion $\rightarrow$ stress: $\sigma_{\text{th}} \sim -\alpha E\,\Delta T$
+- Input file: `reactor_thermomech.i`
+
+!---
+
+# Variables & the SolidMechanics Action
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Physics/SolidMechanics/QuasiStatic
+
+- `temperature` is a primary variable; the action adds `disp_r`, `disp_z`
+- `strain = FINITE`, AD enabled, `eigenstrain_names = eigenstrain` wires in thermal expansion
+- `generate_output` produces `vonmises_stress`, `stress_yy`, `strain_yy`
+
+!---
+
+# Coupling Through Materials
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Materials
+
+- `ADComputeThermalExpansionEigenstrain` reads `temperature` and produces the eigenstrain — the one-way thermal $\rightarrow$ mechanical link
+- The elasticity tensor and finite-strain elastic stress close the mechanics
+
+!---
+
+# Heat Transport & Constraints
+
+!style! fontsize=62%
+
+!row!
+
+!col! width=52%
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Kernels link=False
+
+!col-end!
+
+!col! width=48%
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=BCs link=False
+
+!col-end!
+
+!row-end!
+
+!style-end!
+
+A ramped hot end drives conduction; the component is held axially at both ends — that constraint is what converts free expansion into stress.
+
+!---
+
+# Run & Result
+
+```bash
+combined-opt -i reactor_thermomech.i
+```
+
+- Monolithic Newton solve; `automatic_scaling = true` balances the temperature ($\sim 10^2$) and displacement ($\sim 10^{-4}$) magnitudes
+- At $t = 200$ s: average $T \approx 344$ K, +peak von Mises $\approx 151$ MPa+
+- +Try it:+ release the top axial constraint — the stress collapses (now free expansion)
 
 !---
 
@@ -2218,19 +3021,120 @@ For complex, obstructed geometries:
 
 !col! width=50%
 
-!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/vf_study
+!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/vf_study link=False
 
 !col-end!
 
 !col! width=50%
 
-!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/rt_vf
+!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/rt_vf link=False
 
 !col-end!
 
 !row-end!
 
 `ViewFactorRayStudy` sets the quadrature; `RayTracingViewFactor` computes $F_{ij}$ by deterministic ray tracing over an angular quadrature — slower, but handles arbitrary geometry, obstructions, and self-shadowing. Accuracy is controlled by `polar_quad_order`/`azimuthal_quad_order`/`face_order`, not by a random sample size.
+
+!---
+
+# Net-Radiation Method: Radiosity
+
+In a vacuum-filled cavity (think the gap between a reactor vessel and its cooling wall) surfaces exchange heat only by radiation. We track the +radiosity+ $J_i$ — total power leaving surface $i$ per unit area (emitted + reflected).
+
+For opaque, +gray, diffuse+ (Lambert) surfaces the reflectivity is $\rho_i = 1-\epsilon_i$, giving one balance per surface:
+
+!equation
+J_i = \epsilon_i\,\sigma\,T_i^4 \;+\; (1-\epsilon_i)\sum_{j} F_{i,j}\,J_j
+
+- $\epsilon_i$ emissivity, $\sigma = 5.67\times10^{-8}\ \mathrm{W/m^2K^4}$, $T_i$ surface temperature.
+- $F_{i,j}$ = +view factor+: fraction of $i$'s radiation that lands on $j$ (geometry only).
+- The sum $\sum_j F_{i,j} J_j$ is the +irradiation+ $H_i$ arriving on $i$.
+
+!---
+
+# Net-Radiation Method: Net Flux
+
+Solve the coupled linear system for all $J_i$, then recover the net flux that couples back into conduction:
+
+!equation
+q_i = J_i - H_i = \frac{\epsilon_i}{1-\epsilon_i}\left(\sigma T_i^4 - J_i\right)
+
+- $q_i>0$ leaves the surface (net loss); $q_i<0$ is net gain.
+- This $q_i$ is the Neumann flux applied to the temperature solve on each participating wall.
+- The whole method is just two balances per surface — radiosity + irradiation — closed by the view factors $F_{i,j}$.
+
+!---
+
+# Enclosure Boundary Types
+
+Each surface in the enclosure declares +how it closes the radiosity system+. MOOSE supports three roles:
+
+!row!
+
+!col! width=50%
+
++Fixed-temperature (isothermal)+
+
+- $T_i$ known (constant or a function).
+- Use for a wall held at a set point.
+
+Closes with the $T$-form:
+
+!equation
+\sum_j\!\left(\delta_{i,j}-(1-\epsilon_i)F_{i,j}\right)J_j = \epsilon_i\sigma T_i^4
+
+!col-end!
+
+!col! width=50%
+
++Adiabatic / reradiating+
+
+- No net flux: $q_i = 0$.
+- Floats to a radiative equilibrium $T$.
+
+Closes with the $q$-form:
+
+!equation
+\sum_j\!\left(\delta_{i,j}-F_{i,j}\right)J_j = 0
+
+!col-end!
+
+!row-end!
+
+A third type, +variable-temperature+, ties $T_i$ to the conduction variable — that is the surface where $q_i$ feeds back into the heat equation. Adiabatic and isothermal walls need no temperature variable defined on them.
+
+!---
+
+# One-Block Setup: `[GrayDiffuseRadiation]`
+
+The `[GrayDiffuseRadiation]` action (a `RadiationTransferAction`) builds the whole net-radiation problem from a single block. You list the enclosure boundaries, their emissivities, and tag which are adiabatic or fixed-temperature; everything not tagged is variable-temperature.
+
+!style! fontsize=80%
+From one block MOOSE assembles:
+
+- a +view-factor user object+ (ray-tracing by default; `analytical` for unobstructed planar surfaces),
+- a +net-radiation side user object+ that solves the radiosity system above,
+- a +`GrayLambertNeumannBC`+ on each variable-temperature surface applying $q_i$ to the temperature.
+!style-end!
+
+`n_patches` splits a boundary into sub-patches for more accurate view factors.
+
+!---
+
+# Input: `[GrayDiffuseRadiation]` Block
+
+!style! fontsize=80%
+
+Square cavity: boundary `4` at 1200 K, `7` adiabatic, rest at variable T, per-surface emissivity.
+
+!listing modules/heat_transfer/test/tests/radiation_transfer_action/radiative_transfer_action.i block=GrayDiffuseRadiation/cavity
+
+- `boundary` / `emissivity` — paired lists over surfaces.
+- `fixed_temperature_boundary` / `fixed_boundary_temperatures` — isothermal wall.
+- `adiabatic_boundary` — reradiating wall.
+- `temperature` — conduction variable on variable-T surfaces.
+
+!style-end!
 
 !---
 
@@ -2270,6 +3174,58 @@ The nonlinear solver handles the $T^4$ terms automatically with Newton's method.
 
 !---
 
+# Example 3 — Geometry & Problem
+
+A radiator panel rejects reactor waste heat to deep space. With no convection in vacuum, +radiation is the only path out+.
+
+!media media/thermo_mechanical/reactor_radiator_geom.png
+       style=width:72%;display:block;margin-left:auto;margin-right:auto;
+       alt=Radiator panel heated at its root, radiating to space from both faces
+
+- +Domain:+ 2-D aluminum panel — length 0.60 m, thickness 0.10 m
+- +Drive:+ heat-pipe root at 600 K + waste heat $q'''=0.2$ MW/m³; faces radiate ($\epsilon=0.85$, $T_\infty=3$ K)
+- +Solve for:+ $T(x,y,t)$ → interior peaks $\approx 617$ K, radiating to a cooler tip
+
+!---
+
+# Worked Example: A Space-Reactor Radiator
+
+Reject waste heat to deep space with no convection — only +radiation+. A panel takes heat at its root and radiates from both faces to a 3 K sink.
+
+- $\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + \dot q$, closed by a radiative surface flux
+- Surface flux: $q_r = \epsilon\sigma\,(T^4 - T_\infty^4)$
+- Input file: `reactor_radiator.i`
+
+!---
+
+# The Radiative Boundary Condition
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_radiator.i block=BCs
+
+- `FunctionRadiativeBC` applies $\epsilon\sigma\,(T^4 - T_\infty^4)$ on the panel faces
+- `emissivity_function = '0.85'`, `Tinfinity = 3` K (deep space)
+- That $T^4$ term is the mild nonlinearity motivating the solver material ahead
+
+!---
+
+# Run & Result
+
+!style! fontsize=70%
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_radiator.i block=Kernels
+
+```bash
+combined-opt -i reactor_radiator.i
+```
+
+- Newton resolves the $T^4$ flux in ~2 iters/step
+- Steady: interior peaks $\approx 617$ K, radiating toward a cooler tip
+- +Try it:+ drop the emissivity — the panel runs hotter
+
+!style-end!
+
+!---
+
 # Automatic Differentiation for Radiation
 
 AD versions compute the Jacobian automatically:
@@ -2280,6 +3236,99 @@ AD versions compute the Jacobian automatically:
 No need to hand-code derivatives of $T^4$ terms — AD handles them.
 
 !listing modules/heat_transfer/test/tests/radiative_bcs/ad_function_radiative_bc.i block=BCs/bot_right
+
+!---
+
+# Nonlinear Root-Finding
+
+Assembling the weak form over every element leaves us with a system of
+*algebraic* equations for the unknown coefficients $u_j$.
+
+- Stack the per-test-function residuals into a vector $\vec{R}(\vec{u})$
+- The discrete problem is to find the $\vec{u}$ that drives it to zero:
+
+!equation
+\vec{R}_i(\vec{u}) = 0, \qquad i = 1, \ldots, N
+
+- This is +nonlinear+ whenever the conductivity $k$, source $f$, or material
+  properties depend on $u$ (true for almost every thermo-mechanics problem)
+- There is no formula for the root, so we solve it +iteratively+
+
+!---
+
+# Newton's Method
+
+The workhorse iterative root-finder, with fast convergence near the solution.
+Given a current iterate $\vec{u}_n$, solve a *linear* system for the update
+$\delta\vec{u}_{n+1}$, then correct:
+
+!equation
+\begin{aligned}
+\mathbf{J}(\vec{u}_n)\, \delta\vec{u}_{n+1} &= -\vec{R}(\vec{u}_n) \\
+\vec{u}_{n+1} &= \vec{u}_n + \delta\vec{u}_{n+1}
+\end{aligned}
+
+- Each iteration: build $\vec{R}$, build $\mathbf{J}$, do one linear solve, update
+- $\vec{R}$ small $\Rightarrow$ residual is "how wrong are we"; $\mathbf{J}$ tells us which way to step
+- +Quadratic convergence+: with a good guess the error roughly *squares* each step,
+  $\;\lVert e_{n+1}\rVert \le C\,\lVert e_n\rVert^2$
+
+!---
+
+# Where the Jacobian Comes From
+
+The Jacobian is just the sensitivity of each residual entry to each unknown:
+
+!equation
+J_{ij}(\vec{u}) = \pf{\vec{R}_i(\vec{u})}{u_j}
+
+Because the discrete solution is $u_h = \sum_k u_k \phi_k$, differentiating with
+respect to a single coefficient collapses the sum to one shape function:
+
+!equation
+\pf{u_h}{u_j} = \phi_j, \qquad \pf{(\nabla u_h)}{u_j} = \nabla \phi_j
+
+- So $\mathbf{J}$ entries are the same integrals as the residual, with $u_h \to \phi_j$
+- Concretely, the diffusion term contributes $\left(\nabla\psi_i,\; k\,\nabla\phi_j\right)$
+- Jacobian entries are +integrals of shape-function products+ — one per coupled DOF pair
+
+!---
+
+# Three Ways to Get the Jacobian
+
+For "simple" terms $\mathbf{J}$ is tedious; with coupled physics and nonlinear
+material properties it becomes very hard to derive by hand. MOOSE gives three
+routes — the next slides compare them:
+
+!row!
+
+!col! width=33%
+
++Hand-coded+
+
+`computeQpJacobian`. Fast, but you derive every $\pf{k}{u_j}$ by hand — error-prone.
+
+!col-end!
+
+!col! width=33%
+
++JFNK+
+
+Matrix-free: approximate the action $\mathbf{J}\vec{v}$ with a residual difference.
+Never forms $\mathbf{J}$.
+
+!col-end!
+
+!col! width=33%
+
++AD+
+
+Automatic differentiation builds $\mathbf{J}$ exactly from the residual code.
+Recommended for new objects.
+
+!col-end!
+
+!row-end!
 
 !---
 
@@ -2370,6 +3419,88 @@ q_r = \sigma \epsilon (T^4 - T_\infty^4)
 !col-end!
 
 !row-end!
+
+!---
+
+# Choosing a Solve Type
+
+Each timestep, MOOSE drives the nonlinear residual to zero with Newton's method, solving the linear system $\mathbf{J}\,\delta\vec{u} = -\vec{R}$ at every step. The `solve_type` in `[Executioner]` picks *how* that Jacobian is supplied:
+
+!style! fontsize=85%
+
+- +NEWTON+: uses the +true Jacobian+ directly (hand-coded or +AD+). Best convergence and parallel scaling — the default choice for stiff thermo-mechanics. AD makes a correct Jacobian almost free.
+- +PJFNK+ (framework default): +Preconditioned Jacobian-Free Newton-Krylov+. Never forms the full Jacobian; approximates its *action* from residual evaluations, using a cheap preconditioning matrix. Robust when a full Jacobian is hard.
+- +JFNK+: same, but +unpreconditioned+ — converges slowly; rarely worth it.
+- +LINEAR+: the residual is linear in $u$ — one linear solve, no Newton loop.
+
+!style-end!
+
+```moose
+[Executioner]
+  solve_type = NEWTON
+[]
+```
+
+!---
+
+# The Krylov Linear Solve
+
+Inside *every* Newton step sits a linear solve, $\mathbf{J}\,\delta\vec{u} = -\vec{R}$. For real meshes $\mathbf{J}$ is huge and sparse, so MOOSE solves it +iteratively+ with a +Krylov method+, building the answer in the growing subspace
+
+!equation
+\mathcal{K}_j = \{\mathbf{r},\ \mathbf{J}\mathbf{r},\ \mathbf{J}^2\mathbf{r},\ \dots,\ \mathbf{J}^{j-1}\mathbf{r}\}
+
+- Each iteration costs +one matrix-vector product $\mathbf{J}\mathbf{v}$+ — and that action can be approximated from residuals alone (this is what JFNK exploits).
+- +GMRES+ (default `ksp`): general, nonsymmetric $\mathbf{J}$ — the usual case.
+- +CG+: only for +symmetric positive-definite+ $\mathbf{J}$ (e.g. pure conduction) — cheaper, less memory.
+
+Convergence scales with the +condition number+ of $\mathbf{J}$: an ill-conditioned system needs far too many iterations, so the Krylov solve must be +preconditioned+ (sets up direct vs. iterative, next).
+
+!---
+
+# Why a Line Search?
+
+The full Newton step $\delta\vec{u}$ is the *tangent* prediction — exact for a linear problem, but it can +overshoot+ when the physics is strongly nonlinear:
+
+- A radiative boundary flux $q \propto \varepsilon\sigma\,(T^4 - T_\infty^4)$ has Jacobian $\sim 4\varepsilon\sigma T^3$ — a tiny temperature change swings the residual hard.
+- Temperature-dependent $k(T)$ and thermal-stress coupling have the same flavor: the full step lands past the root and the residual +grows+, stalling or diverging the solve.
+
+A line search keeps the Newton +direction+ but scales the +length+ by $\alpha$, picking $\alpha$ that actually decreases the residual:
+
+!equation
+\vec{u}_{n+1} = \vec{u}_n + \alpha\,\delta\vec{u}_{n+1},\qquad \alpha \in (0,1]
+
+!---
+
+# Line-Search Types
+
+Set with `line_search` in `[Executioner]` (it maps to PETSc's `-snes_linesearch_type`):
+
+!style! fontsize=85%
+
+- +bt+ — +backtracking+: shrink $\alpha$ from 1 until the residual drops "enough". The robust, general-purpose choice; the usual default.
+- +l2+: minimize $\lVert\mathbf{R}\rVert$ along the step via a secant fit.
+- +cp+ — critical point: for residuals that are the gradient of an energy.
+- +basic+ / +none+: take the full step ($\alpha = 1$), no safeguarding — fastest when Newton already converges cleanly.
+
+!style-end!
+
+Watch what it's doing by adding `-snes_linesearch_monitor` to `petsc_options`.
+
+!---
+
+# Recipe: When Newton Diverges
+
+Symptoms: +nonlinear+ residual stalls/grows, or PETSc prints `DIVERGED_LINE_SEARCH`/`NaN`.
+
+1. +Backtracking+ first: `line_search = 'bt'` — for $T^4$/thermal-stress overshoot.
+2. Add `-snes_linesearch_monitor` to confirm $\alpha$ is cut.
+3. Still failing? +Shrink dt+, improve the +preconditioner+, or verify the Jacobian (+AD+ + `NEWTON`).
+4. Rock-solid and want speed? `line_search = 'none'`.
+
+Executioner using `NEWTON` with backtracking:
+
+!listing test/tests/kernels/vector_fe/electromagnetic_coulomb_gauge.i block=Executioner
 
 !---
 
@@ -2531,6 +3662,8 @@ Single Matrix Preconditioner — auto-created with `full = true` when `solve_typ
 - `off_diag_row`/`off_diag_column`: specify coupling structure explicitly
 - `solve_type` (set in `[Executioner]`, not here): PJFNK or NEWTON; has no default and must be set explicitly
 
++SMP vs. FDP:+ `FDP` (`type = FDP`) builds the Jacobian by finite-differencing the residual — accurate but expensive, so it is a debugging/verification tool; `SMP` is the production choice for coupled thermo-mechanics.
+
 !---
 
 # PETSc Options in MOOSE
@@ -2551,11 +3684,77 @@ Set linear solver details via `petsc_options_iname/value`:
 
 !---
 
+# Convergence Tolerances
+
+Newton nests two loops: an +outer nonlinear+ (Newton) loop, and inside each Newton step an +inner linear+ (Krylov) solve of $\mathbf{J}\,\delta\vec{u}=-\vec{R}$. Each loop has its own stopping rules, all set in `[Executioner]`.
+
+The nonlinear loop stops when the residual norm satisfies:
+
+!equation
+\|\vec{R}_n\| < \max\!\big(\,r_{\text{tol}}\cdot\|\vec{R}_0\|,\;\; a_{\text{tol}}\big)
+
+with $r_{\text{tol}} =$ `nl_rel_tol`, $a_{\text{tol}} =$ `nl_abs_tol`, and $\|\vec{R}_0\|$ the residual at the start of the step.
+
+| Parameter | Controls | Default |
+| :- | :- | :- |
+| `nl_rel_tol` | Nonlinear: relative drop of $\|\vec{R}\|$ from step start | `1e-8` |
+| `nl_abs_tol` | Nonlinear: absolute floor on $\|\vec{R}\|$ | `1e-50` |
+| `nl_max_its` | Max Newton iterations before the step fails | `50` |
+| `l_tol` | Linear: relative tolerance for each Krylov solve | `1e-5` |
+| `l_max_its` | Max Krylov iterations per Newton step | `10000` |
+
+- Default `nl_abs_tol = 1e-50` is effectively off, so the +relative+ tolerance drives convergence; tighten `nl_abs_tol` when the residual scale is tiny (e.g. near steady state).
+- The linear solve only has to be "good enough" to take one Newton step, so `l_tol = 1e-5` is loose on purpose.
+
+!---
+
+# Reading SNES / KSP Output
+
+MOOSE prints the nonlinear and linear residual norms every iteration. Add these PETSc flags (e.g. `petsc_options = '-snes_converged_reason'` in `[Executioner]`) for more detail:
+
+- `-snes_monitor` / `-ksp_monitor` -- print the nonlinear (+SNES+) and linear (+KSP+) residual norm at each iteration.
+- `-snes_converged_reason` / `-ksp_converged_reason` -- print +why+ the solve stopped, e.g. `CONVERGED_FNORM_RELATIVE` or `DIVERGED_MAX_IT`.
+
+```text
+ 0 Nonlinear |R| = 1.000e+02
+      0 Linear |R| = 1.000e+02
+      4 Linear |R| = 7.3e-04        <- inner Krylov loop drives |R| down to l_tol
+ 1 Nonlinear |R| = 3.8e-01
+ 2 Nonlinear |R| = 9.0e-09
+ Nonlinear solve converged due to CONVERGED_FNORM_RELATIVE iterations 2
+```
+
+- +Nonlinear stagnation+: the left-justified `Nonlinear |R|` numbers stall (drop little each Newton step) or you hit `nl_max_its` -- usually a wrong or poor Jacobian.
+- +Linear stagnation+: within a single step the indented `Linear |R|` numbers barely fall or hit `l_max_its` -- usually a poor preconditioner or ill-conditioned matrix.
+
+!---
+
 # Field-Split (Block) Preconditioning for Coupled Physics
 
-Partition variables by physics, solve with a different PC per field:
+Partition variables by physics, solve with a different PC per field — e.g. temperature vs. displacement:
 
-!listing modules/contact/test/tests/fieldsplit/frictionless_mortar_FS.i block=Preconditioning
+```text
+[Preconditioning]
+  [FSP]
+    type = FSP
+    topsplit = 'td'
+    [td]
+      splitting = 'temp disp'
+      splitting_type = multiplicative
+    []
+    [temp]
+      vars = 'temp'
+      petsc_options_iname = '-pc_type'
+      petsc_options_value = 'hypre'
+    []
+    [disp]
+      vars = 'disp_x disp_y'
+      petsc_options_iname = '-pc_type'
+      petsc_options_value = 'gamg'
+    []
+  []
+[]
+```
 
 !---
 
@@ -2563,16 +3762,108 @@ Partition variables by physics, solve with a different PC per field:
 
 +Structure:+
 
-- `topsplit`: Coarse partition (e.g., contact vs interior)
-- `splitting`: Sub-partitions (e.g., disp_x/disp_y vs Lagrange multipliers)
+- `topsplit`: Coarse partition (e.g., temperature vs. displacement)
+- `splitting`: Sub-partitions (e.g., grouping `disp_x`/`disp_y` into one displacement field)
 - `splitting_type`: How to couple (schur, additive, multiplicative)
 - `schur_pre`: Preconditioner for Schur complement (S = full matrix)
 - Inner `petsc_options`: Solver for each field (e.g., hypre for displacement)
 
 +When to use:+
 
-- Strongly coupled thermo-mechanical or contact problems
+- Strongly coupled multiphysics problems (e.g., thermo-mechanical)
 - When single-field preconditioner stalls
+
+!---
+
+# The Coupled Jacobian: Block Structure
+
+A 2-field thermo-mechanical solve has two unknowns: temperature $T$ and displacement $\mathbf{u}$. Newton's linear system has a +block+ Jacobian:
+
+!equation
+\begin{bmatrix} \mathbf{J}_{TT} & \mathbf{J}_{T\mathbf{u}} \\[4pt] \mathbf{J}_{\mathbf{u}T} & \mathbf{J}_{\mathbf{u}\mathbf{u}} \end{bmatrix}
+\begin{bmatrix} \delta T \\[4pt] \delta \mathbf{u} \end{bmatrix} =
+-\begin{bmatrix} \mathbf{R}_T \\[4pt] \mathbf{R}_{\mathbf{u}} \end{bmatrix}
+
+- +Diagonal+ blocks are each physics' self-stiffness: $\mathbf{J}_{TT}$ = heat conduction, $\mathbf{J}_{\mathbf{u}\mathbf{u}}$ = mechanical stiffness
+- +Off-diagonal+ blocks are the coupling: $\mathbf{J}_{\mathbf{u}T}=\pf{\mathbf{R}_{\mathbf{u}}}{T}$ (thermal expansion, $k$-of-$T$ stress) and $\mathbf{J}_{T\mathbf{u}}=\pf{\mathbf{R}_T}{\mathbf{u}}$
+- Off-diagonals come from `computeQpOffDiagJacobian` (non-AD) or +AD+ — they are exactly what the preconditioner can exploit or ignore
+
+!---
+
+# SMP vs FDP: Building the Preconditioner Matrix
+
+!row!
+
+!col! width=50%
+
++SMP+ — `SingleMatrixPreconditioner`
+
+- Assembles +one+ matrix $\mathbf{M}$ from your hand-coded / AD Jacobian entries
+- `off_diag_row` / `off_diag_column` pick which coupling blocks to include
+- `full = true` includes +all+ off-diagonals (the full $\mathbf{J}$) — the usual choice for tight thermo-mechanical coupling
+- Cheap, accurate, production default
+
+!col-end!
+
+!col! width=50%
+
++FDP+ — `FiniteDifferencePreconditioner`
+
+- Forms a +numerical+ Jacobian by finite-differencing the residual statements
+- Builds a nearly perfect $\mathbf{M}$ with +no+ hand-coded derivatives
+- +Extremely slow+ and memory-heavy — debugging / verification only
+- Sensitive to the differencing step:
+
+!style! fontsize=70%
+
+```text
+petsc_options_iname = '-mat_fd_coloring_err -mat_fd_type'
+petsc_options_value = '1e-6                 ds'
+```
+
+!style-end!
+
+!col-end!
+
+!row-end!
+
++Use FDP to confirm your off-diagonals are right; then switch to SMP `full = true` to actually run.+
+
+!---
+
+# Field-Split: One Preconditioner per Physics Block
+
+Instead of preconditioning the whole $\mathbf{J}$ at once, +split+ it and give each physics its own solver (PETSc `PCFIELDSPLIT`). Map the blocks to subsolves: temperature $\rightarrow$ one PC, displacement $\rightarrow$ another.
+
+- +Additive+ (block-Jacobi): solve each block independently, add the corrections — most parallel, weakest coupling
+- +Multiplicative+ (block Gauss-Seidel): solve $T$, feed the update into the displacement solve — stronger, sequential
+- +Schur+: eliminate one field, build the Schur complement $\mathbf{S} = \mathbf{J}_{\mathbf{u}\mathbf{u}} - \mathbf{J}_{\mathbf{u}T}\,\mathbf{J}_{TT}^{-1}\,\mathbf{J}_{T\mathbf{u}}$, solve the reduced system
+
+Each subblock can use whatever scales best: e.g. +`hypre`+ algebraic multigrid for the diffusive temperature block, a direct +`lu`+ for the smaller displacement block.
+
+!---
+
+# Annotated Nested Field-Split Input
+
+!style! fontsize=80%
+
+`type = FSP` (`FieldSplitPreconditioner`); read `u`=+temperature+, `v`=+displacement+:
+
+!style-end!
+
+!style! fontsize=48%
+
+!listing test/tests/preconditioners/fsp/fsp_test.i block=Preconditioning
+
+!style-end!
+
+!style! fontsize=80%
+
+- `topsplit = 'uv'` names the entry split; `splitting = 'u v'` lists the subsolvers
+- `splitting_type = additive` $\rightarrow$ block-Jacobi; use `multiplicative`/`schur` for tighter coupling
+- Each leaf (`[u]`, `[v]`) sets its `vars` and `petsc_options`: `hypre` for diffusion, `lu` for the other
+
+!style-end!
 
 !---
 
@@ -2610,6 +3901,57 @@ Apply explicit scaling per variable in `[Variables]`:
 ```
 
 Scales residual and Jacobian by row: $\mathbf{J}' = \text{diag}(s) \, \mathbf{J}$ and $\mathbf{R}' = \text{diag}(s) \, \mathbf{R}$
+
+!---
+
+# Predictors: Seed Newton With a Better Guess
+
+By default each time step starts Newton from the *old* solution. For a fast-ramping
+load that guess is stale, so Newton burns extra iterations climbing back to the answer.
+
+A +Predictor+ extrapolates from previous solution iterates to seed the next step
+*closer* to the converged state — fewer Newton iterations per step, more robust solves.
+
+!---
+
+# Predictors (cont.)
+
+!style! fontsize=78%
+
+- Lives under `[Executioner][Predictor]`.
+- +`SimplePredictor`+: linear extrapolation along the last solution change, scaled by `scale` (0 = off, 1.0 = full step).
+- +`AdamsPredictor`+: quadratic, uses three back solutions; auto-added by the `AB2PredictorCorrector` integrator.
+
+!listing test/tests/predictors/simple/predictor_test.i block=Executioner
+
+!style-end!
+
+!---
+
+# IterationAdaptiveDT: Grow When Easy, Recover When Hard
+
+!style! fontsize=72%
+
+Same stepper as Day 1, now a +robustness tool+. It sizes `dt` from how many
+iterations the *last converged* step needed, targeting `optimal_iterations`.
+
+- Easy solve (iters below the window): next `dt` $\times$ `growth_factor`.
+- Hard but converged (iters above the window): next `dt` $\times$ `cutback_factor`.
+- `iteration_window` (default `optimal_iterations`/5) is the dead-band; `linear_iteration_ratio` folds linear iters into the count.
+
+!listing test/tests/time_steppers/iteration_adaptive/adapt_tstep_shrink_init_dt.i block=Executioner
+
+!style-end!
+
+!---
+
+# IterationAdaptiveDT: Grow When Easy, Recover When Hard (cont.)
+
++Recovery on a failed solve+ (Newton diverges or hits `nl_max_its`): MOOSE discards the
+step, shrinks `dt` $\times$ `cutback_factor_at_failure` (a base-`TimeStepper` knob), and
+*retries the same time* — automatic, no restart.
+
+- `dtmin` is the floor: if a cutback would drop below it, the run aborts instead of looping forever. `dtmax` caps growth.
 
 !---
 
@@ -2695,9 +4037,155 @@ Start here; refine based on iteration counts and convergence behavior.
 
 !---
 
+# Optimization: Calibrate & Design
+
+The optimization module wraps a *minimization* around the same FEM solve you already run:
+
+!equation
+\min_{p}\; f(\mathbf{u}, p) \quad \text{subject to}\quad \mathbf{R}(\mathbf{u}, p) = 0
+
+- $\mathbf{R}=0$ is the residual you've solved all week; $p$ are design parameters (a source, a property, a load), $\mathbf{u}$ is $T$ or displacement
+- +Two jobs:+ *inverse problems / calibration* (tune $p$ so the model matches measurements) and *design* (tune $p$ to make an objective best)
+- It is the mirror of what comes next: optimization +converges to the single best $p$+, while stochastic tools +explore the whole space+
+
+!---
+
+# The Optimization Loop
+
+A driver (PETSc/TAO) proposes parameters, the forward model scores them, and a gradient says which way to step:
+
+!media media/thermo_mechanical/opt_loop.png
+       style=width:86%;display:block;margin-left:auto;margin-right:auto;
+       alt=Optimization loop: pick parameters, forward solve, objective, adjoint gradient, repeat
+
+- The +objective+ is usually a least-squares data misfit, $f=\tfrac12\sum_i (T_i-\tilde{T}_i)^2$, optionally plus a regularization term
+- Stop when $f$ is small (the model matches the data) or the gradient vanishes
+
+!---
+
+# Cheap Gradients: the Adjoint
+
+Gradient-based optimization needs $\nabla_p f$. Three ways to get it:
+
+- +Gradient-free+ (e.g. Nelder-Mead): no derivatives, but cost explodes with the number of parameters
+- +Finite difference+: one extra forward solve *per parameter* — fine for testing, too slow at scale
+- +Adjoint+ (the win): +one+ extra solve gives the *whole* gradient, at a cost +independent of the number of parameters+
+
+The adjoint reuses the forward Jacobian (transposed) driven by the data misfit — and MOOSE can build it automatically.
+
+!---
+
+# Architecture & Key Objects
+
+An (almost empty) main-app runs the optimizer; the real physics runs as +sub-apps+ — the same MultiApp machinery from Day 1.
+
+!style! fontsize=82%
+
+- +`Optimize` executioner+ — drives TAO, the optimization algorithm
+- +`OptimizationReporter`+ — holds the parameters, objective, bounds, and gradient
+- +forward (+ adjoint) sub-app+ — a `FullSolveMultiApp` running the model; `SteadyAndAdjoint` / `TransientAndAdjoint` solve both systems at once
+- +`OptimizationData`+ — samples the model at sensor points and forms the misfit
+- +`ReporterPointSource`+ — injects the misfit as the adjoint load; reporter transfers shuttle data between the apps
+
+!style-end!
+
+!---
+
+# Worked Example — Geometry & Problem
+
+Flip Example 1 around: you measured temperatures, now +recover the unknown fission heat source+ that produced them.
+
+!media media/thermo_mechanical/opt_inverse_geom.png
+       style=width:74%;display:block;margin-left:auto;margin-right:auto;
+       alt=Fuel rod with four thermocouples and an unknown heat source to recover
+
+- +Known:+ four thermocouple temperatures inside the rod, the conductivity, and the cooled-surface BC
+- +Unknown:+ the volumetric source magnitude $q'''$
+- +Goal:+ find the $q'''$ whose simulated temperatures best match the four readings
+
+!---
+
+# Worked Example — The Inverse Setup
+
+Two inputs; you drive the main one and it spawns the forward+adjoint sub-app.
+
+!style! fontsize=68%
+
+!row!
+
+!col! width=48%
+
++Main — the optimizer+
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_inverse_source.i block=OptimizationReporter link=False
+
+!col-end!
+
+!col! width=4%
+
+$\quad$
+
+!col-end!
+
+!col! width=48%
+
++Sub-app — forward + adjoint+
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_inverse_forward_and_adjoint.i block=Executioner link=False
+
+!col-end!
+
+!row-end!
+
+!style-end!
+
+- `GeneralOptimization` declares one parameter `q`; `SteadyAndAdjoint` solves the forward and adjoint together
+- The source is a `ParsedOptimizationFunction` (`expression = 'q'`); `ElementOptimizationSourceFunctionInnerProduct` returns the gradient
+
+!---
+
+# Worked Example — Run & Result
+
+```bash
+combined-opt -i reactor_inverse_source.i
+```
+
+- Start from a guess $q''' = 1\times10^{6}$; the data misfit is large
+- +Two TAO iterations later:+ recovered +$q''' = 8.0\times10^{6}$+ — the true value — with the objective driven to $\sim10^{-23}$
+- A linear inverse problem like this snaps straight to the answer; nonlinear ones take more steps, but the loop is identical
+- +Try it:+ perturb a thermocouple reading and watch the recovered $q'''$ shift
+
+!---
+
+# Inversion Types → Exploring the Space
+
+Same machinery, different targets:
+
+- +Force inversion+ (our example: a source or load) — the parameter sits in the load; often linear and fast
+- +Material inversion+ (conductivity, convective $h$) — the parameter sits in the Jacobian; nonlinear and harder
+- +Design optimization+ — minimize mass or cost subject to a temperature or stress limit
+
++Optimization+ pins down the single best, calibrated parameter set by following gradients downhill. +Stochastic tools+ do the opposite job: instead of converging to one point, they +sample across the whole space+ to quantify uncertainty and rank sensitivity — exploration, not convergence.
+
+!---
+
 # Parameter Studies with Stochastic Tools
 
 Automatically run many simulations with different parameter values in parallel to sweep design space or quantify uncertainty.
+
+!---
+
+# Stochastic Tools: Explore the Parameter Space
+
+Where optimization converged to one best answer, stochastic tools ask the opposite question: across the *range* of plausible inputs, what is the *spread* of outcomes?
+
+!media media/thermo_mechanical/stochastic_pipeline.png
+       style=width:74%;display:block;margin-left:auto;margin-right:auto;
+       alt=Stochastic pipeline: distributions, sampler, many parallel forward runs, statistics
+
+- +Distributions+ describe the uncertain inputs (a source, a conductivity, a coolant temperature)
+- A +Sampler+ draws $N$ parameter sets; a +MultiApp+ runs the model once per set, in parallel
+- +Reporters+ collect the outputs into statistics — means, spreads, and sensitivity (which input matters most)
 
 !---
 
@@ -2872,6 +4360,70 @@ Skips the verbose Sampler/MultiApp/Transfers wiring for simple cases; for comple
 - Each run is +independent+; rerun sample 42 and get the same result.
 - `mode = batch-restore` avoids expensive mesh rebuilds across samples.
 - Useful for sensitivity analysis, uncertainty quantification, design optimization, and surrogate training.
+
+!---
+
+# Where Uncertainty Enters: the `[Distributions]` Block
+
+Samplers "draw" parameter values from a +distribution+ you declare in `[Distributions]`.
+
+- A distribution describes the spread of one uncertain input (PDF/CDF/quantile).
+- Samplers pull rows from one or more distributions; each row is one sub-app run.
+- Common `stochastic_tools` types: +Uniform+, +Normal+, +Lognormal+, +Weibull+, +Gamma+, +TruncatedNormal+.
+
+!listing modules/stochastic_tools/test/tests/distributions/uniform.i block=Distributions
+
+Pick `Uniform` for a known min/max, `Normal` for a mean plus measured scatter. One distribution per input.
+
+!---
+
+# Sensitivity: Which Inputs Actually Matter?
+
+Before a full uncertainty propagation, ask *which* parameters drive the output. Two samplers answer two different questions.
+
+!row!
+
+!col! width=50%
+
++Sobol+ (`type = Sobol`)
+
+- *How much of the output variance does each input explain?*
+- Gives first-order + total Sobol indices, including interactions.
+- Accurate but sample-hungry (pairs two Monte Carlo sets).
+
+!col-end!
+
+!col! width=50%
+
++Morris+ (`type = MorrisSampler`)
+
+- *Cheap screening: which inputs are negligible vs influential/nonlinear?*
+- Elementary-effects "one-at-a-time" trajectories.
+- A good first pass when you have many parameters.
+
+!col-end!
+
+!row-end!
+
+!equation
+S_i = \frac{\mathrm{Var}\big(\mathbb{E}[Y \mid X_i]\big)}{\mathrm{Var}(Y)}
+
+The Sobol index $S_i$ is the fraction of output variance attributable to input $X_i$. Screen with Morris first, then quantify the survivors with Sobol.
+
+!---
+
+# Surrogates: Train Once, Evaluate Cheaply
+
+UQ can need thousands of evaluations. A +surrogate+ is a cheap stand-in fit to a modest set of real runs, then queried millions of times.
+
+- A `Trainer` runs the full model on sampler rows and produces fit data.
+- A model in the `[Surrogates]` block replaces the FE solve for evaluation.
+- +PolynomialChaos+: a polynomial fit; mean, variance, and Sobol indices come out analytically.
+- +NearestPointSurrogate+: returns the training point closest to the query — a fast lookup.
+
+!listing modules/stochastic_tools/test/tests/surrogates/poly_chaos/main_2d_mc.i block=Surrogates
+
+Pointer, not a deep dive: reach for these when a full Monte Carlo sweep of your thermo-mechanics model is too expensive. Start from the `stochastic_tools` examples.
 
 !---
 
