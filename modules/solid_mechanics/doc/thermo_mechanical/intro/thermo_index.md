@@ -1,3 +1,9 @@
+# Heat Conduction & Solid Mechanics for Thermomechanical Analysis
+
+## MOOSE Training
+
+!---
+
 # Overview
 
 This training covers fundamentals of solid mechanics and heat conduction using MOOSE, including:
@@ -7,20 +13,33 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 - Numerical solution strategies
 - Contact mechanics and gap heat transfer
 
-
 !---
-
 
 # Course Outline
 
-- Solid Mechanics Fundamentals
-- Heat Conduction
-- Numerical Solution Strategies
-- Contact and Gap Heat Transfer
-- Mortar Methods
-- Solver Considerations for Contact
-- Reference vs Current Configuration
-- Practical Examples
++Day 1 — MOOSE Framework Fundamentals+
+
+- Anatomy of an input file; Mesh, Variables, Kernels
+- Materials, boundary conditions, AuxVariables
+- Executioners, time stepping, Outputs, Postprocessors
+
++Day 2 — Solid Mechanics & Heat Conduction+
+
+- Solid mechanics: weak form, small vs. finite strain; modern Lagrangian kernel system
+- Heat conduction and thermal boundary conditions
+- Coupled thermo-mechanics: thermal expansion & thermal stress
+
++Day 3 — Thermal Radiation & Solver Strategies+
+
+- Black/gray-body radiation; surface-to-ambient & enclosure radiation
+- Nonlinear & linear solvers, preconditioning, scaling, troubleshooting
+- Parameter studies with stochastic tools
+
+!---
+
+# Day 1
+
+## MOOSE Framework Fundamentals
 
 !---
 
@@ -39,7 +58,6 @@ A basic MOOSE input file can contain these eight parts, which will be covered in
 - `[Outputs]`: Define how the solution will be returned
 
 !---
-
 
 # [Mesh System](syntax/Mesh/index.md)
 
@@ -217,7 +235,6 @@ Objects can enforce the use of the displaced mesh within the validParams functio
 
 !row-end!
 
-
 !---
 
 # [Variable System](syntax/Variables/index.md)
@@ -257,9 +274,9 @@ Variables are declared in the `[Variables]` input file block:
 
 MOOSE supports several variable types:
 
-- *Nodal Variables*: Standard finite element variables using Lagrange basis
-- *Elemental Variables*: Variables defined at element level using monomial basis
-- *Scalar Variables*: Variables that are constant in space but evolve in time
+- *Nodal Variables*: Continuous finite-element variables (typically Lagrange basis)
+- *Elemental Variables*: Element-wise/discontinuous variables (typically monomial basis)
+- *Scalar Variables*: Single, spatially-uniform values not tied to the mesh — useful for global constraints, Lagrange multipliers, or ODE unknowns
 - *Finite Volume Variables*: Variables for cell-centered finite volume methods
 
 !---
@@ -316,18 +333,16 @@ Variables can be explicitly coupled when necessary:
   [heat_conduction]
     type = HeatConduction
     variable = temperature
-    coupled_variables = displacement
   []
 []
 ```
 
 - Coupling indicates dependencies between physics
-- Allows MOOSE to construct proper Jacobian terms
+- Makes another variable's value/gradient available inside the kernel
+- Proper Jacobian assembly comes from `computeQpOffDiagJacobian` (non-AD) or automatic differentiation (AD), not from the coupling declaration alone
 - Enables preconditioning optimization
 
-
 !---
-
 
 # [Kernel System](syntax/Kernels/index.md)
 
@@ -371,8 +386,6 @@ For `ADKernel` objects:
 
 !---
 
-
-
 ## Custom Kernel Example: Diffusion
 
 !row!
@@ -382,7 +395,7 @@ For `ADKernel` objects:
 +Weak Form+
 
 !equation
-(\nabla \phi_j, \nabla \psi_i)\quad \forall\,\psi_i
+(\nabla u, \nabla \psi_i)\quad \forall\,\psi_i
 
 +Standard Implementation+
 
@@ -442,14 +455,16 @@ Diffusion::computeQpJacobian()
 !style! fontsize=70%
 
 ```cpp
-ADReal
+ADRealVectorValue
 ADDiffusion::precomputeQpResidual()
 {
-  return _grad_u[_qp] * _grad_test[_i][_qp];
+  return _grad_u[_qp];
 }
 ```
 
 !style-end!
+
+ADDiffusion derives from `ADKernelGrad`: `precomputeQpResidual` returns the gradient vector; the base contracts it with `_grad_test` and applies integration weights.
 
 +Benefits+
 
@@ -478,9 +493,7 @@ ADDiffusion::precomputeQpResidual()
 
 !row-end!
 
-
 !---
-
 
 ## Example: Complete Diffusion Input
 
@@ -534,7 +547,6 @@ Use within non-AD objects to retrieve non-AD material properties.
 
 `getADMaterialProperty<TYPE>()`\\
 Use within AD objects to retrieve AD material properties.
-
 
 !---
 
@@ -616,7 +628,7 @@ There are two flavors of BC objects: Nodal and Integrated.
 ## Integrated BC
 
 Integrated BCs are integrated over a boundary or internal side and should inherit
-from `ADIntegratedBC`.
+from `ADIntegratedBC`. A non-AD `IntegratedBC` base class also exists for cases requiring hand-coded Jacobians.
 
 The structure is very similar to Kernels: objects must override `computeQpResidual`
 
@@ -625,13 +637,13 @@ The structure is very similar to Kernels: objects must override `computeQpResidu
 ## ADIntegratedBC Object Members
 
 `_u`, `_grad_u`\\
-Value and gradient of the variable this Kernel is operating on
+Value and gradient of the variable this boundary condition is operating on
 
 `_test`, `_grad_test`\\
 Value ($\psi$) and gradient ($\nabla \psi$) of the test functions at the quadrature points
 
-`_phi`, `_grad_phi`\\
-Value ($\phi$) and gradient ($\nabla \phi$) of the trial functions at the quadrature points
+`_phi`\\
+Value ($\phi$) of the trial functions at the quadrature points
 
 `_i`, `_j`, `_qp`\\
 Current index for test function, trial functions, and quadrature point, respectively
@@ -639,17 +651,19 @@ Current index for test function, trial functions, and quadrature point, respecti
 `_normals`:\\
 Outward normal vector for boundary element
 
-`_boundary_id`\\
+`_current_boundary_id`\\
 The boundary ID
 
 `_current_elem`, `_current_side`\\
 A pointer to the element and index to the current boundary side
 
++Note:+ in an AD BC, override only `computeQpResidual`; the Jacobian is formed automatically.
+
 !---
 
 ## Nodal BC
 
-Nodal BCs set values of the residual directly on a boundary or internal side and
+Nodal BCs set values of the residual directly at the nodes of a boundary (nodeset) and
 should inherit from `ADNodalBC`.
 
 The structure is very similar to Kernels: objects must override `computeQpResidual`.
@@ -659,13 +673,10 @@ The structure is very similar to Kernels: objects must override `computeQpResidu
 ## NodalBC Object Members
 
 `_u`\\
-Value of the variable this Kernel is operating on
+Value of the variable this BC is operating on
 
 `_qp`\\
-Current index, used for interface consistency
-
-`_boundary_id`\\
-The boundary ID
+Pseudo quadrature-point index, always 0 for a nodal BC; present for API consistency with Kernels
 
 `_current_node`\\
 A pointer to the current node that is being operated on.
@@ -685,7 +696,6 @@ becomes
 u - g_1 = 0 \quad \text{on} \quad \partial\Omega_1
 
 !---
-
 
 ## Integrated BCs
 
@@ -712,13 +722,13 @@ If $\nabla u \cdot \hat{\boldsymbol n} = 0$, then the boundary integral is zero
 
 ```
 [BCs]
-  [left]
+  [fixed_temp]
     type = DirichletBC
     variable = temperature
-    boundary = 'left right'
+    boundary = left
     value = 200
   []
- [right]
+  [heat_flux]
     type = NeumannBC
     variable = temperature
     boundary = top
@@ -726,7 +736,6 @@ If $\nabla u \cdot \hat{\boldsymbol n} = 0$, then the boundary integral is zero
   []
 []
 ```
-
 
 !---
 
@@ -739,8 +748,6 @@ conserved quantities.
 - With mesh adaptivity
 - Can be restricted to specific variables
 - Supports arbitrary translation vectors for defining periodicity
-
-
 
 !---
 
@@ -807,16 +814,13 @@ other nodal auxiliary variables
 ```text
 [AuxVariables]
   [aux]
-    order = LAGRANGE
-    family = FIRST
+    order = FIRST
+    family = LAGRANGE
   []
 []
 ```
 
 !---
-
-
-
 
 # [Executioner System](syntax/Executioner/index.md)
 
@@ -874,7 +878,6 @@ solver. Here are a few common options:
 | `nl_abs_tol` | Nonlinear Absolute Tolerance (default: 1e-50) |
 | `nl_max_its` | Max Nonlinear Iterations (default: 50) |
 
-
 !---
 
 # [Time Integrator System](syntax/Executioner/TimeIntegrator/index.md)
@@ -882,7 +885,6 @@ solver. Here are a few common options:
 A system for defining schemes for numerical integration in time.
 
 !---
-
 
 The TimeIntegrator can be set using "scheme" parameter within the `[Executioner]` block, if
 the "type = Transient", the following options exist:
@@ -903,11 +905,9 @@ objects.
 
 !listing newmark_beta_prescribed_parameters.i block=Executioner
 
-
-
 !---
 
-#  [Time Stepper System](Executioner/TimeSteppers/index.md)
+#  [Time Stepper System](syntax/Executioner/TimeSteppers/index.md)
 
 A system for suggesting time steps for transient executioners.
 
@@ -948,7 +948,7 @@ these time points.
 
 The $t_{start}$ and $t_{end}$ parameters are automatically added to the sequence.
 
-Only time points satisfying $t_{start} < t <t_{end}$ are considered.
+Only time points satisfying $t_{start} < t \le t_{end}$ are considered.
 
 If a solve fails at step $n$ an additional time point $t_{new} = \frac{1}{2}(t_{n+1}+t_n)$ is
 inserted and the step is resolved.
@@ -963,14 +963,16 @@ By default, the minimum of all the time steps computed by all the time steppers 
 What steps will be taken, starting at time = 0s?
 
 ```bash
-[TimeSteppers]
-  [constant]
-    type = ConstantDT
-    dt = 0.2
-  []
-  [hit_these_times]
-    type = TimeSequenceStepper
-    time_sequence = '0.5 1 1.5 2.1'
+[Executioner]
+  [TimeSteppers]
+    [constant]
+      type = ConstantDT
+      dt = 0.2
+    []
+    [hit_these_times]
+      type = TimeSequenceStepper
+      time_sequence = '0.5 1 1.5 2.1'
+    []
   []
 []
 ```
@@ -1036,13 +1038,13 @@ The content of each `Output` can customized, see for example for an [Exodus](Exo
 
 ```text
 [Outputs]
-  interval = 10 # this is a time step interval
+  time_step_interval = 10 # this is a time step interval
   [exo]
     type = Exodus
-    interval = 1 # overrides interval from top-level
+    time_step_interval = 1 # overrides time_step_interval from top-level
   []
   [cp]
-    type = Checkpoint # Uses interval specified from top-level
+    type = Checkpoint # Uses time_step_interval specified from top-level
   []
 []
 ```
@@ -1060,7 +1062,7 @@ using the short-cut syntax.  sub-blocks use the actual sub-block name as the suf
   exodus = true    # creates input_out.e
   [other]          # creates input_other.e
      type = Exodus
-     interval = 2
+     time_step_interval = 2
   []
   [base]
     type = Exodus
@@ -1076,10 +1078,7 @@ using the short-cut syntax.  sub-blocks use the actual sub-block name as the suf
 
 Paraview can read many of these (CSV, Exodus, Nemesis, VTK, GMV)
 
-
 !---
-
-
 
 # [Postprocessor System](syntax/Postprocessors/index.md)
 
@@ -1119,7 +1118,7 @@ This is called once before every execution. Useful to reset accumulated quantiti
 This defines the operation performed on a per element/side/node/mesh (depending on type) basis.
 The quadrature integration is often defined there, and users generally do not need to define this.
 
-`Real getValue()`\\
+`PostprocessorValue getValue() const`\\
 This is called internally within MOOSE to retrieve the final scalar value, the value returned by
 this function is referenced by all other objects that are using the postprocessor.
 
@@ -1149,7 +1148,7 @@ By default, `Postprocessors` will output to a formatted table on the screen and 
 the `[Outputs]` block be stored in CSV file.
 
 ```text
-[Output]
+[Outputs]
   csv = true
 []
 ```
@@ -1182,7 +1181,6 @@ params.addParam<PostprocessorName>("postprocessor", 1.2345, "Doc String");
 
 Additionally, a value may be supplied in the input file in lieu of a `Postprocessor` name.
 
-
 !---
 
 # [VectorPostprocessor System](syntax/VectorPostprocessors/index.md)
@@ -1214,10 +1212,10 @@ GeneralVectorPostprocessor: operates once per execution
 `VectorPostprocessor` is a UserObject, so `initialize`, `execute`, `threadJoin`, and `finalize` methods
 are used for implementing the aggregation operation.
 
-`virtual VectorPostprocessorValue & getVector (const std::string &vector_name)`
-This is called internally within MOOSE to retrieve the final vector value for the given name, the
-value returned by this function is referenced by all other objects that are using the vector
-postprocessor.
+`VectorPostprocessorValue & declareVector(const std::string & vector_name)`
+Produces and registers a result vector inside the VectorPostprocessor; `getVectorNames()` returns the
+set of declared vector names. Other objects that consume this VectorPostprocessor read its results
+via the VectorPostprocessorInterface accessor `getVectorPostprocessorValue(param_name, vector_name)`.
 
 !---
 
@@ -1234,7 +1232,6 @@ Initialize the reference using the `declareVector` method with a name
 
 !listing WorkBalance.C line=declareVector("pid")
 
-
 !---
 
 ## Built-in VectorPostprocessor Types
@@ -1246,7 +1243,7 @@ MOOSE includes a large number built-in `VectorPostprocessors`: `NodalValueSample
 for each vector and timestep will be created.
 
 ```text
-[Output]
+[Outputs]
   csv = true
 []
 ```
@@ -1262,10 +1259,13 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 !listing LeastSquaresFit.C line=_x_values(get
 
-
 !---
 
+# Day 2
 
+## Solid Mechanics, Heat Conduction & Coupling
+
+!---
 
 # Introduction to Solid Mechanics
 
@@ -1291,9 +1291,7 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 !row-end!
 
-
 !---
-
 
 # Key Concepts
 
@@ -1306,13 +1304,12 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 !---
 
-
 The strong form of the governing equation for solid mechanics:
 
 !equation
 \nabla \cdot (\boldsymbol{\sigma} + \boldsymbol{\sigma}_0) + \boldsymbol{b} = \boldsymbol{0} \;\mathrm{in}\;\Omega \\
-\boldsymbol{u} = \boldsymbol{g}\;\mathrm{in}\;\Gamma_{ \boldsymbol{g}}\\
-\boldsymbol{\sigma} \cdot \boldsymbol{n}=\boldsymbol{t}\;\mathrm{in}\;\Gamma_{ \boldsymbol{t}}
+\boldsymbol{u} = \boldsymbol{g}\;\mathrm{on}\;\Gamma_{ \boldsymbol{g}}\\
+\boldsymbol{\sigma} \cdot \boldsymbol{n}=\boldsymbol{t}\;\mathrm{on}\;\Gamma_{ \boldsymbol{t}}
 
 
 
@@ -1326,7 +1323,6 @@ Where:
 - $\boldsymbol{t}$ = Prescribed traction boundary condition
 
 !---
-
 
 # Weak Form Formulation
 
@@ -1380,7 +1376,6 @@ Where:
 
 !---
 
-
 # Small Strain Theory
 
 - *Definition:* Linearized small strain assumes displacement gradients are much smaller than unity, so higher-order terms are negligible.
@@ -1397,7 +1392,6 @@ Where:
 
 !---
 
-
 # Large Deformation Mechanics
 
 - Concerns problems where the displacement gradient is not necessarily small.
@@ -1406,7 +1400,6 @@ Where:
 - Geometric nonlinearities must be taken into account.
 
 !---
-
 
 # Finite Strain Theory
 
@@ -1419,7 +1412,6 @@ Where:
 
 !---
 
-
 # Incremental Deformation Gradient
 
 - Large deformation problems often use an *incremental* (updated Lagrangian) approach.
@@ -1428,27 +1420,25 @@ Where:
   where $\mathbf{F}_n$ is the total deformation gradient at $t_n$.
 - This incremental form captures the *new* deformation each step without re-initializing from the original reference.
 - Often expressed via:
-  $\hat{\mathbf{F}}^{-1} = \mathbf{I} - \nabla \hat{\mathbf{u}},$
-  where $\hat{\mathbf{u}}$ is the incremental displacement between the two configurations.
+  $\hat{\mathbf{F}}^{-1} = \mathbf{I} - \partial \hat{\mathbf{u}} / \partial \mathbf{x},$
+  where $\hat{\mathbf{u}}$ is the incremental displacement and $\mathbf{x}$ is the position in the current (deformed) configuration $\kappa_{n+1}$ (contrast the reference-config gradient $\partial/\partial\mathbf{X}$ used for $\mathbf{F}$).
 - Each time step updates strain and rotation incrementally, which is then added to the previous total state.
 
 !---
-
 
 # Closed Loop Large Deformation Loading Cycle
 
 
 !media solid_mechanics/closed_loop_large_deform_cycle_loading.png
        id=closed_loop_cycle_loading
-       style=width:95%;float:right;padding-top:1.5%;
+       style=width:85%;float:right;padding-top:1.5%;
        caption=Closed loop large deformation loading cycle.
 
 - Initial configuration (A) with dimensions $L \times L$.
 - Intermediate stages show stretching ($\Delta y$) and shearing ($\Delta x$).
-- Final shape (E) might return to a form similar to the initial state, but with residual effects if large deformations are not perfectly elastic.
+- Final shape (E) may differ from the start due to residual inelastic effects.
 
 !---
-
 
 # Volumetric Locking Correction
 
@@ -1469,7 +1459,6 @@ Where:
   - After computing $\hat{\mathbf{F}}_{\mathrm{corr}}$, the strain increment is added to the total strain from $t_n$, then rotated by the rotation increment for $t_{n+1}$.
 
 !---
-
 
 !row!
 
@@ -1503,14 +1492,13 @@ Where:
 *Legend:*
 
 - `first/second` = element order
-- `vol/no_vol` = with/without B-bar
+- `vol/no_vol` = with/without volumetric locking correction (F-bar)
 
 !col-end!
 
 !row-end!
 
 !---
-
 
 !row!
 
@@ -1554,7 +1542,6 @@ Where:
   - Slices of structures with constrained ends allowing uniform expansion
 
 !---
-
 
 !row!
 
@@ -1610,13 +1597,13 @@ Where:
 
 !row-end!
 
-
 !---
-
 
 !row!
 
 !col! width=50%
+
+!style! fontsize=85%
 
 +Material System Components+
 
@@ -1630,7 +1617,7 @@ Where:
 
 - ComputeIsotropicElasticityTensor
 - ComputeElasticityTensor
-- ComputeAnisotropicElasticityTensor
+- CompositeElasticityTensor
 
 *Stress Calculator*
 
@@ -1641,6 +1628,8 @@ Where:
 *Automatic Differentiation (AD):*
 
 - Add "AD" prefix: ADComputeSmallStrain
+
+!style-end!
 
 !col-end!
 
@@ -1678,6 +1667,187 @@ Where:
 
 !---
 
+# Motivation: One System for Both Regimes
+
+The +traditional MOOSE path+ uses separate kernel and material workflows:
+
+- *Small strain:* `StressDivergenceTensors` + `ComputeSmallStrain` + `ComputeLinearElasticStress`
+- *Finite strain:* `StressDivergenceTensors` + `ComputeFiniteStrain` + hyperelastic materials
+
+The +new Lagrangian system+ unifies these into AD-native kernels with explicit stress measures:
+
+- Single kernel interface: `TotalLagrangianStressDivergence` or `UpdatedLagrangianStressDivergence`
+- Decoupled kinematics: `ComputeLagrangianStrain` handles both small (linearized) and large deformation
+- Stress measures: elastic + objective stresses via modular stress materials
+
+Enable via: `new_system = true`, `formulation = TOTAL|UPDATED`
+
+!---
+
+# Total vs Updated Lagrangian Formulations
+
+!row!
+
+!col! width=50%
+
++Total Lagrangian+
+
+- Weak form written in *reference* (undeformed) configuration $\kappa_0$
+- Deformation gradient $\mathbf{F}$ maps $\kappa_0 \to \kappa_{n+1}$
+- Total strain from origin; no accumulated rotation
+- Second Piola-Kirchhoff (PK2) stress is work-conjugate to Green-Lagrange strain
+
+!col-end!
+
+!col! width=50%
+
++Updated Lagrangian+
+
+- Weak form written in *current* (deformed) configuration $\kappa_n$
+- Incremental deformation $\hat{\mathbf{F}}$ maps $\kappa_n \to \kappa_{n+1}$
+- Strain accumulated incrementally each step
+- Cauchy stress and Jaumann rate are naturally corotational
+
+!col-end!
+
+!row-end!
+
+Both yield identical physics; choice depends on problem structure and preferred stress/strain measures.
+
+!---
+
+# Kinematics: Finite vs Small Strain Limit
+
+The Lagrangian system unifies kinematics through a single material: `ComputeLagrangianStrain`.
+
+Set **`large_kinematics = true`** in the strain material or globally to enable finite-deformation kinematics:
+
+!equation
+\mathbf{F} = \mathbf{I} + \nabla \mathbf{u}
+
+When `large_kinematics = false` (default), the system linearizes and recovers small-strain theory:
+
+!equation
+\boldsymbol{\epsilon} \approx \frac{1}{2} (\nabla \mathbf{u} + (\nabla \mathbf{u})^T)
+
+Both paths share the same strain material class; the flag switches internal kinematics without changing the input structure.
+
+!---
+
+# Deformation Gradient and Stress Measures
+
+Key relationships in the new system:
+
+!equation
+\mathbf{P} = \mathbf{F} \mathbf{S}
+
+where $\mathbf{P}$ is the first Piola-Kirchhoff (PK1) stress, $\mathbf{S}$ is the second Piola-Kirchhoff (PK2) stress, and $\mathbf{F}$ is the deformation gradient.
+
+Cauchy (true) stress from PK1:
+
+!equation
+\boldsymbol{\sigma} = \frac{1}{|\mathbf{F}|} \mathbf{P} \mathbf{F}^T
+
+- **Total Lagrangian** works naturally with PK2 and Green-Lagrange strain
+- **Updated Lagrangian** outputs Cauchy stress and uses incremental strains
+- **Objective stresses** (Truesdell, Jaumann, Green-Naghdi) maintain frame invariance during finite rotations
+
+!---
+
+# Available Stress Materials
+
+!style! fontsize=85%
+
+The new system provides elastic and hyperelastic stress calculators:
+
+| Material | Stress Measure | Use Case |
+| :- | :- | :- |
+| `ComputeLagrangianLinearElasticStress` | PK2 | Linear elasticity (small or large strain) |
+| `ComputeStVenantKirchhoffStress` | PK2 | Hyperelastic, St. Venant-Kirchhoff model |
+| `ComputeNeoHookeanStress` | PK2 | Hyperelastic, compressible Neo-Hookean |
+| `ComputeLagrangianWrappedStress` | Cauchy (objective) | Objective integration of small-strain models |
+| `ComputeLagrangianStressBase` subclasses | Custom | User-defined constitutive models |
+
+!style-end!
+
+The `ComputeLagrangianWrappedStress` `objective_rate` parameter selects `truesdell`, `jaumann`, or `green_naghdi` integration for corotational behavior under finite rotation.
+
+!---
+
+# Enabling the New System via Action
+
+The `[Physics/SolidMechanics/QuasiStatic]` action automatically selects the new Lagrangian kernels and materials when you set:
+
+```
+[Physics]
+  [SolidMechanics]
+    [QuasiStatic]
+      [all]
+        strain = FINITE              # or SMALL
+        new_system = true            # Enable Lagrangian kernels
+        formulation = TOTAL          # or UPDATED
+        add_variables = true
+      []
+    []
+  []
+[]
+```
+
+- `new_system = true`: Selects `TotalLagrangianStressDivergence` or `UpdatedLagrangianStressDivergence`
+- `formulation = TOTAL|UPDATED`: Chooses reference or current-config weak form
+- `strain = FINITE|SMALL`: Drives the `large_kinematics` flag in the strain material
+
+!---
+
+# Example: Total Lagrangian, Linear Elastic
+
+Action-based setup with `new_system = true`:
+
+!listing modules/solid_mechanics/test/tests/lagrangian/cartesian/total/action/action_1D.i block=Physics
+
+!---
+
+# Material Configuration
+
+Pair the strain calculator with a stress calculator (from a direct kernel example):
+
+!listing modules/solid_mechanics/test/tests/lagrangian/materials/convergence/stvenantkirchhoff.i block=Materials
+
+The action wires `displacements` to the strain material automatically. No manual coupling needed.
+
+!---
+
+# Direct Kernel Syntax (without action)
+
+For fine-grained control, use kernels + materials directly:
+
+!listing modules/solid_mechanics/test/tests/lagrangian/materials/convergence/stvenantkirchhoff.i block=Kernels
+
+Each displacement component gets its own stress-divergence kernel. The `component` parameter is 0 (x), 1 (y), or 2 (z).
+
+!---
+
+# Stress Material Details
+
+The strain material computes Green-Lagrange strain $\mathbf{E}$ and deformation gradient $\mathbf{F}$. The stress material applies a constitutive relation:
+
+- `ComputeLagrangianLinearElasticStress`: $\mathbf{S} = \mathbb{C} : \mathbf{E}_{\text{elastic}}$ from a supplied elasticity tensor (works in both total and updated Lagrangian)
+- `ComputeStVenantKirchhoffStress`: St. Venant-Kirchhoff hyperelastic model (recommended for large-deformation elasticity)
+- `ComputeNeoHookeanStress`: compressible Neo-Hookean model for rubber-like materials
+
+!---
+
+# Key Advantages
+
+1. +AD-native+: Full automatic differentiation throughout; no hand-coded Jacobians
+2. +Unified kinematics+: One `ComputeLagrangianStrain` handles both small and large deformation via flag
+3. +Explicit stress measures+: Choose PK2, Cauchy, or objective stresses via the stress material—not buried in kernel code
+4. +Modular materials+: Swap stress calculator without rewriting kinematics or kernels
+5. +Frame invariance+: Built-in objective stress options for corotational dynamics
+
+Legacy (`StressDivergenceTensors` + `ComputeSmallStrain`/`ComputeFiniteStrain`) remains fully supported; use `new_system = false` (default) to preserve existing inputs.
+
+!---
 
 # Introduction to Heat Transfer
 
@@ -1696,12 +1866,11 @@ Where:
 
 !---
 
-
 # Heat Conduction Equation
 
 - The heat conduction equation describes diffusion of heat:
 
-  $\rho c\frac{\partial T}{\partial t} = \nabla \cdot [k \nabla T] + \dot{q}$
+  $\rho c\frac{\partial T(\vec{x}, t)}{\partial t} = \nabla \cdot [k \nabla T(\vec{x}, t)] + \dot{q}$
 - Where:
 
   - $T$ is temperature
@@ -1713,7 +1882,6 @@ Where:
   - $\dot{q}$ is volumetric heat source
 
 !---
-
 
 # Boundary Conditions
 
@@ -1744,370 +1912,460 @@ Where:
 
 !---
 
+# Thermal Strain Decomposition
 
-# Contact Methods Overview
-
-!row!
-
-!col! width=50%
-
-+Node-Face Method+
-
-- Point-to-surface discretization
-- Traditional contact approach
-- Uses penalty or Lagrange multiplier enforcement
-- Computationally efficient
-- Challenges with non-matching meshes
-
-!col-end!
-
-!col! width=50%
-
-+Mortar Method+
-
-- Surface-to-surface discretization
-- Weak enforcement of constraints
-- Better for non-matching meshes
-- More accurate interface field distribution
-- Uses separate space of Lagrange multipliers
-
-!col-end!
-
-!row-end!
-
-!---
-
-# Node-Face Method: General Formulation
-
-!row!
-
-!col! width=48%
-
-+Concept+
-
-- Discrete nodes on secondary surface
-- Project onto primary surface elements
-- Enforce constraints at node locations
-- Simple to implement
-- Historically common in FEM
-
-!media node_face_contact.svg
-       style=width:90%;
-
-!col-end!
-
-!col! width=48%
-
-+Mathematical Approach+
+Total strain decomposes into elastic and thermal components:
 
 !equation
-\begin{aligned}
-g_n &= (\mathbf{x}_{\text{secondary}} - \mathbf{x}_{\text{primary}}) \cdot \mathbf{n} \\
-R &= \sum_{i=1}^{n_p} \delta u \cdot \lambda_i
-\end{aligned}
+\boldsymbol{\epsilon}_{\text{total}} = \boldsymbol{\epsilon}_{\text{elastic}} + \boldsymbol{\epsilon}_{\text{thermal}}
+
+For isotropic thermal expansion:
+
+!equation
+\boldsymbol{\epsilon}_{\text{thermal}} = \alpha (T - T_{\text{ref}}) \mathbf{I}
 
 where:
 
-- $g_n$ is the normal gap
-- $\mathbf{n}$ is the surface normal
-- $R$ is the residual contribution
-- $\delta u$ is the test function for the field variable
-- $\lambda_i$ is the interface quantity at point $i$
-- $n_p$ is the number of interface points
-
-!col-end!
-
-!row-end!
+- $\alpha$ = thermal expansion coefficient
+- $T$ = current temperature
+- $T_{\text{ref}}$ = stress-free reference temperature
+- $\mathbf{I}$ = identity tensor
 
 !---
 
-# Mortar Method: General Formulation
+# Eigenstrain Mechanism in MOOSE
 
-!row!
-
-!col! width=48%
-
-+Concept+
-
-- Uses weighted integrals over contact surface
-- Introduces Lagrange multiplier field
-- Enforces constraints in weak sense
-- Maintains patch test consistency
-- Handles non-matching meshes naturally
-
-!media mortar_contact.png
- style=width:90%;
-
-!col-end!
-
-!col! width=48%
-
-+Mathematical Approach+
+In MOOSE, thermal expansion enters as an +eigenstrain+ that is +subtracted+ from total strain in the strain calculator to form the elastic/mechanical strain, which then feeds the stress calculator ($\boldsymbol{\sigma} = \mathcal{C} : \boldsymbol{\epsilon}_{\text{elastic}}$):
 
 !equation
-\begin{aligned}
-\int_{\Gamma_c} \lambda \cdot c(u_1, u_2) \, d\Gamma &= 0 \\
-\int_{\Gamma_c} \delta\lambda \cdot c(u_1, u_2) \, d\Gamma &= 0
-\end{aligned}
+\boldsymbol{\sigma} = \mathcal{C} : (\boldsymbol{\epsilon}_{\text{total}} - \boldsymbol{\epsilon}_{\text{eigen}})
+
+The strain calculator computes:
+
+!equation
+\boldsymbol{\epsilon}_{\text{elastic}} = \boldsymbol{\epsilon}_{\text{total}} - \boldsymbol{\epsilon}_{\text{thermal}}
+
+Then the stress is:
+
+!equation
+\boldsymbol{\sigma} = \mathcal{C} : \boldsymbol{\epsilon}_{\text{elastic}}
+
+Eigenstrain approach decouples thermal and mechanical strains, simplifying constitutive integration.
+
+!---
+
+# Thermal Expansion Objects
+
+MOOSE provides three material objects for different thermal expansion models:
+
++ComputeThermalExpansionEigenstrain+
+
+- Constant thermal expansion coefficient
+- Simplest model; good for small temperature ranges
+
++ComputeMeanThermalExpansionFunctionEigenstrain+
+
+- Mean expansion coefficient supplied directly as a function of temperature
+- Strain is $\bar{\alpha}(T)\,(T - T_{\text{ref}})$, where the mean coefficient relates to the instantaneous one by $\bar{\alpha}(T) = \frac{1}{T - T_{\text{ref}}} \int_{T_{\text{ref}}}^{T} \alpha(T')\, dT'$
+
++ComputeInstantaneousThermalExpansionFunctionEigenstrain+
+
+- Instantaneous expansion coefficient $\alpha(T)$ supplied as a function
+- Strain accumulated incrementally from $\alpha(T)$
+- Higher accuracy for large temperature ranges
+
+!---
+
+# Wiring Temperature Coupling
+
+The SolidMechanics action automatically wires strain calculators when you specify eigenstrain names:
+
+!listing modules/solid_mechanics/test/tests/thermal_expansion/constant_expansion_coeff.i block=Physics
+
+!---
+
+# Wiring Temperature Coupling (cont.)
+
+The thermal expansion material consumes the temperature variable:
+
+!listing modules/solid_mechanics/test/tests/thermal_expansion/constant_expansion_coeff.i block=Materials
+
+The `eigenstrain_name` links the material output to the strain calculator's `eigenstrain_names` list.
+
+!---
+
+# Constrained Heating: Thermal Stress Example
+
+- Two blocks in thermal contact; temperature is imposed by a `FunctionDirichletBC` on the contacting boundaries and conducted through each block by the source-free `HeatConduction` kernel
+- Thermal expansion (different $\alpha$ per block) is resisted by the fixed boundaries and the contact constraint, producing thermal stress
+- This input also demonstrates FDP with `implicit_geometric_coupling` preconditioning
+
+!equation
+\sigma_{\text{th}} = -\alpha E (T - T_{\text{ref}})
+
+!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Kernels
+
+!---
+
+# Coupled Temperature-Displacement
+
+One-way coupling: temperature prescribed, displacement computed.
+
+!equation
+\begin{cases}
+\nabla \cdot (\mathcal{C} : (\nabla^s \mathbf{u} - \alpha(T)(T - T_{\text{ref}}) \mathbf{I})) + \mathbf{b} = 0 \\
+T = T_{\text{prescribed}}
+\end{cases}
+
+Two-way coupling: heat conduction evolves temperature; displacement feeds back via work.
+
+!equation
+\begin{cases}
+\nabla \cdot (\mathcal{C} : (\nabla^s \mathbf{u} - \alpha(T)(T - T_{\text{ref}}) \mathbf{I})) + \mathbf{b} = 0 \\
+\rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T)
+\end{cases}
+
+In MOOSE, both are solved monolithically; one-way is recovered by omitting the HeatConduction kernel.
+
+!---
+
+# Coupled Thermo-Mechanics Input
+
+Both temperature and displacement are primary variables:
+
+!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Variables
+
+!---
+
+# Coupled Thermo-Mechanics Input (cont.)
+
+Each block can have different eigenstrain objects:
+
+!listing modules/combined/test/tests/fdp_geometric_coupling/fdp_geometric_coupling.i block=Physics/SolidMechanics/QuasiStatic
+
+Temperature is passed to the QuasiStatic Physics action via the `temperature` parameter; the action forwards it to the eigenstrain calculators.
+
+!---
+
+# Day 3
+
+## Thermal Radiation & Solver Strategies
+
+!---
+
+# Thermal Radiation: Stefan-Boltzmann Fundamentals
+
+Thermal radiation is energy transfer via electromagnetic waves. A perfect (black) body emits power according to:
+
+!equation
+q = \sigma T^4
 
 where:
 
-- $\Gamma_c$ is the interface surface
-- $\lambda$ is the Lagrange multiplier field
-- $c(u_1, u_2)$ is the constraint function
-- $u_1, u_2$ are the primary field variables
-- $\delta\lambda$ is the test function for $\lambda$
-
-!col-end!
-
-!row-end!
-
+- $\sigma = 5.67 \times 10^{-8}$ W/(m$^2$ K$^4$) is the Stefan-Boltzmann constant
+- $T$ is absolute temperature (K)
 
 !---
 
-# Mechanical Contact: Fundamentals
+# Gray-Body Approximation
 
-*Contact Constraints:*
+Real surfaces are gray bodies with emissivity $\varepsilon$ (0 to 1):
 
 !equation
-\begin{aligned}
-g &\leq 0 \quad \text{(non-penetration)} \\
-t_N &\geq 0 \quad \text{(compressive normal force)} \\
-t_N g &= 0 \quad \text{(complementarity condition)}
-\end{aligned}
+q = \varepsilon \sigma T^4
 
-*Key Concepts:*
+Gray assumption:
 
-- Gap ($g$): Penetration distance between contacting bodies
-- Contact force ($t_N$): Force opposing penetration
-- Either penetration is zero or contact force is zero
+- Emissivity is wavelength-independent
+- Valid for most engineering materials over moderate temperature ranges
 
-*Constraint Enforcement Methods:*
+Additional idealization (often assumed alongside gray):
 
-- *Penalty Method*: Applies force proportional to penetration
-- *Lagrange Multiplier*: Adds variables to enforce constraints exactly
-- *Augmented Lagrangian*: Hybrid approach combining both methods
+- Diffuse (Lambertian): emission is direction-independent
+- MOOSE's GrayLambert objects combine both the gray and diffuse assumptions
 
 !---
 
-# Gap Heat Transfer: Fundamentals
+# Surface-to-Ambient Radiation
 
-!row!
-
-!col! width=48%
-
-+Basic Principle+
-
-The heat leaving one body must equal that entering another:
+Radiative boundary condition for a surface at temperature $T$ radiating to ambient (deep space) at $T_{\infty}$:
 
 !equation
-\int_{\Gamma_i} h_{\text{gap}} \Delta T , dA_i = \int_{\Gamma_j} h_{\text{gap}} \Delta T , dA_j
+q_r = \varepsilon \sigma (T^4 - T_{\infty}^4)
 
-+Total Gap Conductance+
+Boundary condition in MOOSE:
 
-!equation
-h_{\text{gap}} = h_{\text{contact}} + h_{\text{gas}} + h_{\text{radiation}}
+!listing modules/heat_transfer/test/tests/radiative_bcs/function_radiative_bc.i block=BCs/bot_right
 
-!col-end!
-
-!col! width=48%
-
-+Heat Transfer Mechanisms:+
-
-- *Contact conductance*
-
-  - Direct solid-solid conduction
-  - Depends on: pressure, roughness, hardness
-
-- *Gas conductance*
-
-  - Through gap medium
-  - Depends on: gap width, gas properties
-
-- *Radiation*
-
-  - Important at high temperatures
-  - Depends on: surface emissivities
-
-!col-end!
-
-!row-end!
+Emissivity is supplied as a MOOSE Function of time/position (constant in the example shown). It is not a function of the temperature variable; for temperature-dependent emissivity use a material-property-based radiative BC.
 
 !---
 
-# Gap Heat Transfer: Mathematical Model
+# FunctionRadiativeBC: General Surface-to-Ambient
 
-!row!
-
-!col! width=48%
-
-+Gap Conductance Model+
+`FunctionRadiativeBC` applies radiative heat flux to a surface:
 
 !equation
-h_{\text{gap}} = h_g + h_s + h_r
+-k \nabla T \cdot \hat{n} = \varepsilon \sigma (T^4 - T_{\infty}^4)
 
-!col-end!
+Parameters:
 
-!col! width=48%
-
-+Components+
-
-- $h_{\text{gap}}$: Total conductance across the gap
-- $h_g$: Gas conductance
-- $h_s$: Solid-solid (contact) conduction
-- $h_r$: Radiative conductance
-
-!col-end!
-
-!row-end!
+- `emissivity_function`: emissivity $\varepsilon$ as function or constant
+- `Tinfinity`: far-field temperature $T_{\infty}$ (typically 0 for space)
+- Works for planar, curved, and complex geometries
 
 !---
 
+# Cylindrical Surface Radiation
 
-## Gas Conductance
+For two coaxial cylinders, an inner surface at temperature $T_s$ (radius $r_s$, emissivity $\varepsilon_s$) and an outer cylinder at $T_f$ (radius $r_f$, emissivity $\varepsilon_f$):
 
 !equation
-h_g = \frac{k_g}{d_g}
+q_r = \sigma F_e (T_s^4 - T_f^4)
 
+where the exchange factor accounts for radii and emissivities (the form used by MOOSE):
 
-where:
-
-- $k_g$ is the thermal conductivity of the gap (gas)
-- $d_g$ is the gap distance
-
+!equation
+F_e = \frac{\varepsilon_s \varepsilon_f r_f}{\varepsilon_f r_f + \varepsilon_s r_s (1 - \varepsilon_f)}
 
 !---
 
-## Solid-Solid Contact Conductance
+# InfiniteCylinderRadiativeBC
 
-A pressure-dependent model for the solid-solid contact conduction is given by:
+Applies radiation between two coaxial cylinders with different emissivities:
 
-!equation
-C_T = \alpha \, k_{\text{harm}} \frac{P}{H_{\text{harm}}}
+!listing modules/heat_transfer/test/tests/radiative_bcs/radiative_bc_cyl.i block=BCs/radiative_bc
 
+Parameters:
 
-where:
-
-- $\alpha$ is a fitting parameter,
-- $P$ is the contact pressure,
-- $k_{\text{harm}}$ is the harmonic mean of the thermal conductivities:
-
-  !equation
-  k_{\text{harm}} = \frac{2 k_1 k_2}{k_1 + k_2}
-
-- $H_{\text{harm}}$ is the harmonic mean of the material hardnesses.
-
-
+- `boundary_radius`: radius of inner surface
+- `boundary_emissivity`: emissivity of inner surface
+- `cylinder_radius`: radius of outer surface
+- `cylinder_emissivity`: emissivity of outer surface
 
 !---
 
+# Gray-Body Enclosure Radiation: View Factors
 
-## Radiative Heat Transfer Conductance
+Radiation in an enclosure with $N$ surfaces depends on view factors $F_{ij}$ — the fraction of energy leaving surface $i$ reaching surface $j$.
 
+Conceptually, the net flux at surface $i$ balances the radiation leaving it against the radiation arriving from the other surfaces. The simple emission-only form below ignores surface reflection; MOOSE instead solves a radiosity linear system that accounts for it.
+
+MOOSE solves for the per-area radiosity $J_i$ (total radiation leaving each surface):
 
 !equation
-q_r = \sigma F_e (T_s^4 - T_f^4) \sim h_r (T_s - T_f)
+(\mathbf{I} - (\mathbf{I}-\boldsymbol{\varepsilon})\mathbf{F})\,\mathbf{J} = \boldsymbol{\varepsilon}\,\sigma\,\mathbf{T}^4
+
+The net radiative flux at surface $i$ is then:
 
 !equation
-h_r = \sigma F_e \frac{(T_s^4 - T_f^4)}{(T_s - T_f)} = \sigma F_e (T_s^2 + T_f^2)(T_s + T_f)
+q_i = J_i - \sum_j F_{ij} J_j
 
+Reciprocity: $A_i F_{ij} = A_j F_{ji}$
+
+Summation rule: $\sum_j F_{ij} = 1$
+
+!---
+
+# Computing View Factors
+
+Three methods in heat_transfer module:
+
+1. +Specified/Constant+: Pre-computed externally or from symmetry; user provides matrix
+2. +UnobstructedPlanarViewFactor+: Numerical double-area-integral view factors over unobstructed planar surfaces (any relative orientation, line-of-sight only; 2D or 3D)
+3. +RayTracingViewFactor+: Ray-tracing with a deterministic angular quadrature for arbitrary/obstructed geometries
+
+!---
+
+# Specified View Factors
+
+Pre-computed matrix input to the gray-body enclosure solver:
+
+!listing modules/heat_transfer/test/tests/gray_lambert_radiator/gray_lambert_cavity.i block=UserObjects/view_factors_uo
+
+The `SpecifiedViewFactor` object defines the view-factor matrix and loads it into a `ViewFactorObjectSurfaceRadiation` (shown next).
+
+!---
+
+# GrayLambert Enclosure Solver
+
+`ViewFactorObjectSurfaceRadiation` solves the gray-body enclosure problem using pre-computed view factors:
+
+!listing modules/heat_transfer/test/tests/gray_lambert_radiator/gray_lambert_cavity.i block=UserObjects/gray_lambert
+
+- `boundary`: list of radiating surfaces
+- `fixed_temperature_boundary`: surfaces held at specified $T$
+- `adiabatic_boundary`: insulated surfaces (solve for $T$)
+- `emissivity`: emissivity of each surface
+
+!---
+
+# Unobstructed Planar View Factors
+
+For parallel or perpendicular planar surfaces:
+
+!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/unobstructed_vf
+
+Used for simple geometries without obstructions. Faster than ray-tracing.
+
+!---
+
+# Ray-Tracing View Factors
+
+For complex, obstructed geometries:
 
 !row!
 
 !col! width=50%
 
-
-
-+Variables & Emissivity+
-
-- $\sigma$ is the Stefan-Boltzmann constant
-- $F_e$ is the emissivity function
-- $T_s$ is the surface temperature
-- $T_f$ is the far-field temperature
-- $h_r$ is the radiative gap conductance
+!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/vf_study
 
 !col-end!
 
 !col! width=50%
 
-
-
-Cartesian systems:
-
-!equation
-F_e = \frac{1}{\left(\frac{1}{e_s} + \frac{1}{e_f} - 1\right)}
-
-
-Axisymmetric systems:
-
-!equation
-F_e = \frac{e_s e_f r_f}{e_f r_f + e_s r_s (1-e_f)}
+!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/rt_vf
 
 !col-end!
 
 !row-end!
 
+`ViewFactorRayStudy` sets the quadrature; `RayTracingViewFactor` computes $F_{ij}$ by deterministic ray tracing over an angular quadrature — slower, but handles arbitrary geometry, obstructions, and self-shadowing. Accuracy is controlled by `polar_quad_order`/`azimuthal_quad_order`/`face_order`, not by a random sample size.
 
 !---
 
-## Summary
+# Application: Space Reactor Radiator
 
-Combining all components, the overall gap conductance model becomes:
+Space reactors reject heat via radiators to deep space ($T_{\infty} \approx 3$ K):
+
++Design Challenge+:
+
+- Surface temperatures 500—1000 K
+- Radiation is only mechanism (no convection in vacuum)
+- View factor to cold space is ~1 (no obstructions)
+- Radiator area must satisfy: $q = \varepsilon \sigma A (T^4 - T_{\infty}^4)$
+
++MOOSE Approach+:
+
+- Use `FunctionRadiativeBC` on radiator surface with $\varepsilon = 0.85$ (typical)
+- Set $T_{\infty} = 0$ or 3 K
+- Solve transient heat conduction through reactor structure and radiator
+
+!---
+
+# Space Reactor Example: Coupled System
+
+Thermal model couples:
+
+1. Core (internal heat generation)
+2. Radiator pipes (conduction through walls)
+3. Radiative BC to space
 
 !equation
-h_{\text{gap}} = \frac{k_g}{d_g} + C_T + \sigma F_e \left( T_s^2 + T_f^2 \right) \left( T_s + T_f \right)
+\rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) + q'''
 
+with BC: $-k \frac{\partial T}{\partial n} = \varepsilon \sigma (T^4 - T_{\infty}^4)$
 
-where:
-
-- $\frac{k_g}{d_g}$ represents gas conduction ($h_g$),
-- $C_T$ represents pressure-dependent solid-solid conduction ($h_s$),
-- $\sigma F_e \left( T_s^2 + T_f^2 \right) \left( T_s + T_f \right)$ represents radiative conductance ($h_r$).
-
+The nonlinear solver handles the $T^4$ terms automatically with Newton's method.
 
 !---
 
-# Node-Face vs. Mortar for Heat Transfer
+# Automatic Differentiation for Radiation
+
+AD versions compute the Jacobian automatically:
+
+- `ADFunctionRadiativeBC`
+- `ADInfiniteCylinderRadiativeBC`
+
+No need to hand-code derivatives of $T^4$ terms — AD handles them.
+
+!listing modules/heat_transfer/test/tests/radiative_bcs/ad_function_radiative_bc.i block=BCs/bot_right
+
+!---
+
+# Nonlinear Solvers: Newton and JFNK
+
+Newton's method solves:
+
+!equation
+\mathbf{J}(\vec{u}_n) \delta\vec{u}_{n+1} = -\vec{R}(\vec{u}_n), \quad \vec{u}_{n+1} = \vec{u}_n + \delta\vec{u}_{n+1}
+
++Key traits:+
+
+- Quadratic convergence near the solution
+- Requires Jacobian: hand-coded, AD, or approximated
+- Robust when initial guess is good
+
+!---
+
+# Thermo-Mechanical Nonlinearity: Radiation
+
+Thermal radiation introduces a strong $T^4$ nonlinearity:
+
+!equation
+q_r = \sigma \epsilon (T^4 - T_\infty^4)
+
++Why Newton works well here:+
+
+- The residual is smooth and an exact (or AD) Jacobian $\frac{\partial q_r}{\partial T} = 4\sigma\epsilon T^3$ is available
+- These give Newton its quadratic convergence near the solution
+- Few iterations typically needed (2--4) once close to the solution
+- But the strong $T^4$ nonlinearity has a small convergence radius: far from the solution it can hurt robustness, often needing a good initial guess, line search, or temperature/time stepping
+
+!---
+
+# JFNK: When to Use It
+
++Jacobian-Free Newton-Krylov approximates:+
+
+!equation
+\mathbf{J}\vec{v} \approx \frac{\vec{R}(\vec{u} + \epsilon\vec{v}) - \vec{R}(\vec{u})}{\epsilon}
+
++When JFNK helps:+
+
+- Jacobian derivation is tedious or error-prone
+- Complex multiphysics with weak coupling
+- Memory is tight (no explicit matrix storage)
+- Development speed > execution speed
+
++When JFNK struggles:+
+
+- Strong nonlinearities like $T^4$ radiation (better: full Newton)
+- Stiff systems needing strong preconditioning
+
+!---
+
+# Newton Implementation Options in MOOSE
 
 !row!
 
-!col! width=48%
+!col! width=33%
 
-+Node-Face Heat Transfer+
++Hand-coded Jacobians+
 
-- Point evaluation of temperatures
-- Heat flux applied at discrete points
-- Conservation:
-
-!equation
-q_i = h \cdot (T_{\text{secondary}} - T_{\text{primary}}) \cdot A_i
-
-where:
-
-- $q_i$ is heat flux at node $i$
-- $A_i$ is the tributary area
-- $h$ is the gap conductance
-- $T$ are nodal temperatures
+- Explicit derivatives
+- Most efficient
+- Tedious for complex physics
 
 !col-end!
 
-!col! width=48%
+!col! width=33%
 
-+Mortar Heat Transfer+
++Automatic Differentiation+
 
-- Integrated heat flux balance
-- Weak enforcement through test functions
-- Conservation:
+- Computes Jacobian automatically
+- Modern default
+- Trade small CPU cost for zero errors
 
-!equation
-\int_{\Gamma_c} \psi \cdot \lambda \cdot (T_1 - T_2) \, d\Gamma = 0
+!col-end!
 
-where:
+!col! width=33%
 
-- $\psi$ is the test function
-- $\Gamma_c$ is the contact interface
-- $\lambda$ is the Lagrange multiplier field
-- $T_1, T_2$ are temperature fields
++PJFNK (Preconditioned)+
+
+- Approx. Jacobian for preconditioner
+- Jacobian-free outer iteration
+- Good compromise
 
 !col-end!
 
@@ -2115,303 +2373,39 @@ where:
 
 !---
 
-# Node-Face vs. Mortar for Mechanical Contact
-
-+Complementarity Conditions:+
-
-!equation
-g_n \leq 0 \\ \lambda \geq 0 \\ \lambda\, g_n = 0
-
-!row!
-
-!col! width=48%
-
-+Node-Face Mechanical Contact+
-
-- *Mechanism:* Contact forces are applied at discrete nodes.
-
-- *Penalty Contact Force:*
-  Given a penalty ($\kappa$) contact traction is computed as
-
-  !equation
-  t_n = \kappa\,\max(g_n, 0)
-
-- *Residual Assembly:*
-  The contribution to the displacement residual is given by the virtual work of the penalty forces:
-
-  !equation
-  R_c = \sum_{i=1}^{n_p} \delta \mathbf{u}_i \cdot (t_n \mathbf{n}_i)
-
-
-
-!col-end!
-
-!col! width=48%
-
-+Mortar Mechanical Contact+
-
-- *Mechanism:* Contact pressures are distributed continuously over the contact interface.
-- *Constraint Enforcement:*
-
-  !equation
-  \int_{\Gamma_c} \psi\, \lambda\, g_n\, d\Gamma = 0
-
-  *This formulation implicitly incorporates the complementarity conditions in a weak sense.*
-
-
-!col-end!
-
-!row-end!
-
-!---
-
-# Contact in MOOSE: Node-Face
-
-!row!
-
-!col! width=45%
-
-+Node-Face Contact Setup+
-
-!style! fontsize=85%
-
-```
-
-[Contact]
-  [mechanical_contact]
-    secondary = secondary_boundary
-    primary = primary_boundary
-    model = frictionless
-    formulation = penalty
-    penalty = 1e8
-    normal_smoothing_distance = 0.1
-    normalize_penalty = true
-  []
-[]
-
-```
-
-!style-end!
-
-!col-end!
-
-!col! width=5%
-\\
-!col-end!
-
-!col! width=45%
-
-+Key Parameters:+
-
-- primary/secondary: boundary IDs
-- `model`: frictionless, coulomb, glued
-- `formulation`: penalty or kinematic
-- `penalty`: contact stiffness
-- `normal_smoothing_distance`: stabilization
-- `normalize_penalty`: scales by element size
-
-
-!col-end!
-
-!row-end!
-
-!---
-
-# Contact in MOOSE: Mortar
+# Linear Solvers: Direct vs Iterative
 
 !row!
 
 !col! width=50%
 
-+Mortar Contact Setup+
++Direct (LU, MUMPS, SuperLU_DIST)+
 
-!style! fontsize=85%
+- Solve $\mathbf{A}\vec{x} = \vec{b}$ in one step
+- Very robust
+- Memory and parallel scaling limited
 
-```
-[Contact]
-  [mortar_contact]
-    secondary = 10
-    primary = 20
-    model = coulomb
-    formulation = mortar
-    c_normal = 1e1
-    c_tangential = 1e3
-    normalize_c = true
-    correct_edge_dropping = true
-    use_dual = true
-  []
-[]
-```
++When to use:+
 
-!style-end!
-
-!col-end!
-
-!col! width=5%
-\\
-!col-end!
-
-!col! width=50%
-
-+Key Parameters:+
-
-!style! fontsize=85%
-
-- primary/secondary: boundary IDs
-- `model`: frictionless, coulomb, glued
-- `formulation`: mortar
-- `friction_coefficient`: for coulomb friction
-- `c_normal`: convergence parameter for normal contact
-- `c_tangential`: convergence parameter for normal tangential contact
-- `normalize_c`: Normalize by weighting function norm (recommended to set to true)
-- `correct_edge_dropping`: improves contact modeling (recommended to set to true)
-- `use_dual`: enables dual mortar approach (recommended to set to true)
-
-!style-end!
-
-!col-end!
-
-!row-end!
-
-!---
-
-
-
-# Gap Heat Transfer in MOOSE: Node-Face
-
-<!-- TODO  I do not know the best options here or what people normally use -->
-
-!row!
-
-!col! width=45%
-
-+Node-Face Gap Heat Transfer Setup+
-
-!style! fontsize=85%
-
-```
-[ThermalContact]
-  [thermal_contact]
-    type = GapHeatTransfer
-    variable = temp
-    primary = primary_boundary
-    secondary = secondary_boundary
-    gap_conductivity = 1.0
-    gap_conductivity_function = gap_cond
-    min_gap = 0.001
-  []
-[]
-
-```
-
-!style-end!
-
-!col-end!
-
-!col! width=5%
-\\
-!col-end!
-
-!col! width=45%
-
-+Key Parameters:+
-
-- `variable`: temperature variable
-- primary/secondary: boundary IDs
-- `gap_conductivity`: constant thermal conductance
-- `gap_conductivity_function`: function for variable conductance
-- `min_gap`: regularization parameter to avoid numerical issues
-
-!col-end!
-
-!row-end!
-
-
-!---
-
-# Gap Heat Transfer in MOOSE: Mortar
-
-!row!
-
-!col! width=45%
-
-+Mortar-Based Heat Transfer Setup+
-
-!style! fontsize=65%
-
-```
-[Constraints]
-  [thermal_contact]
-    type = ModularGapConductanceConstraint
-    variable = lambda
-    secondary_variable = temperature
-    primary_boundary = primary
-    primary_subdomain = primary_block
-    secondary_boundary = secondary
-    secondary_subdomain = primary_block
-    gap_flux_models = 'radiation pressure gas'
-    use_displaced_mesh = true
-    correct_edge_dropping = true
-  []
-[]
-```
-
-!style-end!
-
-
-!col-end!
-
-!col! width=5%
-\\
-!col-end!
-
-!col! width=45%
-
-+Key Parameters:+
-
-- `variable`: Lagrange multiplier field
-- primary_variable/secondary_variable: temperature variables for the primary and secondary sides, respectively
-- primary_boundary/primary_subdomain: primary side boundary and subdomain identifiers
-- secondary_boundary/secondary_subdomain: secondary side boundary and subdomain identifiers
-- `gap_flux_models`: specifies the gap flux models (e.g., 'radiation pressure gas')
-- `correct_edge_dropping`: improves contact modeling (recommended to set to true)
-
-!col-end!
-
-!row-end!
-
-!---
-
-
-
-
-# Saddle Point Problems in Mortar Contact
-
-!row!
-
-!col! width=50%
-
-+Mathematical Formulation+
-
-- Saddle point problems arise in constrained optimization
-- Characterized by indefinite system matrices:
-  $\begin{pmatrix} A & B^T \\ B & 0 \end{pmatrix} \begin{pmatrix} u \\ λ \end{pmatrix} = \begin{pmatrix} f \\ g \end{pmatrix}$
-- System has both positive and negative eigenvalues
-- Stability depends on satisfying the inf-sup condition
+- Small to medium systems
+- Ill-conditioned problems
+- Need guaranteed convergence
 
 !col-end!
 
 !col! width=50%
 
-+Connection to Mortar Contact+
++Iterative Krylov (GMRES, CG)+
 
-- Mortar method for contact naturally creates saddle points
-- In contact problems:
+- Solve via repeated matrix-vector products
+- Need good preconditioner
+- Scalable to large systems
 
-  - $A$ is the stiffness matrix
-  - $B$ represents contact constraints
-  - $λ$ are Lagrange multipliers
-- Challenge: maintaining stability while accurately representing contact interface
++When to use:+
+
+- Large sparse systems
+- Good preconditioning available
+- Memory limited
 
 !col-end!
 
@@ -2419,381 +2413,331 @@ g_n \leq 0 \\ \lambda \geq 0 \\ \lambda\, g_n = 0
 
 !---
 
+# Reading Linear Iteration Counts
 
-
-# Combined Thermomechanical Problems
-
-- Coupled physics
-- Implementation strategies
-
-!---
-
-
-
-# Newton's Method for Nonlinear Systems
-
-*Newton's Method in Update Form:*
-
-!equation
-\begin{split}
-  \mathbf{J}(\vec{u}_n) \delta\vec{u}_{n+1} &= -\vec{R}(\vec{u}_n) \\
-  \vec{u}_{n+1} &= \vec{u}_n + \delta\vec{u}_{n+1}
-\end{split}
-
-
-*Jacobian Matrix:*
-
-!equation
-J_{ij}(\vec{u}_n) = \dfrac{\partial R_i(\vec{u}_n)}{\partial u_j}
-
-
-*Key Properties:*
-
-- Quadratic convergence when near solution
-- Robust for well-posed problems
-- Efficient with good initial guess
-- May diverge if initial guess poor
-
-!---
-
-
-# Newton Implementation Options
-
-*Hand-coded Jacobians:*
-
-- Explicit analytic derivatives
-- Most efficient but tedious to implement
-- Error-prone for complex problems
-
-*Automatic Differentiation (AD):*
-
-- Computes derivatives automatically
-- Uses dual number approach
-- Trade computational cost for development time
-- Uses `ADKernel` instead of `Kernel`
-
-*Jacobian-Free Newton-Krylov (JFNK):*
-
-- Approximates Jacobian action without forming matrix
-- Requires only residual evaluations
-- Good for complex multiphysics problems
-
-!---
-
-
-# Jacobian-Free Newton-Krylov (JFNK)
-
-*Key Concept:* Never explicitly forms the Jacobian matrix
-
-*Approximates Jacobian action on vector:*
-
-!equation
-\mathbf{J}\vec{v} \approx \dfrac{\vec{R}(\vec{u} + \epsilon\vec{v}) - \vec{R}(\vec{u})}{\epsilon}
-
-
-*PJFNK (Preconditioned JFNK):*
-
-- Default in MOOSE
-- Uses simplified Jacobian for preconditioning
-- Improves convergence while maintaining matrix-free advantages
-
-!---
-
-
-# When to Use Each Newton Approach
-
-*When to Use PJFNK:*
-
-- Difficult/expensive Jacobian derivation
-- Complex multiphysics problems
-- Memory constraints (no matrix storage)
-- Rapid prototyping (no Jacobian needed)
-
-*When to Use Full Newton with AD:*
-
-- When accuracy of Jacobian is critical
-- Complex physics where hand-coding is error-prone
-- When development time must be minimized
-- Modern approach for most new MOOSE development
-
-*When to Use Hand-Coded Jacobians:*
-
-- Simple physics with known analytical Jacobians
-- Performance-critical applications
-
-!---
-
-
-# Preconditioning: Fundamentals
-
-*Purpose:* Transform linear system to improve condition number
-
-*Original System:* $\mathbf{A}\vec{x} = \vec{b}$
-
-*Preconditioned System:* $\mathbf{M}^{-1}\mathbf{A}\vec{x} = \mathbf{M}^{-1}\vec{b}$
-
-*Ideal Preconditioner:*
-
-- $\mathbf{M}^{-1} \approx \mathbf{A}^{-1}$ (approximates inverse)
-- Inexpensive to apply
-- Improves clustering of eigenvalues
-- Reduces condition number
-
-*Effect on Convergence:*
-
-- Good preconditioning: Few iterations needed
-- Poor preconditioning: Many iterations or no convergence
-- Critical for JFNK and iterative solvers
-
-!---
-
-
-# Preconditioner Types in MOOSE
-
-*SMP (Single Matrix Preconditioner)*
-
-- Default in MOOSE
-- Full Jacobian or block-diagonal approximation
-- Efficient for single-physics problems
-
-*FDP (Finite Difference Preconditioner)*
-
-- Approximates Jacobian via finite differences
-- No hand-coding of Jacobians needed
-- Less efficient than SMP with good Jacobians
-
-*FSP (Field Split Preconditioner)*
-
-- Physics-based splitting of variables
-- Handles multi-physics coupling
-- Allows different solver for each physics
-- Powerful for strongly coupled problems
-
-!---
-
-
-# Preconditioning Matrix Example
-
-*Fully Coupled System:*
-
-!equation
-\begin{aligned}
-\nabla \cdot k(s,T) \nabla T &= 0 \\
-\nabla \cdot D(s,T) \nabla s &= 0
-\end{aligned}
-
-
-*Full Jacobian:*
-
-!equation
-\boldsymbol{R}'(s,T) =
- \begin{bmatrix}
- (\boldsymbol{R}_T)_T & (\boldsymbol{R}_T)_s
-\\
- (\boldsymbol{R}_s)_T & (\boldsymbol{R}_s)_s
- \end{bmatrix}
-
-
-*Block-Diagonal Approximation:*
-
-!equation
-\boldsymbol{M} \equiv
- \begin{bmatrix}
- (k(s,T) \nabla \phi_j, \nabla \psi_i) & \boldsymbol{0} \\
- \boldsymbol{0} & (D(s,T) \nabla \phi_j, \nabla\psi_i)
- \end{bmatrix}
-
-
-!---
-
-
-# Preconditioner Selection Strategy
-
-*Single-physics Problems:*
-
-- SMP with direct solver (LU, MUMPS, etc.)
-- Full Jacobian preconditioner
-- Usually most robust option
-
-*Loosely Coupled Multi-physics:*
-
-- Block-diagonal SMP (ignores cross-coupling)
-- FSP with block-Jacobi or block-Gauss-Seidel
-- Good balance of efficiency and robustness
-
-*Strongly Coupled Multi-physics:*
-
-- FSP with physics-based splits
-- Nested preconditioners for each field
-- May require custom configuration
-
-!---
-
-
-# Direct Linear Solvers
-
-*LU Decomposition:* $\mathbf{A} = \mathbf{L}\mathbf{U}$
-
-*Implementation Options:*
-
-- SuperLU_DIST
-- MUMPS
-
-*Advantages:*
-
-- Very robust solution method
-- Single-step solution (non-iterative)
-- Excellent as preconditioner
-- Handles ill-conditioned systems
-
-*Limitations:*
-
-- Memory intensive (scales poorly)
-- Limited parallel scalability
-- Impractical for very large systems
-
-!---
-
-# Iterative Linear Solvers
-
-*GMRES (Generalized Minimal RESidual):*
-
-- Default in MOOSE/PETSc
-- Works for general non-symmetric systems
-
-*Preconditioner Types:*
-
-- *ASM (Additive Schwarz Method):*
-
-  - Domain decomposition approach
-  - Solves local problems on subdomains
-  - Configurable overlap between subdomains
-
-- *GAMG (Geometric Algebraic MultiGrid):*
-
-  - Hierarchical approach using coarse and fine grids
-  - Rapidly eliminates low-frequency error components
-  - Excellent scalability for elliptic problems
-
-- *hypre:*
-
-  - Library of high-performance preconditioners
-  - Includes BoomerAMG (algebraic multigrid)
-  - Highly effective for elliptic equations
-  - Strong parallel scaling properties
-
-
-!---
-
-
-
-# Linear Solver Configuration
-
-*PETSc Configuration:*
+Monitor convergence of the inner (linear) solver:
 
 ```
 [Executioner]
-# Direct solver
- petsc_options_iname='-pc_type -pc_factor_mat_solver_package'
- petsc_options_value='lu mumps'
-
-# Iterative solver
- petsc_options_iname = '-pc_type -sub_pc_type '
- petsc_options_value = 'asm lu '
+  l_max_its = 200
+  l_tol = 1e-5
+[]
+[Outputs]
+  print_linear_residuals = true
 []
 ```
 
-*Linear vs. Nonlinear Residuals:*
++Output example:+
 
-- Linear: $\|\mathbf{A}\vec{x}_k - \vec{b}\|$ (inner iteration)
-- Nonlinear: $\|\vec{R}(\vec{u}_n)\|$ (outer iteration)
-- Monitor with `print_linear_residuals = true`
+```
+Linear solve converged in 23 iterations
+Linear solve converged in 15 iterations
+```
+
++Diagnosis:+
+
+- Dropping counts: preconditioning is helping
+- High counts (> 100): preconditioning is weak
+- Max iterations reached: preconditioner not suitable
 
 !---
 
+# Preconditioning: The Solver's Multiplier
 
-# Automatic Scaling: Problem and Approach
+Transform the system to reduce condition number:
 
-*Condition Number Problem:*
+!equation
+\mathbf{M}^{-1}\mathbf{A}\vec{x} = \mathbf{M}^{-1}\vec{b}
 
-- Different physics can have vastly different scales
-- Poor condition number in Jacobian
-- Slow/stalled convergence
-- Dominance by variables with largest magnitudes
++Ideal preconditioner:+
 
-*Basic Concept:*
+- $\mathbf{M}^{-1} \approx \mathbf{A}^{-1}$ (close to true inverse)
+- Cheap to apply
+- Improves eigenvalue clustering
 
-- Apply scaling factors to each variable
-- Normalize Jacobian entries to similar magnitude
-- Improve condition number
-- Enable efficient convergence
++Effect:+
+
+- Good PC: 5--20 linear iterations
+- Poor PC: 50--200+ iterations or non-convergence
+
+!---
+
+# PC Zoo: Common Preconditioners
+
+!row!
+
+!col! width=50%
+
++ILU / LU+
+
+- Incomplete or full factorization
+- Very robust
+- Good for small problems
+
+!col-end!
+
+!col! width=50%
+
++Block Jacobi / ASM+
+
+- Solve decoupled blocks per subdomain
+- Parallel friendly
+- Weaker for tight coupling
+
+!col-end!
+
+!row-end!
+
+!row!
+
+!col! width=50%
+
++Algebraic Multigrid (AMG)+
+
+- HYPRE BoomerAMG, GAMG
+- Fast for elliptic problems
+- Excellent parallel scalability
+
+!col-end!
+
+!col! width=50%
+
++Incomplete Cholesky (ICC)+
+
+- For symmetric systems
+- Less robust than LU
+- Faster factorization
+
+!col-end!
+
+!row-end!
+
+!---
+
+# MOOSE Preconditioning Block: SMP
+
+Single Matrix Preconditioner — auto-created with `full = true` when `solve_type` is `NEWTON` or `LINEAR` and no `[Preconditioning]` block is provided; assembles one coupled Jacobian:
 
 ```
+[Preconditioning]
+  [smp]
+    type = SMP
+    full = true        # couple all variables
+  []
+[]
+```
+
+- `full = true`: use all variable coupling (robust; more memory)
+- `off_diag_row`/`off_diag_column`: specify coupling structure explicitly
+- `solve_type` (set in `[Executioner]`, not here): PJFNK or NEWTON; has no default and must be set explicitly
+
+!---
+
+# PETSc Options in MOOSE
+
+Set linear solver details via `petsc_options_iname/value`:
+
+!listing tutorials/darcy_thermo_mech/step07_adaptivity/problems/step7b_fine.i block=Executioner
+
+!---
+
+# Common PETSc Options
+
+- `-pc_type lu`: direct LU (serial: PETSc built-in; parallel: add `-pc_factor_mat_solver_type mumps`)
+- `-pc_type hypre -pc_hypre_type boomeramg`: Algebraic multigrid
+- `-pc_type asm -sub_pc_type lu`: Additive Schwarz Method (overlapping subdomains) with LU on each subdomain
+- `-pc_type icc`: Incomplete Cholesky (symmetric systems)
+- `-ksp_gmres_restart 100`: GMRES window (default 30)
+
+!---
+
+# Field-Split (Block) Preconditioning for Coupled Physics
+
+Partition variables by physics, solve with a different PC per field:
+
+!listing modules/contact/test/tests/fieldsplit/frictionless_mortar_FS.i block=Preconditioning
+
+!---
+
+# Field-Split: Structure & When to Use
+
++Structure:+
+
+- `topsplit`: Coarse partition (e.g., contact vs interior)
+- `splitting`: Sub-partitions (e.g., disp_x/disp_y vs Lagrange multipliers)
+- `splitting_type`: How to couple (schur, additive, multiplicative)
+- `schur_pre`: Preconditioner for Schur complement (S = full matrix)
+- Inner `petsc_options`: Solver for each field (e.g., hypre for displacement)
+
++When to use:+
+
+- Strongly coupled thermo-mechanical or contact problems
+- When single-field preconditioner stalls
+
+!---
+
+# Automatic Scaling: Fix Variable Magnitude Mismatch
+
+Different physics can have vastly different scales (temperature: 300 K, stress: 1e8 Pa):
+
+!equation
+\text{Condition number} = \frac{\lambda_{\max}}{\lambda_{\min}} \quad \text{(symmetric/SPD; in general } \sigma_{\max}/\sigma_{\min}\text{)} \quad \rightarrow \text{slower Krylov/Newton convergence}
+
++Simple activation+ — set one flag in the `[Executioner]`:
+
+!listing tutorials/darcy_thermo_mech/step07_adaptivity/problems/step7b_fine.i line=automatic_scaling
+
+`automatic_scaling = true` computes per-variable scaling factors during setup, improving Jacobian conditioning and solver convergence.
+
+!---
+
+# Manual Scaling (Advanced)
+
+Apply explicit scaling per variable in `[Variables]`:
+
+```
+[Variables]
+  [pressure]
+    scaling = 1e-6  # Scale down large values
+  []
+  [temperature]
+    scaling = 1e-2  # Scale down large values
+  []
+  [disp_x]
+    scaling = 1.0   # Already well-scaled
+  []
+[]
+```
+
+Scales residual and Jacobian by row: $\mathbf{J}' = \text{diag}(s) \, \mathbf{J}$ and $\mathbf{R}' = \text{diag}(s) \, \mathbf{R}$
+
+!---
+
+# Troubleshooting Non-Converging Solves
+
++Step 1: Identify the failure type+
+
+```
+[Debug]
+  show_var_residual_norms = true
+[]
+```
+
+Prints per-variable residual: Which field is stuck?
+
++Step 2: Enable detailed output+
+
+```
+[Outputs]
+  [exo]
+    type = Exodus
+    execute_on = 'LINEAR TIMESTEP_END'
+    output_material_properties = true
+  []
+[]
+```
+
+!---
+
+# Troubleshooting: The Debug System
+
++Step 3: Check the Debug system+
+
+```
+[Debug]
+  show_material_props = true    # List computed properties
+  show_execution_order = ALWAYS # Trace object execution
+[]
+```
+
+!---
+
+# Linear vs Nonlinear Failure
+
++Linear solve fails:+ (max iterations hit, no convergence)
+
+- Preconditioner too weak → switch PC, increase ASM overlap, use multigrid
+- Matrix singular → check BCs, material properties, mesh quality
+- Ill-conditioned → enable automatic_scaling or manual scaling
+
++Nonlinear solve fails:+ (Newton residual not decreasing)
+
+- Bad initial guess → improve `[ICs]`, use continuation (ramp loading)
+- Singular Jacobian → check derivatives, coupling, material definitions
+- Physics issue → verify equations, test simpler case first
+
+!---
+
+# Solver Settings Checklist for Thermo-Mechanical
+
+```
+[Preconditioning]
+  [SMP]
+    type = SMP
+    full = true           # For coupled problems
+  []
+[]
+
 [Executioner]
+  type = Transient
+  solve_type = PJFNK      # Or NEWTON if Jacobian is good
   automatic_scaling = true
+  petsc_options_iname = '-pc_type -pc_hypre_type'
+  petsc_options_value = 'hypre    boomeramg'
+
+  nl_rel_tol = 1e-8
+  nl_abs_tol = 1e-8
+  l_tol = 1e-5
 []
 ```
 
-!---
-
-
-# Reference Residual: Fundamentals
-
-*Standard Convergence Issues:*
-
-- Variable scaling differences skew convergence check
-- Low initial residual causes over-tightening
-- Zero residuals at Dirichlet boundaries
-
-*Default Convergence Check:*
-$\frac{\|\vec{R}(\vec{u}_n)\|}{\|\vec{R}(\vec{u}_0)\|} < \text{tolerance}$
-
-*Reference Residual Approach:*
-
-- Checks each variable individually
-- Uses physically meaningful reference quantity
-- Converged when:
-  $\|\vec{R}_i(\vec{u}_n)\| < \text{tolerance} \times \|\vec{R}_{ref,i}\|$
-- Reference typically from reaction forces or fluxes
+Start here; refine based on iteration counts and convergence behavior.
 
 !---
 
+# Parameter Studies with Stochastic Tools
 
-# Reference Residual: Implementation
+Automatically run many simulations with different parameter values in parallel to sweep design space or quantify uncertainty.
+
+!---
+
+## The Problem
+
+Manually editing parameter values and restarting for each case is:
+
+- Slow and tedious for design studies
+- Error-prone; easy to forget a value or repeat a case
+- Hard to scale to hundreds or thousands of samples
+
++Solution:+ A parent app drives the child app, injecting a different parameter set each run, and collects results automatically.
+
+!---
+
+## Pipeline Overview
 
 !row!
 
-!col! width=50%
+!col! width=100%
 
-+Key Components+
-
-- `ReferenceResidualProblem` object
-- Reference vector from physically relevant quantities
-- Tagging key objects with `extra_vector_tags`
-
-!col-end!
-
-!col! width=0%
-
-+Example Input+
+!style! fontsize=75%
 
 ```
-[Problem]
- type = ReferenceResidualProblem
- extra_tag_vectors = 'ref'
- reference_vector = 'ref'
- group_variables = 'disp_x disp_y disp_z'
-[]
-[BCs]
-  [fixed_x]
-  type = DirichletBC
-  variable = disp_x
-  boundary = 'left'
-  value = 0.0
-  extra_vector_tags = 'ref'
-  []
-[]
+[Samplers] → generate parameter sets
+           ↓
+[MultiApps] SamplerFullSolveMultiApp
+           ↓  (one per sample, parallelized)
+[Transfers] SamplerParameterTransfer → push params to child
+           ↓
+[Controls] SamplerReceiver (in child) → apply params
+           ↓
+Child model solves with perturbed params
+           ↓
+[Transfers] SamplerReporterTransfer ← collect QoI back
+           ↓
+[Reporters] StatisticsReporter (optional) → compute stats
 ```
+
+!style-end!
 
 !col-end!
 
@@ -2801,158 +2745,133 @@ $\frac{\|\vec{R}(\vec{u}_n)\|}{\|\vec{R}(\vec{u}_0)\|} < \text{tolerance}$
 
 !---
 
+## Samplers: Generating Parameter Sets
 
+`[Samplers]` generate the rows of a parameter matrix. Common strategies:
 
-# Real-World Applications
++CartesianProduct+: Grid sweep; `linear_space_items` is a list of `min step num_steps` triplets, one per column
 
-- Industrial examples
-- Performance optimization
+```
+type = CartesianProduct
+linear_space_items = '0.5 1 5
+                      100 100 3'
+```
 
-!---
++LatinHypercube+: Quasi-random sampling (efficiency)
 
-# Restart and Recovery System
+```
+type = LatinHypercube
+num_rows = 5000
+distributions = 'gamma q_0 T_0 s'
+```
 
-!---
++MonteCarlo+: Random sampling from distributions
 
-## Definitions
-
-+Restart+\\
-Running a simulation that uses data from a previous simulation, using different input files
-
-+Recover+\\
-Resuming an existing simulation after a premature termination
-
-+Solution file+\\
-A mesh format containing field data in addition to the mesh (i.e. a normal output file)
-
-+Checkpoint+\\
-A snapshot of the simulation including all meshes, solutions, and stateful data
-
-+N to N+\\
-In a restart context, this means the number of processors for the previous and current simulations match
-
-+N to M+\\
-In a restart context, different numbers of processors may be used for the previous and current simulations
+Each row is a sample; each column is a parameter value.
 
 !---
 
-## Variable Initialization
+## MultiApp: Run Once Per Sample
 
-This method is best suited for restarting a simulation when the mesh in the previous simulation
-exactly matches the mesh in the current simulation and only initial conditions need to be set for one
-more variables.
+`[MultiApps]` `SamplerFullSolveMultiApp` runs the sub-app once for each sample row:
 
-- This method requires only a valid solution file
-- MOOSE supports N to M restart when using this method
+!listing modules/stochastic_tools/examples/parameter_study/main.i block=MultiApps
+
+- `sampler`: points to the `[Samplers]` block
+- `input_files`: path to the child `.i`
+- `mode`: execution mode (batch-restore for efficient restarts)
 
 !---
 
-```text
-[Mesh]
-  # MOOSE supports reading field data from ExodusII, XDA/XDR, and mesh checkpoint files (.e, .xda, .xdr, .cp)
-  file = previous.e
-  # This method of restart is only supported on serial meshes
-  distribution = serial
-[]
+## Transfers: Parameter Injection
 
-[Variables/nodal]
-  family = LAGRANGE
-  order = FIRST
-  initial_from_file_var = nodal
-  initial_from_file_timestep = 10
-[]
++SamplerParameterTransfer+ (parent → child):
 
-[AuxVariables/elemental]
-  family = MONOMIAL
-  order = CONSTANT
-  initial_from_file_var = elemental
-  initial_from_file_timestep = 10
+!listing modules/stochastic_tools/examples/parameter_study/main.i block=Transfers/parameters
+
+Pushes each sample row's values into named sub-app parameters (Materials, Kernels, BCs).
+
+!---
+
+## Transfers: Results Collection
+
++SamplerReporterTransfer+ (child → parent):
+
+!listing modules/stochastic_tools/examples/parameter_study/main.i block=Transfers/results
+
+Gathers QoI (postprocessors, reporters) from each run back into the parent.
+
+!---
+
+## SamplerReceiver: Stochastic Controller
+
+In the +child app+, a `[Controls]` block of type `SamplerReceiver` receives and applies the parameter values:
+
+!listing modules/stochastic_tools/examples/parameter_study/diffusion.i block=Controls/stochastic
+
+No configuration needed — the `SamplerParameterTransfer` on the parent supplies the parameter paths to set each run.
+
+!---
+
+## Example: Child Input
+
+Postprocessors define the quantities of interest; they are transferred back:
+
+!style! fontsize=80%
+
+!listing modules/stochastic_tools/examples/parameter_study/diffusion.i block=Postprocessors
+
+!style-end!
+
+Materials, BCs, and Kernels have parameters that the parent's `SamplerParameterTransfer` will override.
+
+!---
+
+## Reporters: Collecting & Analyzing Results
+
++StochasticReporter+: Accumulates samples as columns and QoI rows.
+
++StatisticsReporter+: Computes statistics (e.g. mean, stddev) and confidence intervals across samples:
+
+!style! fontsize=85%
+
+!listing modules/stochastic_tools/examples/parameter_study/main.i block=Reporters/stats
+
+!style-end!
+
+Output to JSON or CSV for post-processing.
+
+!---
+
+## Quick Start: ParameterStudy Action (Optional Shortcut)
+
+The `[ParameterStudy]` action auto-creates the Sampler, MultiApp, Transfers, and Controls for a basic sweep:
+
+!style! fontsize=80%
+
+```
+[ParameterStudy]
+  input = 'child.i'
+  parameters = 'Materials/mat1/prop_values BCs/bc1/value'
+  quantities_of_interest = 'T_avg/value'
+  sampling_type = cartesian-product
+  linear_space_items = '0.5 1 5 100 100 3'
+  output_type = csv
 []
 ```
 
-!---
+!style-end!
 
-## Checkpoints
-
-Advanced restart and recovery in MOOSE require checkpoint files
-
-Checkpoints are automatically enabled by default and are output every 1 hour of wall time (customizable interval), but can be disabled with:
-```text
-[Outputs]
-  wall_time_checkpoint = false
-[]
-```
-
-Checkpoints can be output at every time step with the following shortcut syntax:
-
-```text
-[Outputs]
-  checkpoint = true
-[]
-```
+Skips the verbose Sampler/MultiApp/Transfers wiring for simple cases; for complex studies, write the blocks by hand.
 
 !---
 
-For more control over the checkpoint system, create a sub-block in the input file that will allow you
-to change the file format, suffix, frequency of output, the number of checkpoint files to keep, etc.
+## Parallelization & Reproducibility
 
-- Set `num_files` to at least 2 to minimize the chance of ending up with a corrupt restart file
-
-  !listing outputs/checkpoint/checkpoint_interval.i block=Outputs
-
-!---
-
-## Advanced Restart
-
-This method is best suited for situations when the mesh from the previous simulation and the current
-simulation match and the variables and stateful data should be loaded from the pervious simulation.
-
-- Support for modifying some variables is supported such as `dt` and `time_step`. By default, MOOSE
-  will automatically use the last values found in the checkpoint files
-- Only N to N restarts are supported using this method
-
-```text
-[Mesh]
-  # Serial number should match corresponding Executioner parameter
-  file = out_cp/0010-mesh.cpr
-  # This method of restart is only supported on serial meshes
-  distribution = serial
-[]
-
-[Problem]
-  # Note that the suffix is left off in the parameter below.
-  restart_file_base = out_cp/LATEST  # You may also use a specific number here
-[]
-```
-
-!---
-
-## Reloading Data
-
-It is possible to load and project data onto a different mesh from a solution file usually as an
-initial condition in a new simulation.
-
-MOOSE supports this through the use of a SolutionUserObject
-
-!---
-
-## Recover
-
-A simulation that has terminated due to a fault can be recovered simply by using the `--recover`
-command-line flag, but it +requires a checkpoint file+.
-
-```bash
-./frog-opt -i input.i --recover
-```
-
-!---
-
-## Multiapp Restart
-
-When running a multiapp simulation you do +not+ need to enable checkpoint output in each sub app
-input file. The parent app stores the restart data for all sub apps in its file.
-
-
+- Samples run in parallel (MPI or thread-based) across the available processes.
+- Each run is +independent+; rerun sample 42 and get the same result.
+- `mode = batch-restore` avoids expensive mesh rebuilds across samples.
+- Useful for sensitivity analysis, uncertainty quantification, design optimization, and surrogate training.
 
 !---
 
@@ -3005,85 +2924,11 @@ Add any output you need to understand the root cause!
 
 !---
 
-## Using the [Debug system](syntax/Debug/index.md)
-
-To look for an issue during setup, we can list the objects created by MOOSE for numerous systems. For example, for material properties,
-
-```bash
-[Debug]
-  show_material_props = true
-[]
-```
-
-For a general log on the entire setup:
-
-```bash
-[Debug]
-  show_actions = true
-[]
-```
-
-!---
-
-To look for an issue during the execution,
-
-```bash
-[Debug]
-  show_execution_order = ALWAYS
-[]
-```
-
-This will output to the console, the execution of all MOOSE's objects, in their respective nodal/elemental/side loops on the mesh.
-
-!---
-
-## Troubleshooting failed solves
-
-A comprehensive list of techniques is available in the [documentation](application_usage/failed_solves.md)
-
-First, you should diagnose the non-convergence by printing the residuals for all variables:
-
-```bash
-[Debug]
-  show_var_residual_norms = true
-[]
-```
-
-You can then identify which variable is not converging.
-Equation scaling issues have been covered earlier. Let's explore two other common causes:
-
-- initialization
-
-- bad mesh
-
-!---
-
-Make sure to initialize every nonlinear variable using the `[ICs]` block.
-To check initialization, use the [Exodus](Exodus.md) output:
-
-```bash
-[Outputs]
-  exodus = true
-  execute_on = INITIAL
-[]
-```
-
-!---
-
-Meshing is hard. We have some tools to help in the [MeshGenerator system](syntax/Mesh/index.md) but generally you should:
-
-- visually inspect your mesh. Look for unsupported features: non-conformality (except from libMesh refinement), overlapping cells...
-- use the [MeshDiagnosticsGenerator](MeshDiagnosticsGenerator.md) and turn on the relevant checks
-- use `show_info = true` in the [FileMeshGenerator](FileMeshGenerator.md) and verify that the output is as expected
-- replace your mesh with a simple MOOSE-generated rectangular mesh to check if the mesh is at fault
-
-!---
-
 ## Summary of helpful resources
 
 [Documentation for every object](syntax/index.md)
 
-[Troubleshooting failed solves](application_usage/failed_solves.md)
+[Troubleshooting failed solves](application_usage/failed_solves.md optional=True)
 
 [Debug system](syntax/Debug/index.md)
 
@@ -3097,3 +2942,154 @@ Meshing is hard. We have some tools to help in the [MeshGenerator system](syntax
 
 !---
 
+
+
+!---
+
+# Appendix
+
+## Restart & Recovery (optional)
+
+!---
+
+# Restart and Recovery System
+
+!---
+
+## Definitions
+
++Restart+\\
+Running a simulation that uses data from a previous simulation, using different input files
+
++Recover+\\
+Resuming an existing simulation after a premature termination
+
++Solution file+\\
+A mesh format containing field data in addition to the mesh (i.e. a normal output file)
+
++Checkpoint+\\
+A snapshot of the simulation including all meshes, solutions, and stateful data
+
++N to N+\\
+In a restart context, this means the number of processors for the previous and current simulations match
+
++N to M+\\
+In a restart context, different numbers of processors may be used for the previous and current simulations
+
+!---
+
+## Variable Initialization
+
+This method is best suited for restarting a simulation when the mesh in the previous simulation
+exactly matches the mesh in the current simulation and only initial conditions need to be set for one
+or more variables.
+
+- This method requires only a valid solution file
+- MOOSE supports N to M restart when using this method
+
+!---
+
+```text
+[Mesh]
+  # MOOSE supports reading field data from ExodusII, XDA/XDR, and mesh checkpoint files (.e, .xda, .xdr, .cp)
+  file = previous.e
+  # This method of restart is only supported on replicated meshes
+  parallel_type = replicated
+[]
+
+[Variables/nodal]
+  family = LAGRANGE
+  order = FIRST
+  initial_from_file_var = nodal
+  initial_from_file_timestep = 10
+[]
+
+[AuxVariables/elemental]
+  family = MONOMIAL
+  order = CONSTANT
+  initial_from_file_var = elemental
+  initial_from_file_timestep = 10
+[]
+```
+
+!---
+
+## Checkpoints
+
+Advanced restart and recovery in MOOSE require checkpoint files
+
+Checkpoints are automatically enabled by default and are output every 1 hour of wall time (customizable interval), but can be disabled with:
+```text
+[Outputs]
+  wall_time_checkpoint = false
+[]
+```
+
+Checkpoints can be output at every time step with the following shortcut syntax:
+
+```text
+[Outputs]
+  checkpoint = true
+[]
+```
+
+!---
+
+For more control over the checkpoint system, create a sub-block in the input file that will allow you
+to change the file format, suffix, frequency of output, the number of checkpoint files to keep, etc.
+
+- Set `num_files` to at least 2 to minimize the chance of ending up with a corrupt restart file
+
+  !listing outputs/checkpoint/checkpoint_interval.i block=Outputs
+
+!---
+
+## Advanced Restart
+
+This method is best suited for situations when the mesh from the previous simulation and the current
+simulation match and the variables and stateful data should be loaded from the previous simulation.
+
+- Support for modifying some variables is supported such as `dt` and `time_step`. By default, MOOSE
+  will automatically use the last values found in the checkpoint files
+- Only N to N restarts are supported using this method
+
+```text
+[Mesh]
+  # Serial number should match corresponding Executioner parameter
+  file = out_cp/0010-mesh.cpr
+  # This method of restart is only supported on replicated (non-distributed) meshes
+  parallel_type = REPLICATED
+[]
+
+[Problem]
+  # Note that the suffix is left off in the parameter below.
+  restart_file_base = out_cp/LATEST  # You may also use a specific number here
+[]
+```
+
+!---
+
+## Reloading Data
+
+It is possible to load and project data onto a different mesh from a solution file usually as an
+initial condition in a new simulation.
+
+MOOSE supports this through the use of a SolutionUserObject
+
+!---
+
+## Recover
+
+A simulation that has terminated due to a fault can be recovered simply by using the `--recover`
+command-line flag, but it +requires a checkpoint file+.
+
+```bash
+./frog-opt -i input.i --recover
+```
+
+!---
+
+## Multiapp Restart
+
+When running a multiapp simulation you do +not+ need to enable checkpoint output in each sub app
+input file. The parent app stores the restart data for all sub apps in its file.
