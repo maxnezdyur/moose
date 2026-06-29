@@ -25,7 +25,7 @@ This training covers fundamentals of solid mechanics and heat conduction using M
 
 +Day 2 — Solid Mechanics & Heat Conduction+
 
-- Solid mechanics: weak form, small vs. finite strain; modern Lagrangian kernel system
+- Solid mechanics: weak form, small vs. finite strain
 - Heat conduction and thermal boundary conditions
 - Coupled thermo-mechanics: thermal expansion & thermal stress
 
@@ -2038,188 +2038,6 @@ Takeaway: swap the stress calculator for `ComputeMultipleInelasticStress` plus a
 
 !---
 
-# Motivation: One System for Both Regimes
-
-The +traditional MOOSE path+ uses separate kernel and material workflows:
-
-- *Small strain:* `StressDivergenceTensors` + `ComputeSmallStrain` + `ComputeLinearElasticStress`
-- *Finite strain:* `StressDivergenceTensors` + `ComputeFiniteStrain` + hyperelastic materials
-
-The +new Lagrangian system+ unifies these into one kernel family with explicit stress measures and exact hand-coded (analytic) Jacobians — no AD:
-
-- Single kernel interface: `TotalLagrangianStressDivergence` or `UpdatedLagrangianStressDivergence`
-- Decoupled kinematics: `ComputeLagrangianStrain` handles both small (linearized) and large deformation
-- Stress measures: elastic + objective stresses via modular stress materials
-
-Enable via: `new_system = true`, `formulation = TOTAL|UPDATED`
-
-!---
-
-# Total vs Updated Lagrangian Formulations
-
-!row!
-
-!col! width=50%
-
-+Total Lagrangian+
-
-- Weak form written in *reference* (undeformed) configuration $\kappa_0$
-- Deformation gradient $\mathbf{F}$ maps $\kappa_0 \to \kappa_{n+1}$
-- Total strain from origin; no accumulated rotation
-- Second Piola-Kirchhoff (PK2) stress is work-conjugate to Green-Lagrange strain
-
-!col-end!
-
-!col! width=50%
-
-+Updated Lagrangian+
-
-- Weak form written in *current* (deformed) configuration $\kappa_n$
-- Incremental deformation $\hat{\mathbf{F}}$ maps $\kappa_n \to \kappa_{n+1}$
-- Strain accumulated incrementally each step
-- Cauchy stress and Jaumann rate are naturally corotational
-
-!col-end!
-
-!row-end!
-
-Both yield identical physics; choice depends on problem structure and preferred stress/strain measures.
-
-!---
-
-# Kinematics: Finite vs Small Strain Limit
-
-The Lagrangian system unifies kinematics through a single material: `ComputeLagrangianStrain`.
-
-Set **`large_kinematics = true`** in the strain material or globally to enable finite-deformation kinematics:
-
-!equation
-\mathbf{F} = \mathbf{I} + \nabla \mathbf{u}
-
-When `large_kinematics = false` (default), the system linearizes and recovers small-strain theory:
-
-!equation
-\boldsymbol{\epsilon} \approx \frac{1}{2} (\nabla \mathbf{u} + (\nabla \mathbf{u})^T)
-
-Both paths share the same strain material class; the flag switches internal kinematics without changing the input structure.
-
-!---
-
-# Deformation Gradient and Stress Measures
-
-Key relationships in the new system:
-
-!equation
-\mathbf{P} = \mathbf{F} \mathbf{S}
-
-where $\mathbf{P}$ is the first Piola-Kirchhoff (PK1) stress, $\mathbf{S}$ is the second Piola-Kirchhoff (PK2) stress, and $\mathbf{F}$ is the deformation gradient.
-
-Cauchy (true) stress from PK1:
-
-!equation
-\boldsymbol{\sigma} = \frac{1}{|\mathbf{F}|} \mathbf{P} \mathbf{F}^T
-
-- *Total Lagrangian* works naturally with PK2 and Green-Lagrange strain
-- *Updated Lagrangian* outputs Cauchy stress and uses incremental strains
-- *Objective stresses* (Truesdell, Jaumann, Green-Naghdi) maintain frame invariance during finite rotations
-
-!---
-
-# Available Stress Materials
-
-!style! fontsize=85%
-
-The new system provides elastic and hyperelastic stress calculators:
-
-| Material | Stress Measure | Use Case |
-| :- | :- | :- |
-| `ComputeLagrangianLinearElasticStress` | PK2 | Linear elasticity (small or large strain) |
-| `ComputeStVenantKirchhoffStress` | PK2 | Hyperelastic, St. Venant-Kirchhoff model |
-| `ComputeNeoHookeanStress` | PK2 | Hyperelastic, compressible Neo-Hookean |
-| `ComputeLagrangianWrappedStress` | Cauchy (objective) | Objective integration of small-strain models |
-| `ComputeLagrangianStressBase` subclasses | Custom | User-defined constitutive models |
-
-!style-end!
-
-The `ComputeLagrangianWrappedStress` `objective_rate` parameter selects `truesdell`, `jaumann`, or `green_naghdi` integration for corotational behavior under finite rotation.
-
-!---
-
-# Enabling the New System via Action
-
-The `[Physics/SolidMechanics/QuasiStatic]` action automatically selects the new Lagrangian kernels and materials when you set:
-
-```
-[Physics]
-  [SolidMechanics]
-    [QuasiStatic]
-      [all]
-        strain = FINITE              # or SMALL
-        new_system = true            # Enable Lagrangian kernels
-        formulation = TOTAL          # or UPDATED
-        add_variables = true
-      []
-    []
-  []
-[]
-```
-
-- `new_system = true`: Selects `TotalLagrangianStressDivergence` or `UpdatedLagrangianStressDivergence`
-- `formulation = TOTAL|UPDATED`: Chooses reference or current-config weak form
-- `strain = FINITE|SMALL`: Drives the `large_kinematics` flag in the strain material
-
-!---
-
-# Example: Total Lagrangian, Linear Elastic
-
-Action-based setup with `new_system = true`:
-
-!listing modules/solid_mechanics/test/tests/lagrangian/cartesian/total/action/action_1D.i block=Physics
-
-!---
-
-# Material Configuration
-
-Pair the strain calculator with a stress calculator (from a direct kernel example):
-
-!listing modules/solid_mechanics/test/tests/lagrangian/materials/convergence/stvenantkirchhoff.i block=Materials
-
-The action wires `displacements` to the strain material automatically. No manual coupling needed.
-
-!---
-
-# Direct Kernel Syntax (without action)
-
-For fine-grained control, use kernels + materials directly:
-
-!listing modules/solid_mechanics/test/tests/lagrangian/materials/convergence/stvenantkirchhoff.i block=Kernels
-
-Each displacement component gets its own stress-divergence kernel. The `component` parameter is 0 (x), 1 (y), or 2 (z).
-
-!---
-
-# Stress Material Details
-
-The strain material computes Green-Lagrange strain $\mathbf{E}$ and deformation gradient $\mathbf{F}$. The stress material applies a constitutive relation:
-
-- `ComputeLagrangianLinearElasticStress`: $\mathbf{S} = \mathbb{C} : \mathbf{E}_{\text{elastic}}$ from a supplied elasticity tensor (works in both total and updated Lagrangian)
-- `ComputeStVenantKirchhoffStress`: St. Venant-Kirchhoff hyperelastic model (recommended for large-deformation elasticity)
-- `ComputeNeoHookeanStress`: compressible Neo-Hookean model for rubber-like materials
-
-!---
-
-# Key Advantages
-
-1. +Exact analytic Jacobians+: Hand-coded consistent tangent throughout — no AD, giving full quadratic Newton convergence
-2. +Unified kinematics+: One `ComputeLagrangianStrain` handles both small and large deformation via flag
-3. +Explicit stress measures+: Choose PK2, Cauchy, or objective stresses via the stress material—not buried in kernel code
-4. +Modular materials+: Swap stress calculator without rewriting kinematics or kernels
-5. +Frame invariance+: Built-in objective stress options for corotational dynamics
-
-Legacy (`StressDivergenceTensors` + `ComputeSmallStrain`/`ComputeFiniteStrain`) remains fully supported; use `new_system = false` (default) to preserve existing inputs.
-
-!---
-
 # Displacement (Dirichlet) BCs
 
 Dirichlet BCs prescribe the *value* of a displacement component on a sideset — the part of the structure you hold fixed.
@@ -2328,6 +2146,66 @@ For plotting and regression tests you want numbers, not a whole field — collap
   csv = true
 []
 ```
+
+!---
+
+# Hands-On: Solid Mechanics Examples
+
+We'll switch to the terminal and work through five runnable inputs in `examples/day2/mechanical/`.
+
+- Build up from a bar in tension to creep and finite-strain bending
+- Run any of them: `combined-opt -i <file>.i`, then open the Exodus in ParaView
+
+!---
+
+# Go to: `mech_uniaxial.i`
+
+*Uniaxial bar — does stress = E·strain?* The sanity check for the whole pipeline.
+
+- Roller-supported block pulled along $x$; read back $\sigma_{xx}$ and compare to $E\,\epsilon$
+- One linear solve (1 Newton iteration) — uniform $\sigma_{xx}\approx 200$ MPa
+- `examples/day2/mechanical/mech_uniaxial.i`
+
+!---
+
+# Go to: `mech_pinning.i`
+
+*Pinning out rigid-body modes* — the most common reason a mechanics solve won't converge.
+
+- A pressure-loaded plate held only by the minimal pins that kill the three rigid-body modes
+- +Comment out the pins+ and rerun → the solve goes singular: show them the failure
+- `examples/day2/mechanical/mech_pinning.i`
+
+!---
+
+# Go to: `mech_small_vs_finite.i`
+
+*Same input, two strain measures* — when does small-strain break?
+
+- Flip `strain = SMALL` ↔ `FINITE` on one block stretched 25%
+- FINITE $\epsilon_{xx}=0.223$ (= $\ln 1.25$) vs SMALL $0.25$ — about 12% apart at large stretch
+- `examples/day2/mechanical/mech_small_vs_finite.i`
+
+!---
+
+# Go to: `mech_creep.i`
+
+*Creep — strain that grows under a constant load.*
+
+- `ComputeMultipleInelasticStress` + `PowerLawCreepStressUpdate` at a fixed 1000 K
+- Hold the stress constant; watch `creep_strain_yy` accumulate over the time steps
+- Stateful and path-dependent — the reason we must take time steps
+- `examples/day2/mechanical/mech_creep.i`
+
+!---
+
+# Go to: `mech_large_deformation.i`
+
+*A cantilever that really bends* — geometric nonlinearity.
+
+- Finite strain, several load steps, ~8 Newton iterations each — a genuinely nonlinear solve
+- Warp by displacement in ParaView and compare against the small-strain prediction
+- `examples/day2/mechanical/mech_large_deformation.i`
 
 !---
 
@@ -2634,6 +2512,35 @@ The rod heats from the volumetric source and settles into the classic radial pro
 
 !---
 
+# Hands-On: Heat Conduction Examples
+
+Two more runnable inputs in `examples/day2/thermal/` — we'll open and talk through each.
+
+- Both reinforce the conduction lecture: material interfaces and convective cooling
+- Run with: `combined-opt -i <file>.i`
+
+!---
+
+# Go to: `heat_multimaterial.i`
+
+*Conduction across different materials.*
+
+- Three blocks in series, each with its own conductivity $k$
+- Heat flux $k\,\nabla T$ is continuous, but the temperature +gradient kinks+ at every interface
+- `examples/day2/thermal/heat_multimaterial.i`
+
+!---
+
+# Go to: `heat_convective.i`
+
+*Convective (Robin) cooling to a coolant.*
+
+- `ConvectiveHeatFluxBC`: surface flux $= h\,(T - T_\infty)$, not a fixed wall temperature
+- The cooled-surface temperature +floats+ — it is part of the solution, set by the conduction/convection balance
+- `examples/day2/thermal/heat_convective.i`
+
+!---
+
 # Thermal Strain Decomposition
 
 Total strain decomposes into elastic and thermal components:
@@ -2847,6 +2754,34 @@ combined-opt -i reactor_thermomech.i
 - Monolithic Newton solve; `automatic_scaling = true` balances the temperature ($\sim 10^2$) and displacement ($\sim 10^{-4}$) magnitudes
 - At $t = 200$ s: average $T \approx 344$ K, +peak von Mises $\approx 151$ MPa+
 - +Try it:+ release the top axial constraint — the stress collapses (now free expansion)
+
+!---
+
+# Hands-On: Coupled Thermo-Mechanics Examples
+
+Two capstone inputs in `examples/day2/coupled/` — temperature drives stress through the thermal-expansion eigenstrain.
+
+- Run with: `combined-opt -i <file>.i`
+
+!---
+
+# Go to: `coupled_thermal_stress.i`
+
+*Constrained heating $\rightarrow$ thermal stress (the simplest coupling).*
+
+- A clamped block is given a prescribed temperature field; blocked thermal expansion becomes elastic strain
+- Peak von Mises $\approx 410$ MPa from heating alone — no mechanical load applied
+- `examples/day2/coupled/coupled_thermal_stress.i`
+
+!---
+
+# Go to: `coupled_bimetallic.i`
+
+*Bimetallic strip — the classic thermostat.*
+
+- Two bonded layers with mismatched $\alpha$ ($1.2$ vs $2.3\times10^{-5}$/K); heat it uniformly and it +curls+
+- Tip deflects $\approx 3$ cm — differential expansion bends the strip
+- `examples/day2/coupled/coupled_bimetallic.i`
 
 !---
 
