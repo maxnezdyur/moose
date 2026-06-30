@@ -40,10 +40,16 @@
     strain = SMALL
     # Ask the action to also output these stress/strain components as
     # AuxVariables so we can visualize and postprocess them:
-    #   vonmises_stress - scalar measure used for yield checks (see below)
-    #   stress_xx       - axial (loading-direction) Cauchy stress
-    #   strain_xx       - axial strain
-    generate_output = 'vonmises_stress stress_xx strain_xx'
+    #   vonmises_stress   - scalar measure used for yield checks (see below)
+    #   stress_xx         - axial (loading-direction) Cauchy stress
+    #   strain_xx         - axial strain
+    #   strain_yy         - transverse strain; the Poisson contraction
+    #                       (~ -nu*strain_xx = -0.3e-3) is visible as a field
+    #   stress_yy         - transverse stress; ~0 here, confirming a true
+    #                       uniaxial *stress* state (not uniaxial strain)
+    #   elastic_strain_xx - axial elastic strain; equals strain_xx because there
+    #                       is no eigenstrain yet (sets up thermal coupling later)
+    generate_output = 'vonmises_stress stress_xx strain_xx strain_yy stress_yy elastic_strain_xx'
   []
 []
 

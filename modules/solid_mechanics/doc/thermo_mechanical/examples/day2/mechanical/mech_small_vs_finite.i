@@ -58,7 +58,13 @@
   [all]
     add_variables = true
     strain = FINITE # *** change to SMALL for the linearized comparison ***
-    generate_output = 'stress_xx strain_xx'
+    # stress_xx/strain_xx are the axial pair the SMALL-vs-FINITE comparison is about.
+    # The next three are added purely for visualization -- open them in ParaView to
+    # see the rest of the confined-stretch story this example sets up:
+    #   strain_yy       ~ 0    -- the y-confinement holds the channel (no lateral motion)
+    #   stress_yy       != 0   -- yet that confinement carries a transverse reaction stress
+    #   vonmises_stress        -- one scalar summarizing the (now biaxial) stress state
+    generate_output = 'stress_xx strain_xx strain_yy stress_yy vonmises_stress'
   []
 []
 

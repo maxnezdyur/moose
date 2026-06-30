@@ -111,6 +111,55 @@
   []
 []
 
+# --- Visualization-only fields (open these in ParaView) ---
+# These AuxVariables do not affect the solve; they just expose the physics
+# element-by-element so the multi-material setup is visible in the Exodus file.
+[AuxVariables]
+  # Per-block conductivity painted onto the mesh: you literally SEE the three
+  # k values (45 / 15 / 80 W/m-K) and WHERE each metal is. Constant per element.
+  [thermal_conductivity]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # x-component of grad(T). Steeper (more negative) in the low-k stainless block,
+  # shallower in the high-k iron block -> the slope KINK at each interface is
+  # visible as a jump in this field.
+  [grad_T_x]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # x-component of the conductive heat flux  q = -k grad T. This stays the SAME
+  # across all three blocks even though grad(T) jumps -> flux is continuous.
+  [heat_flux_x]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+
+[AuxKernels]
+  [thermal_conductivity]
+    type = MaterialRealAux
+    variable = thermal_conductivity
+    property = thermal_conductivity
+    execute_on = 'initial timestep_end'
+  []
+  [grad_T_x]
+    type = VariableGradientComponent
+    variable = grad_T_x
+    gradient_variable = temperature
+    component = x
+    execute_on = 'initial timestep_end'
+  []
+  [heat_flux_x]
+    type = DiffusionFluxAux
+    variable = heat_flux_x
+    diffusion_variable = temperature
+    diffusivity = thermal_conductivity
+    component = x
+    execute_on = 'initial timestep_end'
+  []
+[]
+
 # Fix temperature at the two ends -> heat is driven through the bar in series.
 [BCs]
   [hot_end]

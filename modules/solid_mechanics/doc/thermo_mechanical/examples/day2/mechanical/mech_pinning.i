@@ -136,6 +136,25 @@
     order = CONSTANT
     family = MONOMIAL
   []
+  # stress_xx: the in-plane horizontal normal stress (Poisson response to the
+  # vertical pressure). Together with stress_yy it shows the full normal-stress state.
+  [stress_xx]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # stress_xy: the in-plane SHEAR stress. With minimal (non-over-constraining)
+  # pins this is essentially zero everywhere except tiny concentrations right at
+  # the pin nodes - the field that shows the pins do NOT distort the solution.
+  [stress_xy]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # hydrostatic stress: the mean (pressure) part of the stress tensor, the
+  # natural quantity to watch for a pressure-loaded plate.
+  [hydrostatic]
+    order = CONSTANT
+    family = MONOMIAL
+  []
 []
 
 [AuxKernels]
@@ -155,6 +174,31 @@
     variable = stress_yy
     index_i = 1
     index_j = 1
+  []
+  # stress_xx: index_i=0, index_j=0 -> the xx component.
+  [stress_xx]
+    type = RankTwoAux
+    rank_two_tensor = stress
+    variable = stress_xx
+    index_i = 0
+    index_j = 0
+  []
+  # stress_xy: index_i=0, index_j=1 -> the off-diagonal (shear) component, the
+  # tell-tale for whether the pins over-constrain the plate.
+  [stress_xy]
+    type = RankTwoAux
+    rank_two_tensor = stress
+    variable = stress_xy
+    index_i = 0
+    index_j = 1
+  []
+  # hydrostatic stress: scalar_type = Hydrostatic -> mean normal stress (the
+  # pressure invariant of the stress tensor).
+  [hydrostatic]
+    type = RankTwoScalarAux
+    rank_two_tensor = stress
+    variable = hydrostatic
+    scalar_type = Hydrostatic
   []
 []
 

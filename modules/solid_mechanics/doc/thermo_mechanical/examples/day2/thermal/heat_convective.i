@@ -94,6 +94,46 @@
   []
 []
 
+# --- Visualization outputs: extra fields written to Exodus for ParaView -------
+# These do NOT affect the solve; they paint the physics onto the mesh so a
+# student opening the Exodus file can SEE the wall's properties and how heat
+# moves through it -- not just the temperature field.
+[AuxVariables]
+  # The wall's thermal conductivity k (uniform here: one representative steel).
+  # Useful to read off the constant that sets the conductive resistance.
+  [thermal_conductivity]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # Through-wall conductive heat flux q_x = -k dT/dx (W/m^2).  X is the
+  # conduction direction, so this is the heat marching from the hot face toward
+  # the cooled surface; at steady state it is ~uniform across the wall and
+  # balances the convection carried off the cooled face.
+  [heat_flux_x]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+
+[AuxKernels]
+  # Sample the AD thermal_conductivity material property into its field.
+  [thermal_conductivity]
+    type = ADMaterialRealAux
+    variable = thermal_conductivity
+    property = thermal_conductivity
+    execute_on = 'initial timestep_end'
+  []
+  # Compute the x-component of the conductive flux vector -k grad(T).
+  [heat_flux_x]
+    type = DiffusionFluxAux
+    variable = heat_flux_x
+    diffusion_variable = temperature
+    diffusivity = thermal_conductivity
+    component = x
+    execute_on = 'initial timestep_end'
+  []
+[]
+
 # --- Postprocessors: what the instructor reads off the console ----------------
 [Postprocessors]
   # Confirms the fixed-temperature (Dirichlet) inner face stays at 800 K.

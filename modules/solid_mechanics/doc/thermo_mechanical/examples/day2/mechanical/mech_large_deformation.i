@@ -46,7 +46,10 @@
     add_variables = true
     strain = FINITE
     use_automatic_differentiation = true
-    generate_output = 'vonmises_stress stress_xx'
+    # stress_xx / strain_xx -> the axial BENDING fields: tension on one face,
+    # compression on the other, growing toward the clamped end.  The action
+    # auto-creates these aux vars and handles the AD stress path.
+    generate_output = 'vonmises_stress stress_xx strain_xx'
   []
 []
 
@@ -96,6 +99,26 @@
   [smp]
     type = SMP
     full = true
+  []
+[]
+
+# Extra field for visualization only (does NOT affect the solve).
+#   disp_mag = sqrt(disp_x^2 + disp_y^2) -> the total displacement magnitude.
+#   Color the deformed beam by this in ParaView to SEE the large deflection:
+#   it grows from 0 at the clamped left end to its maximum at the free tip.
+[AuxVariables]
+  [disp_mag]
+    family = LAGRANGE
+    order = FIRST
+  []
+[]
+[AuxKernels]
+  [disp_mag]
+    type = ParsedAux
+    variable = disp_mag
+    coupled_variables = 'disp_x disp_y'
+    expression = 'sqrt(disp_x^2 + disp_y^2)'
+    execute_on = 'initial timestep_end'
   []
 []
 

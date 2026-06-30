@@ -38,6 +38,24 @@
   [T]
     initial_condition = 1000 # K
   []
+  # Scalar accumulated (equivalent) creep strain that the radial-return model
+  # carries forward as its stored state. It only ever increases -- the cleanest
+  # single field for watching creep "switch on" and march upward in time.
+  [effective_creep_strain]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+
+# Copy the scalar creep state out of the material system into the AuxVariable
+# above so it lands in the Exodus file for visualization.
+[AuxKernels]
+  [effective_creep_strain]
+    type = MaterialRealAux
+    variable = effective_creep_strain
+    property = effective_creep_strain
+    execute_on = 'initial timestep_end'
+  []
 []
 
 # SolidMechanics QuasiStatic action: adds disp_x/disp_y, the stress-divergence
@@ -48,7 +66,12 @@
   [all]
     add_variables = true
     strain = FINITE
-    generate_output = 'vonmises_stress stress_yy creep_strain_yy elastic_strain_yy'
+    # Components to visualize in ParaView:
+    #   * total strain_yy = elastic_strain_yy + creep_strain_yy (watch the split shift
+    #     from elastic to creep with time at ~constant stress)
+    #   * creep_strain_xx is the lateral creep strain: creep is deviatoric / volume
+    #     preserving, so it contracts sideways (~ -0.5 * creep_strain_yy)
+    generate_output = 'vonmises_stress stress_yy strain_yy creep_strain_yy creep_strain_xx elastic_strain_yy'
   []
 []
 

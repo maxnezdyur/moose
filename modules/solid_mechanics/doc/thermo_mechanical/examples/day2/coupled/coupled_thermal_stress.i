@@ -36,6 +36,12 @@
 [AuxVariables]
   [T]
   []
+  # The xx component of the thermal eigenstrain (the coupling quantity). It is a
+  # rank-2 material property, so it is output as a constant-per-element field.
+  [eigenstrain_xx]
+    order = CONSTANT
+    family = MONOMIAL
+  []
 []
 
 [AuxKernels]
@@ -46,6 +52,17 @@
     variable = T
     function = '300 + 300*x'
     execute_on = 'INITIAL TIMESTEP_BEGIN'
+  []
+  # Pull the xx component out of the thermal_expansion eigenstrain tensor so the
+  # stress-free expansion the heat wants is visible next to the elastic strain
+  # and stress it produces.
+  [eigenstrain_xx]
+    type = RankTwoAux
+    rank_two_tensor = thermal_expansion
+    variable = eigenstrain_xx
+    index_i = 0
+    index_j = 0
+    execute_on = 'INITIAL TIMESTEP_END'
   []
 []
 
@@ -61,7 +78,15 @@
     add_variables = true
     strain = SMALL
     eigenstrain_names = thermal_expansion
-    generate_output = 'vonmises_stress stress_xx stress_yy'
+    # Outputs (auto-created AuxVariables, visible in the Exodus). strain_xx and
+    # elastic_strain_xx make the coupling chain visible alongside the eigenstrain
+    # output added below, since these three obey
+    #     strain_xx (total) = elastic_strain_xx + eigenstrain_xx
+    #   - strain_xx: the TOTAL strain, ~0 because the block is clamped.
+    #   - elastic_strain_xx: what is left over (compressive); this is what makes
+    #     the stress, so it tracks stress_xx / vonmises_stress.
+    generate_output = 'vonmises_stress stress_xx stress_yy '
+                      'strain_xx elastic_strain_xx'
   []
 []
 

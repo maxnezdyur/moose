@@ -144,6 +144,15 @@
     eigenstrain_name = eigenstrain
     block = bottom_layer
   []
+  # Re-declare the bottom-layer alpha as a constant material property ONLY so it
+  # can be visualized as a field (see [AuxKernels]/alpha). It does not feed the
+  # solve - the real coefficient is the one in thermal_expansion_bottom above.
+  [alpha_bottom]
+    type = ADGenericConstantMaterial
+    prop_names  = 'alpha_field'
+    prop_values = '1.2e-5'
+    block = bottom_layer
+  []
 
   # ---- Top layer: high-expansion metal (aluminum-like) ----
   # Same eigenstrain_name as the bottom layer, but a LARGER coefficient. This
@@ -162,6 +171,15 @@
     eigenstrain_name = eigenstrain
     block = top_layer
   []
+  # Top-layer alpha as a constant material property, again ONLY for visualization.
+  # Same property name as alpha_bottom but a LARGER value, so the alpha field shows
+  # two flat plateaus and the bond line where they meet.
+  [alpha_top]
+    type = ADGenericConstantMaterial
+    prop_names  = 'alpha_field'
+    prop_values = '2.3e-5'
+    block = top_layer
+  []
 
   # Hooke's law on the elastic strain (total minus the eigenstrain). One stress
   # material covers both blocks; each block uses its own elasticity tensor above.
@@ -175,6 +193,55 @@
     type = ADGenericConstantMaterial
     prop_names  = 'thermal_conductivity specific_heat density'
     prop_values = '50                   500           8000' # W/m-K, J/kg-K, kg/m^3
+  []
+[]
+
+# Extra fields written to Exodus so a student can SEE the coupling and the setup
+# in ParaView. These are diagnostics only - they do not affect the solve.
+[AuxVariables]
+  # Thermal eigenstrain components (element-wise constant, like a material prop).
+  [eigenstrain_xx] # axial: this layer mismatch is what drives the bending
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [eigenstrain_yy] # through-thickness: shows the eigenstrain is isotropic per layer
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  # The per-layer thermal-expansion coefficient as a literal field.
+  [alpha]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+
+[AuxKernels]
+  # Pull the xx/yy components out of the AD eigenstrain tensor (the heat -> mechanics
+  # coupling). Both jump at the bond line: the top (alpha = 2.3e-5) grows more than
+  # the bottom (alpha = 1.2e-5) for the same temperature rise.
+  [eigenstrain_xx]
+    type = ADRankTwoAux
+    rank_two_tensor = eigenstrain
+    variable = eigenstrain_xx
+    index_i = 0
+    index_j = 0
+    execute_on = 'initial timestep_end'
+  []
+  [eigenstrain_yy]
+    type = ADRankTwoAux
+    rank_two_tensor = eigenstrain
+    variable = eigenstrain_yy
+    index_i = 1
+    index_j = 1
+    execute_on = 'initial timestep_end'
+  []
+  # Paint the literal alpha value onto each layer so you can see the two numbers
+  # (1.2e-5 vs 2.3e-5) and exactly WHERE each metal sits.
+  [alpha]
+    type = ADMaterialRealAux
+    variable = alpha
+    property = alpha_field
+    execute_on = timestep_end
   []
 []
 
