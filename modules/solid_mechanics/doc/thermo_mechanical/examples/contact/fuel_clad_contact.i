@@ -332,8 +332,8 @@
 [Executioner]
   type = Steady
   solve_type = NEWTON
-  petsc_options_iname = '-pc_type -pc_factor_shift_type'
-  petsc_options_value = 'lu NONZERO'
+  petsc_options_iname = '-ksp_type -pc_type -pc_gamg_type -pc_gamg_threshold -mg_levels_ksp_type -mg_levels_pc_type -ksp_gmres_restart'
+  petsc_options_value = 'gmres gamg agg 0.05 chebyshev jacobi 201'
   line_search = contact # damps contact set "chatter" (nodes flicking in/out of contact)
   automatic_scaling = true # balance the temperature, displacement, and contact residuals
   nl_rel_tol = 1e-7
