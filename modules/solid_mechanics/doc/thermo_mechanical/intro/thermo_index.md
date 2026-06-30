@@ -2504,9 +2504,9 @@ A reactor fuel-element-like rod generates heat throughout its volume (fission) a
 Transient conduction in an axisymmetric (RZ) rod with +internal heat generation+, cooled at its outer surface.
 
 - Governing equation: $\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + \dot q$
-- Runnable input blocks from the weak-form slides — `reactor_conduction.i`
+- Runnable input blocks from the weak-form slides — `reactor/reactor_conduction.i`
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Mesh
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_conduction.i block=Mesh
 
 !---
 
@@ -2516,7 +2516,7 @@ Transient conduction in an axisymmetric (RZ) rod with +internal heat generation+
 
 Three kernels build the weak form: conduction, transient, source.
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Kernels
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_conduction.i block=Kernels
 
 - `ADHeatConduction` $\rightarrow (\nabla\psi,\, k\nabla T)$
 - `ADHeatConductionTimeDerivative` $\rightarrow (\psi,\, \rho c_p \dot T)$
@@ -2534,13 +2534,13 @@ Three kernels build the weak form: conduction, transient, source.
 
 !col! width=50%
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Materials link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_conduction.i block=Materials link=False
 
 !col-end!
 
 !col! width=50%
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=BCs link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_conduction.i block=BCs link=False
 
 !col-end!
 
@@ -2555,12 +2555,12 @@ Three kernels build the weak form: conduction, transient, source.
 
 # Solve & Run
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_conduction.i block=Executioner
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_conduction.i block=Executioner
 
 Run it:
 
 ```bash
-combined-opt -i reactor_conduction.i
+combined-opt -i reactor/reactor_conduction.i
 ```
 
 - `Transient` executioner, `solve_type = NEWTON`, algebraic-multigrid preconditioning
@@ -2762,13 +2762,13 @@ The payoff for Day 2: a +single monolithic solve+ of temperature *and* displacem
 - Conduction sets $T(\mathbf{x},t)$
 - Thermal expansion enters as an +eigenstrain+: $\boldsymbol{\epsilon}_{\text{th}} = \alpha\,(T-T_{\text{ref}})\,\mathbf{I}$
 - Constrained expansion $\rightarrow$ stress: $\sigma_{\text{th}} \sim -\alpha E\,\Delta T$
-- Input file: `reactor_thermomech.i`
+- Input file: `reactor/reactor_thermomech.i`
 
 !---
 
 # Variables & the SolidMechanics Action
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Physics/SolidMechanics/QuasiStatic
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_thermomech.i block=Physics/SolidMechanics/QuasiStatic
 
 - `temperature` is a primary variable; the action adds `disp_r`, `disp_z`
 - `strain = FINITE`, AD enabled, `eigenstrain_names = eigenstrain` wires in thermal expansion
@@ -2778,7 +2778,7 @@ The payoff for Day 2: a +single monolithic solve+ of temperature *and* displacem
 
 # Coupling Through Materials
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Materials
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_thermomech.i block=Materials
 
 - `ADComputeThermalExpansionEigenstrain` reads `temperature` and produces the eigenstrain — the one-way thermal $\rightarrow$ mechanical link
 - `ADComputeIsotropicElasticityTensor` plus `ADComputeFiniteStrainElasticStress` close the mechanics — the same objects from the solid-mechanics section
@@ -2793,13 +2793,13 @@ The payoff for Day 2: a +single monolithic solve+ of temperature *and* displacem
 
 !col! width=52%
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Kernels link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_thermomech.i block=Kernels link=False
 
 !col-end!
 
 !col! width=48%
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=BCs link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_thermomech.i block=BCs link=False
 
 !col-end!
 
@@ -2814,7 +2814,7 @@ A ramped hot end drives conduction; the component is held axially at both ends �
 # Run & Result
 
 ```bash
-combined-opt -i reactor_thermomech.i
+combined-opt -i reactor/reactor_thermomech.i
 ```
 
 - Monolithic Newton solve; `automatic_scaling = true` balances the temperature ($\sim 10^2$) and displacement ($\sim 10^{-4}$) magnitudes
@@ -3195,13 +3195,13 @@ Reject waste heat to deep space with no convection — only +radiation+. A panel
 
 - $\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + \dot q$, closed by a radiative surface flux
 - Surface flux: $q_r = \epsilon\sigma\,(T^4 - T_\infty^4)$
-- Input file: `reactor_radiator.i`
+- Input file: `reactor/reactor_radiator.i`
 
 !---
 
 # The Radiative Boundary Condition
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_radiator.i block=BCs
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_radiator.i block=BCs
 
 - `FunctionRadiativeBC` applies $\epsilon\sigma\,(T^4 - T_\infty^4)$ on the panel faces
 - `emissivity_function = '0.85'`, `Tinfinity = 3` K (deep space)
@@ -3213,10 +3213,10 @@ Reject waste heat to deep space with no convection — only +radiation+. A panel
 
 !style! fontsize=70%
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_radiator.i block=Kernels
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_radiator.i block=Kernels
 
 ```bash
-combined-opt -i reactor_radiator.i
+combined-opt -i reactor/reactor_radiator.i
 ```
 
 - Newton resolves the $T^4$ flux in ~2 iters/step
@@ -4118,7 +4118,7 @@ Two inputs; you drive the main one and it spawns the forward+adjoint sub-app.
 
 +Main — the optimizer+
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_inverse_source.i block=OptimizationReporter link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_inverse_source.i block=OptimizationReporter link=False
 
 !col-end!
 
@@ -4132,7 +4132,7 @@ $\quad$
 
 +Sub-app — forward + adjoint+
 
-!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_inverse_forward_and_adjoint.i block=Executioner link=False
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor/reactor_inverse_forward_and_adjoint.i block=Executioner link=False
 
 !col-end!
 
@@ -4148,7 +4148,7 @@ $\quad$
 # Worked Example — Run & Result
 
 ```bash
-combined-opt -i reactor_inverse_source.i
+combined-opt -i reactor/reactor_inverse_source.i
 ```
 
 - Start from a guess $q''' = 1\times10^{6}$; the data misfit is large
