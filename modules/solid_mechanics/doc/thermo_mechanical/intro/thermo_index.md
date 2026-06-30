@@ -1373,7 +1373,9 @@ Every term in the weak form maps to a MOOSE object: +Kernel+ (volume integral), 
 
 !---
 
-# Recipe: Strong Form $\rightarrow$ Weak Form
+# How MOOSE Builds the Weak Form (you don't derive this)
+
+You never carry out these steps by hand — but seeing them once shows where Kernels and BoundaryConditions come from:
 
 1. Write the strong form of the PDE
 2. Move every term to one side (set equal to zero)
@@ -1434,17 +1436,14 @@ This single identity turns a second-order PDE into a first-order weak form.
 
 # Shape Functions & the Residual Vector
 
-The solution is expanded in basis functions $\phi_j$:
++What you choose+ — in the `[Variables]` block, the shape-function family: +Lagrange+ (nodal) is the default and fits almost everything; Hermite, Monomial, Hierarchic exist for special cases.
+
++How MOOSE uses it+ (you don't do this by hand): it builds the solution from those basis functions $\phi_j$ and forms one +residual+ per unknown — exactly what the Kernels assemble and the solver drives to zero.
 
 !equation
-T \approx T_h = \sum_{j=1}^N T_j\,\phi_j, \qquad \nabla T_h = \sum_{j=1}^N T_j\,\nabla\phi_j
+T \approx T_h = \sum_{j=1}^N T_j\,\phi_j, \qquad R_i = \left(\nabla\phi_i,\, k\nabla T_h\right) - \left(\phi_i,\, q\right) = 0
 
-+Galerkin+ method: the test functions are the same basis, $\psi = \phi_i$. Substituting yields the $i^{\text{th}}$ +residual+:
-
-!equation
-R_i(T_h) = \left(\nabla\phi_i,\, k\nabla T_h\right) - \langle\phi_i,\, k\nabla T_h\cdot\hat{n}\rangle - \left(\phi_i,\, q\right) = 0,\quad i = 1,\ldots,N
-
-Common families: +Lagrange+ (nodal, the default), Hermite, Monomial, Hierarchic — set per-variable in the `[Variables]` block.
+- +Galerkin+ method: the test functions are the same basis, $\psi = \phi_i$
 
 !---
 
@@ -1456,7 +1455,7 @@ MOOSE evaluates each integral element-by-element using +numerical (Gauss) quadra
 \int_{\Omega_e} f\,dV \approx \sum_{q} w_q\, f(\vec{x}_q)\, |J_q|
 
 - $\vec{x}_q$ are quadrature points, $w_q$ the weights, $|J_q|$ the element Jacobian
-- A +Kernel+ returns the integrand at a single quadrature point (`computeQpResidual`); MOOSE performs the sum and global assembly
+- MOOSE performs this sum and the global assembly for every +Kernel+ automatically, using the quadrature for your mesh and element type — you never write it
 - This is the bridge from the weak form above to the Kernel objects from Day 1
 
 !---
@@ -1516,25 +1515,7 @@ Where:
 - $\boldsymbol{g}$ = Prescribed displacement boundary condition
 - $\boldsymbol{t}$ = Prescribed traction boundary condition
 
-!---
-
-# Weak Form Formulation
-
-- The weak form of the residual equation:
-
-  !equation
-  \mathbb{R} = \left( \boldsymbol{\sigma} + \boldsymbol{\sigma}_0, \nabla \phi_m \right) - \left< \boldsymbol{t}, \phi_m \right> - \left( \boldsymbol{b}, \phi_m \right) = \boldsymbol{0}
-
-- The Jacobian for Newton's method (ignoring boundary terms):
-
-  !equation
-  \mathbb{J} = \left( \frac{\partial \boldsymbol{\sigma}}{\partial \nabla \boldsymbol{u}} , \nabla \phi_m \right)
-
-- Where:
-
-  - $(\cdot)$ represents volume integrals
-  - $\left< \cdot \right>$ represents boundary integrals
-  - $\phi_m$ are the test functions
++You don't solve this by hand+ — you give MOOSE the material, the body force $\boldsymbol{b}$, and the boundary conditions, and it finds the displacement field $\boldsymbol{u}$.
 
 !---
 
@@ -1659,7 +1640,7 @@ Collapse the deviatoric state to a single positive scalar that can be compared a
 - *Path Independence:*
 
   - The total strain is used from the start of the simulation.
-  - Stress and strain from previous steps are not stored (no stateful update).
+  - There is no loading history to track — each solve starts from the reference state.
 - *Typical Use Case:*
 
   - Verifying linear elasticity problems with hand calculations.
@@ -1683,21 +1664,17 @@ Collapse the deviatoric state to a single positive scalar that can be compared a
   $\mathbf{F} = \frac{\partial \mathbf{x}}{\partial \mathbf{X}},$
   where $\mathbf{X}$ is the reference coordinate, and $\mathbf{x}$ is the current (deformed) coordinate.
 - Strain measures (e.g., Green-Lagrange strain) incorporate higher-order terms of displacement.
-- Often solved in an incremental or updated Lagrangian framework.
+- In MOOSE: `strain = FINITE` turns on this incremental, large-rotation update — you don't implement it.
 
 !---
 
 # Incremental Deformation Gradient
 
-- Large deformation problems often use an *incremental* (updated Lagrangian) approach.
-- Define an incremental deformation gradient $\hat{\mathbf{F}}$ over each time step from $t_n$ to $t_{n+1}$:
-  $\hat{\mathbf{F}} = \mathbf{F}_{n+1}\,\mathbf{F}_n^{-1},$
-  where $\mathbf{F}_n$ is the total deformation gradient at $t_n$.
-- This incremental form captures the *new* deformation each step without re-initializing from the original reference.
-- Often expressed via:
-  $\hat{\mathbf{F}}^{-1} = \mathbf{I} - \partial \hat{\mathbf{u}} / \partial \mathbf{x},$
-  where $\hat{\mathbf{u}}$ is the incremental displacement and $\mathbf{x}$ is the position in the current (deformed) configuration $\kappa_{n+1}$ (contrast the reference-config gradient $\partial/\partial\mathbf{X}$ used for $\mathbf{F}$).
-- Each time step updates strain and rotation incrementally, which is then added to the previous total state.
+Large-deformation problems are solved +incrementally+: each step MOOSE measures the *change* in shape and rotation, then adds it to the running total.
+
+- This is the +updated Lagrangian+ approach — it follows large rotations correctly
+- +What you set:+ `strain = FINITE` turns it on (the incremental update comes with it)
+- You never form these increments yourself — you pick the strain formulation and MOOSE does the bookkeeping
 
 !---
 
@@ -1732,6 +1709,11 @@ Collapse the deviatoric state to a single positive scalar that can be compared a
 - *Incremental Update:*
 
   - After computing $\hat{\mathbf{F}}_{\mathrm{corr}}$, the strain increment is added to the total strain from $t_n$, then rotated by the rotation increment for $t_{n+1}$.
+
+- *Turn it on* — one parameter on the QuasiStatic action (it passes down to the strain calculator):
+
+  - `volumetric_locking_correction = true`
+  - Use it whenever $\nu \rightarrow 0.5$ (near-incompressible); it is the `vol` curve in the comparison below
 
 !---
 
@@ -2015,10 +1997,10 @@ Equilibrium can be written on the +reference+ (undeformed) mesh or the
   mesh $\Rightarrow$ `use_displaced_mesh = false`
 - Large deformation (finite strain, creep, plasticity): everything on the
   deformed mesh $\Rightarrow$ `use_displaced_mesh = true`
-- `use_displaced_mesh` lives on the +kernel+, not the materials — it sets which
-  mesh the test-function gradients $\nabla\phi$ are taken on
-- The QuasiStatic action sets this flag for you based on `strain`, which is why
-  it is the recommended way to build a model
+- `use_displaced_mesh` picks which mesh the kernels run on: reference for small
+  strain, deformed for large deformation
+- The QuasiStatic action sets it for you based on `strain` — which is why it is
+  the recommended way to build a model
 
 !---
 
@@ -2039,7 +2021,7 @@ material; the action keeps the mesh choice consistent.
 
 $\boldsymbol{\epsilon}=\tfrac{1}{2}(\nabla\boldsymbol{u}+\nabla\boldsymbol{u}^{T})$.
 Path-independent, no stored history. Reference mesh. Pairs with
-`ComputeLinearElasticStress`.
+`ComputeLinearElasticStress`. +Elastic only.+
 
 !col-end!
 
@@ -2070,8 +2052,7 @@ inelastic stress.
 
 !style-end!
 
-Total small strain stores no old values; the incremental and finite forms keep
-`stress_old`/`strain_old` so the next slide's inelastic models can use them.
++Critical:+ `strain = SMALL` (without `incremental`) keeps +no history+, so it +cannot+ be used with creep or plasticity. For any inelastic model use +incremental small+ (`incremental = true`) or +finite+ strain — the action then stores `stress_old`/`strain_old` for them.
 
 !---
 
@@ -2088,7 +2069,7 @@ where $\boldsymbol{\epsilon}^{\,\text{inel}} = \boldsymbol{\epsilon}^{\,\text{pl
 
 - `ComputeMultipleInelasticStress` subtracts the inelastic part, then computes $\boldsymbol{\sigma}$ from what's left
 - It drives one or more +`*StressUpdate`+ models that return the inelastic strain increment (e.g. creep + plasticity)
-- `RadialReturnStressUpdate` is the common base for isotropic plasticity and creep models
+- Most isotropic plasticity and creep models follow this same strain-splitting recipe
 
 !style-end!
 
@@ -2102,7 +2083,7 @@ where $\boldsymbol{\epsilon}^{\,\text{inel}} = \boldsymbol{\epsilon}^{\,\text{pl
 
 Inelastic response is +path-dependent+ — the material must remember its own state.
 
-- State variables are MOOSE +stateful material properties+: read the prior step with `getMaterialPropertyOld<...>()`
+- The model carries +state variables+ from step to step automatically — MOOSE stores the old values for you
 - Needs an +incremental+ or +finite+ strain formulation — total small strain keeps no history
 - +Creep+ accumulates inelastic strain over time under sustained load and heat — the duty cycle of a hot space reactor
 
@@ -2407,7 +2388,7 @@ Supplies the property names the kernels expect:
 - `thermal_conductivity` -> $k$, `specific_heat` -> $c_p$ at each quadrature point.
 - +Density lives elsewhere+: set it separately, e.g. `GenericConstantMaterial` with `prop_names = 'density'`.
 - Constant: `thermal_conductivity = 45.0`.
-- +$k(T)$+: use `thermal_conductivity_temperature_function = <fn>` and couple `temp = T`. Problem becomes nonlinear; the kernel uses `thermal_conductivity_dT` for the Jacobian.
+- +$k(T)$+: use `thermal_conductivity_temperature_function = <fn>` and couple `temp = T`. The problem becomes nonlinear; MOOSE builds the extra Jacobian terms for you.
 
 !style-end!
 
@@ -2664,7 +2645,7 @@ Then the stress is:
 !equation
 \boldsymbol{\sigma} = \mathcal{C} : \boldsymbol{\epsilon}_{\text{elastic}}
 
-Eigenstrain approach decouples thermal and mechanical strains, simplifying constitutive integration.
+In short: MOOSE forms $\boldsymbol{\epsilon}_{\text{elastic}} = \boldsymbol{\epsilon}_{\text{total}} - \boldsymbol{\epsilon}_{\text{thermal}}$ and passes it to the stress calculator — you just name the eigenstrain.
 
 !---
 
@@ -2800,7 +2781,7 @@ The payoff for Day 2: a +single monolithic solve+ of temperature *and* displacem
 !listing modules/solid_mechanics/doc/thermo_mechanical/examples/reactor_thermomech.i block=Materials
 
 - `ADComputeThermalExpansionEigenstrain` reads `temperature` and produces the eigenstrain — the one-way thermal $\rightarrow$ mechanical link
-- The elasticity tensor and finite-strain elastic stress close the mechanics
+- `ADComputeIsotropicElasticityTensor` plus `ADComputeFiniteStrainElasticStress` close the mechanics — the same objects from the solid-mechanics section
 
 !---
 
