@@ -25,8 +25,10 @@
 #
 # Physics (all thermal):
 #   * constant volumetric heat source in the fuel,
-#   * convective BC on the fuel bore and the cladding OD -- the only heat sinks;
-#     the gap is left thermally open, so the fuel runs hot, the cladding cool.
+#   * convective BC on the fuel bore and the cladding OD -- the two heat sinks;
+#   * MODULAR (mortar) GAP CONDUCTANCE across the gap, so heat conducts from the
+#     hot fuel into the cladding (see the THERMAL GAP CONDUCTANCE block below);
+#     the cladding now runs well above its coolant temperature.
 #   * the hot fuel expands (thermal-expansion eigenstrain) far more than the cool
 #     cladding: radially it closes the gap and contacts; axially it grows taller.
 #
@@ -112,11 +114,48 @@
     old_boundary = '1000 2000'
     new_boundary = 'bottom top'
   []
+
+  # --- MORTAR THERMAL GAP: lower-dimensional interface blocks --------------
+  # The modular (mortar) gap-conductance constraint lives on a pair of
+  # lower-dimensional element blocks, one "painted" onto each side of the gap.
+  # These EDGE/QUAD shells carry only the Lagrange multiplier and the gap
+  # flux; they hold NO bulk kernels (see [Problem] kernel_coverage_check).
+  # Chain them onto the last existing generator so the rest of the mesh is
+  # untouched. NOTE: these share the SAME sidesets (fuel_rmax / clad_rmin) as
+  # the node-face penalty mechanical contact -- the two constraints coexist.
+  [fuel_lower] # secondary side: a shell on the fuel outer (contact) face
+    type = LowerDBlockFromSidesetGenerator
+    input = name_ends
+    sidesets = 'fuel_rmax'
+    new_block_id = 10001
+    new_block_name = 'fuel_lower'
+  []
+  [clad_lower] # primary side: a shell on the cladding inner face
+    type = LowerDBlockFromSidesetGenerator
+    input = fuel_lower
+    sidesets = 'clad_rmin'
+    new_block_id = 10000
+    new_block_name = 'clad_lower'
+  []
+[]
+
+# The lower-dimensional gap blocks carry no bulk kernels, so relax the check
+# that every subdomain is covered by a kernel.
+[Problem]
+  kernel_coverage_check = false
 []
 
 [Variables]
   [temperature]
     initial_condition = 300 # K
+    block = 'fuel cladding' # solid blocks only -- NOT the lower-d gap shells
+  []
+  # Lagrange multiplier for the modular gap-conductance constraint. It is the
+  # interfacial heat flux unknown; it lives ONLY on the secondary gap shell.
+  [lm]
+    order = FIRST
+    family = LAGRANGE
+    block = 'fuel_lower'
   []
 []
 
@@ -132,6 +171,7 @@
     eigenstrain_names = eigenstrain
     temperature = temperature
     generate_output = 'vonmises_stress stress_zz'
+    block = 'fuel cladding' # keep displacement vars/kernels off the lower-d gap shells
   []
 []
 
@@ -139,6 +179,7 @@
   [conduction]
     type = HeatConduction
     variable = temperature
+    block = 'fuel cladding' # solid blocks only -- the gap shells carry no bulk kernels
   []
   [fuel_heat]
     type = HeatSource
@@ -163,8 +204,63 @@
   []
 []
 
+# =============================================================================
+# THERMAL GAP CONDUCTANCE (modular / mortar)  -- THE ADDITION
+# -----------------------------------------------------------------------------
+# Previously the gap was thermally OPEN: no heat crossed it, so the cladding
+# floated at its coolant temperature (~400 K) while the fuel cooked. Here we
+# let heat conduct across the gap from the hot fuel into the cladding using the
+# MORTAR modular gap-conductance pattern (independent of the mechanical contact
+# above, which stays node-face penalty):
+#
+#   gap gas (UserObject)  ->  gap flux model: q = k * (T_clad - T_fuel) / gap
+#   constraint            ->  ties that flux between the two gap shells via lm
+#
+# Heat now flows  fuel interior -> fuel_rmax -> [gap] -> clad_rmin -> clad_rmax
+# -> coolant, so the CLADDING heats up well above the old ~400 K baseline.
+# -----------------------------------------------------------------------------
+[UserObjects]
+  # Gap "gas" conduction model. GapFluxModelSimple returns a heat flux
+  #   q = k * (T_primary - T_secondary) / gap_width
+  # so k is the GAP-GAS CONDUCTIVITY (W/m-K) and the effective conductance is
+  # k / gap. With the 0.1 mm (1e-4 m) reference gap this gives k/1e-4 = 300
+  # W/m^2-K. k is deliberately modest: a stronger gap short would bleed so much
+  # heat out of the fuel that it would no longer swell enough to close the gap
+  # mechanically -- this value heats the cladding visibly (~+55 K) while the
+  # fuel stays hot enough to keep the node-face contact engaged. (Switch to
+  # GapFluxModelConduction for an explicit gas-conductivity-vs-temperature law.)
+  [gap_gas]
+    type = GapFluxModelSimple
+    k = 0.03 # gap-gas thermal conductivity (W/m-K) -> ~300 W/m^2-K across the gap
+    temperature = temperature
+    boundary = clad_rmin # the primary side of the gap
+    use_displaced_mesh = false # match the constraint -> use the reference gap width
+  []
+[]
+
+[Constraints]
+  # Modular gap-conductance constraint: enforces the gap heat flux (built from
+  # the gap_gas model) between the two lower-d shells, with the Lagrange
+  # multiplier `lm` as the interfacial flux unknown. Evaluated on the
+  # UNDISPLACED mesh (use_displaced_mesh = false) so the gap width is the clean
+  # 1e-4 m reference gap -- robust, and the flux magnitude is set by k above.
+  [thermal_gap]
+    type = ModularGapConductanceConstraint
+    variable = lm
+    secondary_variable = temperature
+    primary_boundary = clad_rmin
+    primary_subdomain = clad_lower
+    secondary_boundary = fuel_rmax
+    secondary_subdomain = fuel_lower
+    gap_flux_models = 'gap_gas'
+    use_displaced_mesh = false
+    displacements = '' # override GlobalParams: gap width is taken on the reference mesh
+    correct_edge_dropping = true # 3-D mortar: tolerate non-matching surface edges
+  []
+[]
+
 [BCs]
-  # --- thermal: the only two heat sinks (gap is left open / insulated) ---
+  # --- thermal: the two heat sinks (the gap now conducts -- see [Constraints]) ---
   [bore_cooling]
     type = ConvectiveHeatFluxBC
     variable = temperature
@@ -231,6 +327,7 @@
   []
   [stress]
     type = ComputeLinearElasticStress
+    block = 'fuel cladding' # solid blocks only -- no stress on the lower-d gap shells
   []
 
   # thermal-expansion eigenstrain ("swelling") per block: fuel >> cladding
@@ -262,6 +359,19 @@
     type = NodalExtremeValue
     variable = temperature
     boundary = clad_rmin
+  []
+  # --- gap-conductance proof: peak temperature in each whole block. With the
+  # gap thermally open clad_max_temp sat at ~400 K; once the gap conducts it
+  # rises clearly above that.
+  [clad_max_temp]
+    type = ElementExtremeValue
+    variable = temperature
+    block = cladding
+  []
+  [fuel_max_temp]
+    type = ElementExtremeValue
+    variable = temperature
+    block = fuel
   []
   # --- proof of contact (radial): positive only where the faces press together
   [max_contact_pressure]
@@ -332,8 +442,12 @@
 [Executioner]
   type = Steady
   solve_type = NEWTON
-  petsc_options_iname = '-ksp_type -pc_type -pc_gamg_type -pc_gamg_threshold -mg_levels_ksp_type -mg_levels_pc_type -ksp_gmres_restart'
-  petsc_options_value = 'gmres gamg agg 0.05 chebyshev jacobi 201'
+  # Direct solve: the mortar gap constraint adds a Lagrange-multiplier
+  # (saddle-point) block with zeros on the diagonal, which the previous gamg
+  # multigrid cannot handle -- a sparse LU factorization is the robust choice
+  # for a mortar problem of this size.
+  petsc_options_iname = '-pc_type -pc_factor_mat_solver_type'
+  petsc_options_value = ' lu       superlu_dist'
   line_search = contact # damps contact set "chatter" (nodes flicking in/out of contact)
   automatic_scaling = true # balance the temperature, displacement, and contact residuals
   nl_rel_tol = 1e-7
