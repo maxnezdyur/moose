@@ -4038,6 +4038,149 @@ Start here; refine based on iteration counts and convergence behavior.
 
 !---
 
+# Two Ways to Couple: One Jacobian vs. Separate Apps
+
+Recall the field-split slides — two ways to make two physics talk:
+
+!row!
+
+!col! width=50%
+
++Monolithic+
+
+- All physics in +one+ Newton system, one mesh, one Jacobian
+- +Wins when+: very strong coupling, you want the exact Jacobian and tight tolerances in a single solve
+
+!col-end!
+
+!col! width=50%
+
++Loose (MultiApp)+
+
+- Each physics is its +own app+ — own mesh, own solver, own `.i`
+- Apps +exchange fields+ and iterate
+- +Wins when+: different meshes/codes/timescales, modularity, and +reuse of a validated input unchanged+ (e.g. a CFD/Navier-Stokes input)
+
+!col-end!
+
+!row-end!
+
+Anchor: solid heat transfer (built all week) $\leftrightarrow$ Navier-Stokes coolant $=$ +conjugate heat transfer (CHT)+. You do not rewrite either app — you +wire them together+.
+
+!---
+
+# The MultiApp Tree: Parent + Sub-Apps
+
+!style! fontsize=76%
+
+A +MultiApp+ lets a +parent+ solve launch one or more +sub-app+ solves. Each sub-app is a +complete standalone input+ — its own mesh and solver — that does not know it is coupled and is +runnable alone+.
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/coupling/cht_solid_parent.i block=MultiApps
+
+Key `[MultiApps]` fields:
+
+- `type` — `TransientMultiApp` marches in time +with+ the parent; `FullSolveMultiApp` solves to completion on each call
+- `input_files` — the sub-app `.i`
+- `positions` — where each sub-app sits in space
+- `execute_on` — +when+ the parent runs the sub
+
+Forward pointer: +Optimization+ and +Stochastic Tools+ (next) are this same machinery, specialized.
+
+!style-end!
+
+!---
+
+# Transfers: Moving Fields Between Apps
+
+Transfers write into +AuxVariables+ (never solved variables). The receiving app declares an `[AuxVariables]` placeholder with an `initial_condition`.
+
+Direction is +explicit+: `to_multi_app` = parent $\rightarrow$ sub; `from_multi_app` = sub $\rightarrow$ parent. Two-way coupling = one of each. (The two-way `[Transfers]` block is on the worked-example slide.)
+
+Choose the transfer by +geometry+: `GeneralFieldShapeEvaluation` (interpolate), `GeneralFieldNearestLocation` (robust/extrapolation), `Copy` (identical meshes); +Reporter+ transfers move scalars.
+
++Pitfalls+: match `execute_on` between a MultiApp and its Transfers; get the direction right; declare the receiving AuxVariable.
+
+!---
+
+# Closing the Loop: Fixed-Point (Picard) Iteration
+
+Default loose coupling exchanges fields +once per step+ (`fixed_point_max_its = 1`). Strong two-way coupling (CHT) needs +iteration+: re-exchange and re-solve until the interface stops changing.
+
+```text
+[Executioner]
+  type = Steady
+  fixed_point_max_its = 10     # iterate the coupling
+  fixed_point_rel_tol = 1e-7
+  # relaxation_factor = 0.5    # damp if the interface oscillates
+[]
+```
+
+The knobs: `fixed_point_max_its` (iteration budget), `fixed_point_rel_tol` / `fixed_point_abs_tol` (when the loop is converged), and `relaxation_factor` (optional damping for stiff coupling).
+
+Set fixed-point +only on the parent+; the sub just runs its normal solver. If the sub needs a smaller `dt`, use `sub_cycling` so it takes several steps per parent step.
+
+!---
+
+# Worked Example — CHT: Heated Solid $\leftrightarrow$ Coolant
+
+A heated solid wall is cooled by an adjacent fluid channel across a shared `interface`. +The trick+: both sides apply `CoupledConvectiveHeatFluxBC` whose far-field `T_infinity` is the +other+ app's interface temperature, delivered as an AuxVariable — only +temperature+ crosses (robust Robin-Robin, no flux post-processing).
+
+Roles: +PARENT+ = the solid heat-transfer app from Days 1-2; +SUB+ = the fluid, an explicit stand-in for a real Navier-Stokes/CFD solve.
+
++Swap the fluid sub for a real NS input and the parent's `[MultiApps]`/`[Transfers]` blocks do not change.+ A real/monolithic CHT lives at `modules/navier_stokes/test/tests/finite_volume/ins/cht/conjugate_heat_transfer/cht_rob-rob.i`.
+
+!---
+
+# CHT: How the Two Apps Are Wired
+
+Two Transfers carry the interface temperature each way; the sub turns it into a Robin BC (the parent's `[MultiApps]` block is on the MultiApp-tree slide).
+
+!style! fontsize=66%
+
+!row!
+
+!col! width=50%
+
++Parent: two-way Transfers+
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/coupling/cht_solid_parent.i block=Transfers link=False
+
+!col-end!
+
+!col! width=50%
+
++Sub: receive T, apply the Robin BC+
+
+!listing modules/solid_mechanics/doc/thermo_mechanical/examples/coupling/cht_fluid_sub.i block=BCs link=False
+
+!col-end!
+
+!row-end!
+
+!style-end!
+
+!---
+
+# Worked Example — Run & What to Watch
+
+```bash
+combined-opt -i coupling/cht_solid_parent.i
+```
+
++What to watch+:
+
+- The +fixed-point (Picard) relative residual+ drops monotonically across iterations: $2.11\times10^{2} \rightarrow 1.97\times10^{1} \rightarrow \dots \rightarrow 3.0\times10^{-6}$ — `CONVERGED_RELATIVE` in 9 iterations
+- The two interface-average postprocessors settle to a +stable coupled pair+: `T_solid_interface_avg` $= 576.36$ K and `T_fluid_interface_avg` $= 528.64$ K — separated only by the $\approx 48$ K finite-`htc` contact-resistance jump (raise `htc` to shrink it)
+- +Two exodus outputs+ (parent solid, sub fluid) — open both to see heat flow from the hot solid into the cooler fluid
+
++Try it+:
+
+1. Set `fixed_point_max_its = 1` (pure loose) and watch the interface mismatch appear
+2. Raise `q_source` or lower `htc`
+3. +Capstone+: replace `cht_fluid_sub.i` with a real Navier-Stokes input and re-run — the parent is +untouched+
+
+!---
+
 # Optimization: Calibrate & Design
 
 The optimization module wraps a *minimization* around the same FEM solve you already run:
