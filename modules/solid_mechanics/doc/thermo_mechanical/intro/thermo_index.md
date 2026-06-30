@@ -1276,6 +1276,91 @@ Postprocessor values are used within an object by creating a `const` reference t
 
 !---
 
+# Meet the Unknown: a Field
+
+A +field+ is a quantity with a value at every point in space and every moment in time — that whole map is what we solve for.
+
+- Temperature is a field: aim a thermometer anywhere, at any time, read a number
+- We write it $T(x, y, z, t)$ — one value per location, per instant
+- Picture a weather map: temperature painted across a whole region, not one reading
+- Displacement, pressure, velocity, and concentration are fields too
+- We want the +entire field+, a value everywhere — really infinitely many unknowns
+
+!---
+
+# The Symbols You'll See Today
+
+A quick dictionary — every equation today, and in the slides after, is built from just these.
+
+- $\nabla T$ — +gradient+: the direction $T$ climbs fastest; its length is the steepness
+- $\nabla\cdot\vec{v}$ — +divergence+: the net rate a vector $\vec{v}$ flows out of a point
+- $\int_\Omega (\cdots)\,dV$ — add a quantity up over the whole domain $\Omega$ ($dV$: a tiny piece of volume)
+- $\partial\Omega$ — the +boundary+: the outer surface of the domain
+- A +boundary condition+ fixes the field, or its flux, on $\partial\Omega$
+
+!---
+
+# Where the Equation Comes From: a Balance
+
+Every governing equation is just +conservation bookkeeping+ on a tiny chunk of material: what is +stored+ must balance what flows in and out.
+
+!equation
+\text{stored} = \text{in} - \text{out} + \text{generated}
+
+Track heat energy and write that balance with calculus, and you get the +heat equation+:
+
+!equation
+\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + q
+
+- +Stored+: $\rho c_p \pf{T}{t}$ — how fast energy piles up ($\rho$ density, $c_p$ specific heat)
+- +Flow+: $\nabla\cdot(k\nabla T)$ — net heat conducted in, minus out ($k$ conductivity)
+- +Generated+: $q$ — heat produced inside; the *same* bookkeeping for momentum gives Newton's law for solids
+
+!---
+
+# The Strong Form — and Why It's Hard
+
+The PDE holds inside the body, but alone it does not pin down a unique answer — we must also fix the +edges+.
+
+!equation
+\rho c_p \pf{T}{t} = \nabla\cdot(k\nabla T) + q \;\text{ in }\; \Omega, \qquad T = T_b \;\text{ on }\; \partial\Omega
+
+- +Strong form+ = the PDE inside $\Omega$, together with boundary conditions on $\partial\Omega$
+- A +boundary condition+ sets a value ($T = T_b$) or a flux (an insulated face lets no heat through)
+- "Strong" because it must hold *exactly, at every single point*
+- On a real, complicated shape there is *no pencil-and-paper formula* — so we +approximate+
+
+!---
+
+# The Finite-Element Idea: Calculus $\rightarrow$ Algebra
+
+If we cannot solve it everywhere at once, solve it *piece by piece*.
+
+- +Chop+ the domain into many small, simple *elements* — a mesh, like tiling a floor
+- On each element, approximate the field with a *simple function* — often a straight line or flat patch
+- The unknowns become a *finite list of numbers*: the field's values at the mesh +nodes+
+- Calculus collapses into a big *system of algebraic equations* — the linear algebra you already know
+- Catch: a straight-line piece has a slope but +no curvature+, yet the PDE asks for a second derivative
+
+!---
+
+# From "True Everywhere" to "True on Average"
+
+Our simple pieces cannot satisfy the strong form *exactly at every point* — so we ask for less.
+
+- Plug the approximation into the PDE and a leftover error remains: the *residual* $R$
+- Weaker demand: drive $R$ to zero *on average*, weighted by a +test function+ $\psi$
+
+!equation
+\int_\Omega R\,\psi\,dV = 0 \quad \text{for every } \psi
+
+- This +weighted residual+ is the *weak form*: relaxed, yet enough to pin down the field
+- It shifts a derivative off the solution onto $\psi$ — so the straight-line pieces finally qualify
+
+MOOSE builds exactly this weak form, and ties each term to an object you set up — next.
+
+!---
+
 # From PDE to Weak Form
 
 MOOSE is a finite-element framework: it builds an approximate solution from *shape functions* multiplied by coefficients — just like the polynomial fit from Day 1.
