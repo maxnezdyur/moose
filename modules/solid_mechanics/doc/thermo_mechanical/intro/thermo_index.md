@@ -3276,6 +3276,19 @@ $\delta\vec{u}_{n+1}$, then correct:
 
 !---
 
+# Newton's Method, Geometrically
+
+!media media/thermo_mechanical/newton_method.png
+       style=width:58%;display:block;margin-left:auto;margin-right:auto;
+       alt=Newton iteration following tangent lines to the root of the residual
+
+- The +residual+ $R(u)$ measures how wrong the current guess is; we want $R = 0$
+- The +tangent slope is the Jacobian+ $J(u_n)$ — it points toward the root
+- Each step follows the tangent to where it crosses zero: solve $J\,\delta u = -R$, then update
+- Near the solution the error roughly +squares each step+ — a few iterations and you are there
+
+!---
+
 # Where the Jacobian Comes From
 
 The Jacobian is just the sensitivity of each residual entry to each unknown:
@@ -3295,56 +3308,32 @@ respect to a single coefficient collapses the sum to one shape function:
 
 !---
 
-# Three Ways to Get the Jacobian
+# Getting the Jacobian: by Hand or with AD
 
 For "simple" terms $\mathbf{J}$ is tedious; with coupled physics and nonlinear
-material properties it becomes very hard to derive by hand. MOOSE gives three
-routes — the next slides compare them:
+material properties it becomes very hard to derive by hand. MOOSE gives two routes:
 
 !row!
 
-!col! width=33%
+!col! width=50%
 
 +Hand-coded+
 
-`computeQpJacobian`. Fast, but you derive every $\pf{k}{u_j}$ by hand — error-prone.
+Derive every $\pf{k}{u_j}$ yourself. Fast to run, but error-prone and painful for coupled, nonlinear physics.
 
 !col-end!
 
-!col! width=33%
+!col! width=50%
 
-+JFNK+
++Automatic differentiation (AD)+
 
-Matrix-free: approximate the action $\mathbf{J}\vec{v}$ with a residual difference.
-Never forms $\mathbf{J}$.
-
-!col-end!
-
-!col! width=33%
-
-+AD+
-
-Automatic differentiation builds $\mathbf{J}$ exactly from the residual code.
-Recommended for new objects.
+MOOSE builds $\mathbf{J}$ +exactly+ from the residual, for free. The recommended path — every example this week uses AD.
 
 !col-end!
 
 !row-end!
 
-!---
-
-# Nonlinear Solvers: Newton and JFNK
-
-Newton's method solves:
-
-!equation
-\mathbf{J}(\vec{u}_n) \delta\vec{u}_{n+1} = -\vec{R}(\vec{u}_n), \quad \vec{u}_{n+1} = \vec{u}_n + \delta\vec{u}_{n+1}
-
-+Key traits:+
-
-- Quadratic convergence near the solution
-- Requires Jacobian: hand-coded, AD, or approximated
-- Robust when initial guess is good
+A correct Jacobian is what gives Newton its fast (quadratic) convergence — so let AD build it.
 
 !---
 
@@ -3364,77 +3353,12 @@ q_r = \sigma \epsilon (T^4 - T_\infty^4)
 
 !---
 
-# JFNK: When to Use It
+# Setting the Solve Type: NEWTON
 
-+Jacobian-Free Newton-Krylov approximates:+
+Each step, MOOSE drives the nonlinear residual to zero with Newton's method, solving $\mathbf{J}\,\delta\vec{u} = -\vec{R}$. The `solve_type` in `[Executioner]` tells it how — we use +NEWTON+ throughout:
 
-!equation
-\mathbf{J}\vec{v} \approx \frac{\vec{R}(\vec{u} + \epsilon\vec{v}) - \vec{R}(\vec{u})}{\epsilon}
-
-+When JFNK helps:+
-
-- Jacobian derivation is tedious or error-prone
-- Complex multiphysics with weak coupling
-- Memory is tight (no explicit matrix storage)
-- Development speed > execution speed
-
-+When JFNK struggles:+
-
-- Strong nonlinearities like $T^4$ radiation (better: full Newton)
-- Stiff systems needing strong preconditioning
-
-!---
-
-# Newton Implementation Options in MOOSE
-
-!row!
-
-!col! width=33%
-
-+Hand-coded Jacobians+
-
-- Explicit derivatives
-- Most efficient
-- Tedious for complex physics
-
-!col-end!
-
-!col! width=33%
-
-+Automatic Differentiation+
-
-- Computes Jacobian automatically
-- Modern default
-- Trade small CPU cost for zero errors
-
-!col-end!
-
-!col! width=33%
-
-+PJFNK (Preconditioned)+
-
-- Approx. Jacobian for preconditioner
-- Jacobian-free outer iteration
-- Good compromise
-
-!col-end!
-
-!row-end!
-
-!---
-
-# Choosing a Solve Type
-
-Each timestep, MOOSE drives the nonlinear residual to zero with Newton's method, solving the linear system $\mathbf{J}\,\delta\vec{u} = -\vec{R}$ at every step. The `solve_type` in `[Executioner]` picks *how* that Jacobian is supplied:
-
-!style! fontsize=85%
-
-- +NEWTON+: uses the +true Jacobian+ directly (hand-coded or +AD+). Best convergence and parallel scaling — the default choice for stiff thermo-mechanics. AD makes a correct Jacobian almost free.
-- +PJFNK+ (framework default): +Preconditioned Jacobian-Free Newton-Krylov+. Never forms the full Jacobian; approximates its *action* from residual evaluations, using a cheap preconditioning matrix. Robust when a full Jacobian is hard.
-- +JFNK+: same, but +unpreconditioned+ — converges slowly; rarely worth it.
-- +LINEAR+: the residual is linear in $u$ — one linear solve, no Newton loop.
-
-!style-end!
+- +NEWTON+: uses the +true Jacobian+ directly, built by +AD+. Best convergence and parallel scaling — the right choice for stiff thermo-mechanics, and AD makes a correct Jacobian almost free.
+- +LINEAR+: for a residual that is +linear+ in $u$ — one linear solve, no Newton loop needed.
 
 ```moose
 [Executioner]
@@ -3451,7 +3375,7 @@ Inside *every* Newton step sits a linear solve, $\mathbf{J}\,\delta\vec{u} = -\v
 !equation
 \mathcal{K}_j = \{\mathbf{r},\ \mathbf{J}\mathbf{r},\ \mathbf{J}^2\mathbf{r},\ \dots,\ \mathbf{J}^{j-1}\mathbf{r}\}
 
-- Each iteration costs +one matrix-vector product $\mathbf{J}\mathbf{v}$+ — and that action can be approximated from residuals alone (this is what JFNK exploits).
+- Each iteration costs +one matrix-vector product $\mathbf{J}\mathbf{v}$+ — cheap because $\mathbf{J}$ is large but sparse.
 - +GMRES+ (default `ksp`): general, nonsymmetric $\mathbf{J}$ — the usual case.
 - +CG+: only for +symmetric positive-definite+ $\mathbf{J}$ (e.g. pure conduction) — cheaper, less memory.
 
@@ -3574,75 +3498,40 @@ Linear solve converged in 15 iterations
 
 !---
 
-# Preconditioning: The Solver's Multiplier
+# Preconditioners: a Few Options for Each
 
-Transform the system to reduce condition number:
+!style! fontsize=90%
 
-!equation
-\mathbf{M}^{-1}\mathbf{A}\vec{x} = \mathbf{M}^{-1}\vec{b}
-
-+Ideal preconditioner:+
-
-- $\mathbf{M}^{-1} \approx \mathbf{A}^{-1}$ (close to true inverse)
-- Cheap to apply
-- Improves eigenvalue clustering
-
-+Effect:+
-
-- Good PC: 5--20 linear iterations
-- Poor PC: 50--200+ iterations or non-convergence
-
-!---
-
-# PC Zoo: Common Preconditioners
+An +iterative+ (Krylov) solve only converges fast if the system is +preconditioned+ — transform $\mathbf{A}$ so it is easier to solve ($\mathbf{M}^{-1}\mathbf{A}$, with $\mathbf{M}^{-1}\approx\mathbf{A}^{-1}$ but cheap). Good PC $\rightarrow$ 5--20 linear iterations; poor PC $\rightarrow$ 100+. A +direct+ solve needs none.
 
 !row!
 
 !col! width=50%
 
-+ILU / LU+
++Iterative: pick a `-pc_type`+
 
-- Incomplete or full factorization
-- Very robust
-- Good for small problems
+- `hypre` (BoomerAMG) — algebraic multigrid; the go-to for diffusion / conduction, scales well
+- `gamg` — PETSc's own AMG; good for elasticity
+- `asm` — additive Schwarz; robust in parallel, simple
+- `ilu` — incomplete LU; cheap, best for small / serial
 
 !col-end!
 
 !col! width=50%
 
-+Block Jacobi / ASM+
++Direct: the solver *is* the PC+
 
-- Solve decoupled blocks per subdomain
-- Parallel friendly
-- Weaker for tight coupling
+- `-pc_type lu` — one factorization, no preconditioner
+- Pick the package: `-pc_factor_mat_solver_package = mumps` (parallel) or `superlu_dist`
+- Bulletproof; best for small / medium or nasty ill-conditioned systems
 
 !col-end!
 
 !row-end!
 
-!row!
+Rule of thumb: start with `hypre` for conduction-dominated problems; fall back to `lu` when a solve will not converge.
 
-!col! width=50%
-
-+Algebraic Multigrid (AMG)+
-
-- HYPRE BoomerAMG, GAMG
-- Fast for elliptic problems
-- Excellent parallel scalability
-
-!col-end!
-
-!col! width=50%
-
-+Incomplete Cholesky (ICC)+
-
-- For symmetric systems
-- Less robust than LU
-- Faster factorization
-
-!col-end!
-
-!row-end!
+!style-end!
 
 !---
 
@@ -3661,7 +3550,7 @@ Single Matrix Preconditioner — auto-created with `full = true` when `solve_typ
 
 - `full = true`: use all variable coupling (robust; more memory)
 - `off_diag_row`/`off_diag_column`: specify coupling structure explicitly
-- `solve_type` (set in `[Executioner]`, not here): PJFNK or NEWTON; has no default and must be set explicitly
+- `solve_type` is set in `[Executioner]`, not here — use `NEWTON` (see the solve-type slide)
 
 +SMP vs. FDP:+ `FDP` (`type = FDP`) builds the Jacobian by finite-differencing the residual — accurate but expensive, so it is a debugging/verification tool; `SMP` is the production choice for coupled thermo-mechanics.
 
@@ -3727,144 +3616,6 @@ MOOSE prints the nonlinear and linear residual norms every iteration. Add these 
 
 - +Nonlinear stagnation+: the left-justified `Nonlinear |R|` numbers stall (drop little each Newton step) or you hit `nl_max_its` -- usually a wrong or poor Jacobian.
 - +Linear stagnation+: within a single step the indented `Linear |R|` numbers barely fall or hit `l_max_its` -- usually a poor preconditioner or ill-conditioned matrix.
-
-!---
-
-# Field-Split (Block) Preconditioning for Coupled Physics
-
-Partition variables by physics, solve with a different PC per field — e.g. temperature vs. displacement:
-
-```text
-[Preconditioning]
-  [FSP]
-    type = FSP
-    topsplit = 'td'
-    [td]
-      splitting = 'temp disp'
-      splitting_type = multiplicative
-    []
-    [temp]
-      vars = 'temp'
-      petsc_options_iname = '-pc_type'
-      petsc_options_value = 'hypre'
-    []
-    [disp]
-      vars = 'disp_x disp_y'
-      petsc_options_iname = '-pc_type'
-      petsc_options_value = 'gamg'
-    []
-  []
-[]
-```
-
-!---
-
-# Field-Split: Structure & When to Use
-
-+Structure:+
-
-- `topsplit`: Coarse partition (e.g., temperature vs. displacement)
-- `splitting`: Sub-partitions (e.g., grouping `disp_x`/`disp_y` into one displacement field)
-- `splitting_type`: How to couple (schur, additive, multiplicative)
-- `schur_pre`: Preconditioner for Schur complement (S = full matrix)
-- Inner `petsc_options`: Solver for each field (e.g., hypre for displacement)
-
-+When to use:+
-
-- Strongly coupled multiphysics problems (e.g., thermo-mechanical)
-- When single-field preconditioner stalls
-
-!---
-
-# The Coupled Jacobian: Block Structure
-
-A 2-field thermo-mechanical solve has two unknowns: temperature $T$ and displacement $\mathbf{u}$. Newton's linear system has a +block+ Jacobian:
-
-!equation
-\begin{bmatrix} \mathbf{J}_{TT} & \mathbf{J}_{T\mathbf{u}} \\[4pt] \mathbf{J}_{\mathbf{u}T} & \mathbf{J}_{\mathbf{u}\mathbf{u}} \end{bmatrix}
-\begin{bmatrix} \delta T \\[4pt] \delta \mathbf{u} \end{bmatrix} =
--\begin{bmatrix} \mathbf{R}_T \\[4pt] \mathbf{R}_{\mathbf{u}} \end{bmatrix}
-
-- +Diagonal+ blocks are each physics' self-stiffness: $\mathbf{J}_{TT}$ = heat conduction, $\mathbf{J}_{\mathbf{u}\mathbf{u}}$ = mechanical stiffness
-- +Off-diagonal+ blocks are the coupling: $\mathbf{J}_{\mathbf{u}T}=\pf{\mathbf{R}_{\mathbf{u}}}{T}$ (thermal expansion, $k$-of-$T$ stress) and $\mathbf{J}_{T\mathbf{u}}=\pf{\mathbf{R}_T}{\mathbf{u}}$
-- Off-diagonals come from `computeQpOffDiagJacobian` (non-AD) or +AD+ — they are exactly what the preconditioner can exploit or ignore
-
-!---
-
-# SMP vs FDP: Building the Preconditioner Matrix
-
-!row!
-
-!col! width=50%
-
-+SMP+ — `SingleMatrixPreconditioner`
-
-- Assembles +one+ matrix $\mathbf{M}$ from your hand-coded / AD Jacobian entries
-- `off_diag_row` / `off_diag_column` pick which coupling blocks to include
-- `full = true` includes +all+ off-diagonals (the full $\mathbf{J}$) — the usual choice for tight thermo-mechanical coupling
-- Cheap, accurate, production default
-
-!col-end!
-
-!col! width=50%
-
-+FDP+ — `FiniteDifferencePreconditioner`
-
-- Forms a +numerical+ Jacobian by finite-differencing the residual statements
-- Builds a nearly perfect $\mathbf{M}$ with +no+ hand-coded derivatives
-- +Extremely slow+ and memory-heavy — debugging / verification only
-- Sensitive to the differencing step:
-
-!style! fontsize=70%
-
-```text
-petsc_options_iname = '-mat_fd_coloring_err -mat_fd_type'
-petsc_options_value = '1e-6                 ds'
-```
-
-!style-end!
-
-!col-end!
-
-!row-end!
-
-+Use FDP to confirm your off-diagonals are right; then switch to SMP `full = true` to actually run.+
-
-!---
-
-# Field-Split: One Preconditioner per Physics Block
-
-Instead of preconditioning the whole $\mathbf{J}$ at once, +split+ it and give each physics its own solver (PETSc `PCFIELDSPLIT`). Map the blocks to subsolves: temperature $\rightarrow$ one PC, displacement $\rightarrow$ another.
-
-- +Additive+ (block-Jacobi): solve each block independently, add the corrections — most parallel, weakest coupling
-- +Multiplicative+ (block Gauss-Seidel): solve $T$, feed the update into the displacement solve — stronger, sequential
-- +Schur+: eliminate one field, build the Schur complement $\mathbf{S} = \mathbf{J}_{\mathbf{u}\mathbf{u}} - \mathbf{J}_{\mathbf{u}T}\,\mathbf{J}_{TT}^{-1}\,\mathbf{J}_{T\mathbf{u}}$, solve the reduced system
-
-Each subblock can use whatever scales best: e.g. +`hypre`+ algebraic multigrid for the diffusive temperature block, a direct +`lu`+ for the smaller displacement block.
-
-!---
-
-# Annotated Nested Field-Split Input
-
-!style! fontsize=80%
-
-`type = FSP` (`FieldSplitPreconditioner`); read `u`=+temperature+, `v`=+displacement+:
-
-!style-end!
-
-!style! fontsize=48%
-
-!listing test/tests/preconditioners/fsp/fsp_test.i block=Preconditioning
-
-!style-end!
-
-!style! fontsize=80%
-
-- `topsplit = 'uv'` names the entry split; `splitting = 'u v'` lists the subsolvers
-- `splitting_type = additive` $\rightarrow$ block-Jacobi; use `multiplicative`/`schur` for tighter coupling
-- Each leaf (`[u]`, `[v]`) sets its `vars` and `petsc_options`: `hypre` for diffusion, `lu` for the other
-
-!style-end!
 
 !---
 
@@ -4023,7 +3774,7 @@ Prints per-variable residual: Which field is stuck?
 
 [Executioner]
   type = Transient
-  solve_type = PJFNK      # Or NEWTON if Jacobian is good
+  solve_type = NEWTON     # true Jacobian (AD builds it for you)
   automatic_scaling = true
   petsc_options_iname = '-pc_type -pc_hypre_type'
   petsc_options_value = 'hypre    boomeramg'
