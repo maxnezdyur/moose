@@ -48,6 +48,29 @@
   []
 []
 
+# Surface radiative heat flux q = eps*sigma*(T^4 - Tinf^4) [W/m^2] on the
+# radiating faces. View it in ParaView (hotter -> radiates more, since flux ~ T^4)
+# and integrate it (below) to see how much heat the panel is shedding to space.
+[AuxVariables]
+  [radiative_flux]
+    order = FIRST
+    family = LAGRANGE
+  []
+[]
+
+[AuxKernels]
+  [radiative_flux]
+    type = ParsedAux
+    variable = radiative_flux
+    coupled_variables = 'temperature'
+    constant_names = 'eps sigma Tinf'
+    constant_expressions = '0.85 5.670374419e-8 3'
+    expression = 'eps*sigma*(temperature^4 - Tinf^4)'
+    boundary = 'top bottom' # only the radiating surfaces
+    execute_on = 'INITIAL TIMESTEP_END'
+  []
+[]
+
 [BCs]
   [radiating_surfaces]
     type = FunctionRadiativeBC
@@ -68,6 +91,19 @@
   [peak_temperature]
     type = NodalExtremeValue
     variable = temperature
+  []
+  # Total heat rejected to deep space through the radiating faces -- "how much
+  # heat leaves the system." (2-D, so this is per unit depth: W/m.)
+  [radiated_power]
+    type = SideIntegralVariablePostprocessor
+    variable = radiative_flux
+    boundary = 'top bottom'
+  []
+  # Peak surface flux: the hot region near the heat-pipe root radiates the most.
+  [peak_radiative_flux]
+    type = NodalExtremeValue
+    variable = radiative_flux
+    boundary = 'top bottom'
   []
 []
 

@@ -2920,220 +2920,63 @@ Parameters:
 
 !---
 
-# Cylindrical Surface Radiation
+# Cylindrical Surface Radiation: `InfiniteCylinderRadiativeBC`
 
-For two coaxial cylinders, an inner surface at temperature $T_s$ (radius $r_s$, emissivity $\varepsilon_s$) and an outer cylinder at $T_f$ (radius $r_f$, emissivity $\varepsilon_f$):
+!style! fontsize=78%
 
-!equation
-q_r = \sigma F_e (T_s^4 - T_f^4)
-
-where the exchange factor accounts for radii and emissivities (the form used by MOOSE):
+For two coaxial cylinders — an inner surface at $T_s$ (radius $r_s$, emissivity $\varepsilon_s$) and an outer at $T_f$ ($r_f$, $\varepsilon_f$) — the flux uses an exchange factor $F_e$ that folds in the radii and emissivities:
 
 !equation
-F_e = \frac{\varepsilon_s \varepsilon_f r_f}{\varepsilon_f r_f + \varepsilon_s r_s (1 - \varepsilon_f)}
+q_r = \sigma F_e (T_s^4 - T_f^4), \qquad F_e = \frac{\varepsilon_s \varepsilon_f r_f}{\varepsilon_f r_f + \varepsilon_s r_s (1 - \varepsilon_f)}
 
-!---
-
-# InfiniteCylinderRadiativeBC
-
-Applies radiation between two coaxial cylinders with different emissivities:
+`InfiniteCylinderRadiativeBC` applies it, given the two radii and emissivities:
 
 !listing modules/heat_transfer/test/tests/radiative_bcs/radiative_bc_cyl.i block=BCs/radiative_bc
 
-Parameters:
+- `boundary_radius` / `boundary_emissivity` — inner surface; `cylinder_radius` / `cylinder_emissivity` — outer surface
 
-- `boundary_radius`: radius of inner surface
-- `boundary_emissivity`: emissivity of inner surface
-- `cylinder_radius`: radius of outer surface
-- `cylinder_emissivity`: emissivity of outer surface
-
-!---
-
-# Gray-Body Enclosure Radiation: View Factors
-
-Radiation in an enclosure with $N$ surfaces depends on view factors $F_{ij}$ — the fraction of energy leaving surface $i$ reaching surface $j$.
-
-Conceptually, the net flux at surface $i$ balances the radiation leaving it against the radiation arriving from the other surfaces. The simple emission-only form below ignores surface reflection; MOOSE instead solves a radiosity linear system that accounts for it.
-
-MOOSE solves for the per-area radiosity $J_i$ (total radiation leaving each surface):
-
-!equation
-(\mathbf{I} - (\mathbf{I}-\boldsymbol{\varepsilon})\mathbf{F})\,\mathbf{J} = \boldsymbol{\varepsilon}\,\sigma\,\mathbf{T}^4
-
-The net radiative flux at surface $i$ is then:
-
-!equation
-q_i = J_i - \sum_j F_{ij} J_j
-
-Reciprocity: $A_i F_{ij} = A_j F_{ji}$
-
-Summation rule: $\sum_j F_{ij} = 1$
-
-!---
-
-# Computing View Factors
-
-Three methods in heat_transfer module:
-
-1. +Specified/Constant+: Pre-computed externally or from symmetry; user provides matrix
-2. +UnobstructedPlanarViewFactor+: Numerical double-area-integral view factors over unobstructed planar surfaces (any relative orientation, line-of-sight only; 2D or 3D)
-3. +RayTracingViewFactor+: Ray-tracing with a deterministic angular quadrature for arbitrary/obstructed geometries
-
-!---
-
-# Specified View Factors
-
-Pre-computed matrix input to the gray-body enclosure solver:
-
-!listing modules/heat_transfer/test/tests/gray_lambert_radiator/gray_lambert_cavity.i block=UserObjects/view_factors_uo
-
-The `SpecifiedViewFactor` object defines the view-factor matrix and loads it into a `ViewFactorObjectSurfaceRadiation` (shown next).
-
-!---
-
-# GrayLambert Enclosure Solver
-
-`ViewFactorObjectSurfaceRadiation` solves the gray-body enclosure problem using pre-computed view factors:
-
-!listing modules/heat_transfer/test/tests/gray_lambert_radiator/gray_lambert_cavity.i block=UserObjects/gray_lambert
-
-- `boundary`: list of radiating surfaces
-- `fixed_temperature_boundary`: surfaces held at specified $T$
-- `adiabatic_boundary`: insulated surfaces (solve for $T$)
-- `emissivity`: emissivity of each surface
-
-!---
-
-# Unobstructed Planar View Factors
-
-For parallel or perpendicular planar surfaces:
-
-!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/unobstructed_vf
-
-Used for simple geometries without obstructions. Faster than ray-tracing.
-
-!---
-
-# Ray-Tracing View Factors
-
-For complex, obstructed geometries:
-
-!row!
-
-!col! width=50%
-
-!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/vf_study link=False
-
-!col-end!
-
-!col! width=50%
-
-!listing modules/heat_transfer/test/tests/view_factors/view_factor_2d.i block=UserObjects/rt_vf link=False
-
-!col-end!
-
-!row-end!
-
-`ViewFactorRayStudy` sets the quadrature; `RayTracingViewFactor` computes $F_{ij}$ by deterministic ray tracing over an angular quadrature — slower, but handles arbitrary geometry, obstructions, and self-shadowing. Accuracy is controlled by `polar_quad_order`/`azimuthal_quad_order`/`face_order`, not by a random sample size.
-
-!---
-
-# Net-Radiation Method: Radiosity
-
-In a vacuum-filled cavity (think the gap between a reactor vessel and its cooling wall) surfaces exchange heat only by radiation. We track the +radiosity+ $J_i$ — total power leaving surface $i$ per unit area (emitted + reflected).
-
-For opaque, +gray, diffuse+ (Lambert) surfaces the reflectivity is $\rho_i = 1-\epsilon_i$, giving one balance per surface:
-
-!equation
-J_i = \epsilon_i\,\sigma\,T_i^4 \;+\; (1-\epsilon_i)\sum_{j} F_{i,j}\,J_j
-
-- $\epsilon_i$ emissivity, $\sigma = 5.67\times10^{-8}\ \mathrm{W/m^2K^4}$, $T_i$ surface temperature.
-- $F_{i,j}$ = +view factor+: fraction of $i$'s radiation that lands on $j$ (geometry only).
-- The sum $\sum_j F_{i,j} J_j$ is the +irradiation+ $H_i$ arriving on $i$.
-
-!---
-
-# Net-Radiation Method: Net Flux
-
-Solve the coupled linear system for all $J_i$, then recover the net flux that couples back into conduction:
-
-!equation
-q_i = J_i - H_i = \frac{\epsilon_i}{1-\epsilon_i}\left(\sigma T_i^4 - J_i\right)
-
-- $q_i>0$ leaves the surface (net loss); $q_i<0$ is net gain.
-- This $q_i$ is the Neumann flux applied to the temperature solve on each participating wall.
-- The whole method is just two balances per surface — radiosity + irradiation — closed by the view factors $F_{i,j}$.
-
-!---
-
-# Enclosure Boundary Types
-
-Each surface in the enclosure declares +how it closes the radiosity system+. MOOSE supports three roles:
-
-!row!
-
-!col! width=50%
-
-+Fixed-temperature (isothermal)+
-
-- $T_i$ known (constant or a function).
-- Use for a wall held at a set point.
-
-Closes with the $T$-form:
-
-!equation
-\sum_j\!\left(\delta_{i,j}-(1-\epsilon_i)F_{i,j}\right)J_j = \epsilon_i\sigma T_i^4
-
-!col-end!
-
-!col! width=50%
-
-+Adiabatic / reradiating+
-
-- No net flux: $q_i = 0$.
-- Floats to a radiative equilibrium $T$.
-
-Closes with the $q$-form:
-
-!equation
-\sum_j\!\left(\delta_{i,j}-F_{i,j}\right)J_j = 0
-
-!col-end!
-
-!row-end!
-
-A third type, +variable-temperature+, ties $T_i$ to the conduction variable — that is the surface where $q_i$ feeds back into the heat equation. Adiabatic and isothermal walls need no temperature variable defined on them.
-
-!---
-
-# One-Block Setup: `[GrayDiffuseRadiation]`
-
-The `[GrayDiffuseRadiation]` action (a `RadiationTransferAction`) builds the whole net-radiation problem from a single block. You list the enclosure boundaries, their emissivities, and tag which are adiabatic or fixed-temperature; everything not tagged is variable-temperature.
-
-!style! fontsize=80%
-From one block MOOSE assembles:
-
-- a +view-factor user object+ (ray-tracing by default; `analytical` for unobstructed planar surfaces),
-- a +net-radiation side user object+ that solves the radiosity system above,
-- a +`GrayLambertNeumannBC`+ on each variable-temperature surface applying $q_i$ to the temperature.
 !style-end!
 
-`n_patches` splits a boundary into sub-patches for more accurate view factors.
+!---
+
+# Enclosure Radiation: View Factors & Radiosity
+
+When surfaces in a cavity see each other (e.g. a reactor vessel and its cooling wall in vacuum), they exchange heat only by radiation — set by +view factors+ $F_{ij}$: the fraction of energy leaving surface $i$ that reaches $j$ (geometry only). Reciprocity $A_i F_{ij}=A_j F_{ji}$; summation $\sum_j F_{ij}=1$.
+
+For gray, diffuse surfaces MOOSE solves for the +radiosity+ $J_i$ (power leaving each surface — emitted + reflected):
+
+!equation
+J_i = \epsilon_i\,\sigma\,T_i^4 \;+\; (1-\epsilon_i)\sum_{j} F_{ij}\,J_j
+
+The +net radiative flux+ — the Neumann flux fed back into the conduction solve — is then
+
+!equation
+q_i = \frac{\epsilon_i}{1-\epsilon_i}\left(\sigma T_i^4 - J_i\right)
 
 !---
 
-# Input: `[GrayDiffuseRadiation]` Block
+# Computing View Factors in MOOSE
 
-!style! fontsize=80%
+The `heat_transfer` module offers three ways to get $F_{ij}$ — pick by geometry:
 
-Square cavity: boundary `4` at 1200 K, `7` adiabatic, rest at variable T, per-surface emissivity.
+- +Specified+ (`SpecifiedViewFactor`) — you supply a pre-computed / symmetry matrix
+- +Unobstructed planar+ (`UnobstructedPlanarViewFactor`) — a numerical area integral for line-of-sight planar surfaces (2-D or 3-D); fast
+- +Ray-tracing+ (`RayTracingViewFactor` + `ViewFactorRayStudy`) — deterministic angular quadrature for arbitrary, obstructed geometry; slower but general
+
+The gray-body solver (`ViewFactorObjectSurfaceRadiation`) consumes these plus per-surface emissivities to solve the radiosity system — but the action on the next slide wires all of it for you.
+
+!---
+
+# Setting Up Enclosure Radiation: `[GrayDiffuseRadiation]`
+
+The `[GrayDiffuseRadiation]` action builds the whole net-radiation problem from +one block+: the view-factor object, the radiosity solver, and a `GrayLambertNeumannBC` applying $q_i$ to each participating surface.
+
+!style! fontsize=72%
 
 !listing modules/heat_transfer/test/tests/radiation_transfer_action/radiative_transfer_action.i block=GrayDiffuseRadiation/cavity
 
-- `boundary` / `emissivity` — paired lists over surfaces.
-- `fixed_temperature_boundary` / `fixed_boundary_temperatures` — isothermal wall.
-- `adiabatic_boundary` — reradiating wall.
-- `temperature` — conduction variable on variable-T surfaces.
+- `boundary` / `emissivity` — paired lists over the enclosure surfaces
+- `fixed_temperature_boundary` — isothermal walls; `adiabatic_boundary` — reradiating walls that float to equilibrium; everything else is +variable-temperature+ (tied to the conduction variable, where $q_i$ feeds back)
 
 !style-end!
 
@@ -3141,37 +2984,15 @@ Square cavity: boundary `4` at 1200 K, `7` adiabatic, rest at variable T, per-su
 
 # Application: Space Reactor Radiator
 
-Space reactors reject heat via radiators to deep space ($T_{\infty} \approx 3$ K):
+Space reactors reject waste heat only by +radiation+ to deep space ($T_{\infty}\approx 3$ K) — no convection in vacuum. Surface temperatures run 500--1000 K, the view factor to cold space is $\approx 1$, and the radiator area must satisfy $q = \varepsilon\sigma A (T^4 - T_{\infty}^4)$.
 
-+Design Challenge+:
-
-- Surface temperatures 500—1000 K
-- Radiation is only mechanism (no convection in vacuum)
-- View factor to cold space is ~1 (no obstructions)
-- Radiator area must satisfy: $q = \varepsilon \sigma A (T^4 - T_{\infty}^4)$
-
-+MOOSE Approach+:
-
-- Use `FunctionRadiativeBC` on radiator surface with $\varepsilon = 0.85$ (typical)
-- Set $T_{\infty} = 0$ or 3 K
-- Solve transient heat conduction through reactor structure and radiator
-
-!---
-
-# Space Reactor Example: Coupled System
-
-Thermal model couples:
-
-1. Core (internal heat generation)
-2. Radiator pipes (conduction through walls)
-3. Radiative BC to space
+The model couples core heat generation, conduction through the radiator, and a radiating surface:
 
 !equation
-\rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) + q'''
+\rho c\,\pf{T}{t} = \nabla\cdot(k\nabla T) + q''' , \qquad -k\,\pf{T}{n} = \varepsilon\sigma(T^4 - T_\infty^4)
 
-with BC: $-k \frac{\partial T}{\partial n} = \varepsilon \sigma (T^4 - T_{\infty}^4)$
-
-The nonlinear solver handles the $T^4$ terms automatically with Newton's method.
+- Apply `FunctionRadiativeBC` on the radiator surface ($\varepsilon\approx 0.85$, $T_\infty = 3$ K)
+- Newton handles the $T^4$ nonlinearity automatically (an exact / AD Jacobian)
 
 !---
 
@@ -3385,15 +3206,13 @@ Convergence scales with the +condition number+ of $\mathbf{J}$: an ill-condition
 
 # Why a Line Search?
 
-The full Newton step $\delta\vec{u}$ is the *tangent* prediction — exact for a linear problem, but it can +overshoot+ when the physics is strongly nonlinear:
+The full Newton step $\delta\vec{u}$ is a *tangent* prediction — it can +overshoot+ when the physics is strongly nonlinear (a radiative $q\propto\varepsilon\sigma T^4$ flux has Jacobian $\sim 4\varepsilon\sigma T^3$, so a small $\Delta T$ swings the residual hard). The full step lands past the root and the residual +grows+, stalling the solve.
 
-- A radiative boundary flux $q \propto \varepsilon\sigma\,(T^4 - T_\infty^4)$ has Jacobian $\sim 4\varepsilon\sigma T^3$ — a tiny temperature change swings the residual hard.
-- Temperature-dependent $k(T)$ and thermal-stress coupling have the same flavor: the full step lands past the root and the residual +grows+, stalling or diverging the solve.
+!media media/thermo_mechanical/line_search.png
+       style=width:56%;display:block;margin-left:auto;margin-right:auto;
+       alt=Residual along the Newton direction vs step fraction; the full step overshoots and the line search backtracks to a shorter step
 
-A line search keeps the Newton +direction+ but scales the +length+ by $\alpha$, picking $\alpha$ that actually decreases the residual:
-
-!equation
-\vec{u}_{n+1} = \vec{u}_n + \alpha\,\delta\vec{u}_{n+1},\qquad \alpha \in (0,1]
+A line search keeps the Newton +direction+ but scales the +length+ — $\vec{u}_{n+1} = \vec{u}_n + \alpha\,\delta\vec{u}$ with $\alpha \in (0,1]$ chosen to actually decrease the residual.
 
 !---
 
@@ -3561,16 +3380,6 @@ Single Matrix Preconditioner — auto-created with `full = true` when `solve_typ
 Set linear solver details via `petsc_options_iname/value`:
 
 !listing tutorials/darcy_thermo_mech/step07_adaptivity/problems/step7b_fine.i block=Executioner
-
-!---
-
-# Common PETSc Options
-
-- `-pc_type lu`: direct LU (serial: PETSc built-in; parallel: add `-pc_factor_mat_solver_type mumps`)
-- `-pc_type hypre -pc_hypre_type boomeramg`: Algebraic multigrid
-- `-pc_type asm -sub_pc_type lu`: Additive Schwarz Method (overlapping subdomains) with LU on each subdomain
-- `-pc_type icc`: Incomplete Cholesky (symmetric systems)
-- `-ksp_gmres_restart 100`: GMRES window (default 30)
 
 !---
 
