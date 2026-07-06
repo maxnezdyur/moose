@@ -123,4 +123,95 @@
       requirement = 'The system shall run reduced-integration total-Lagrangian explicit dynamics on HEX8 elements stabilized by the hourglass correction.'
     []
   []
+
+  [thermal]
+    # implicit reduced-integration conduction ladder (see README.md)
+    [gamma_orthogonality]
+      type = 'CSVDiff'
+      input = 'thermal_gamma_ortho.i'
+      csvdiff = 'thermal_gamma_ortho_out.csv'
+      abs_zero = 1.0E-12
+      requirement = 'The hourglass gamma vector shall be orthogonal to affine fields at machine precision on distorted QUAD4 meshes.'
+    []
+    [patch]
+      type = 'CSVDiff'
+      input = 'thermal_patch.i'
+      csvdiff = 'thermal_patch_out.csv'
+      abs_zero = 1.0E-12
+      requirement = 'Stabilized one-point conduction shall reproduce a linear temperature field on distorted quads to machine precision with vanishing stabilization energy.'
+    []
+    [transient_checkerboard_stab]
+      type = 'CSVDiff'
+      input = 'thermal_transient_hg.i'
+      cli_args = 'Outputs/file_base=thermal_transient_stab_out'
+      csvdiff = 'thermal_transient_stab_out.csv'
+      abs_zero = 1.0E-10
+      requirement = 'The stabilization shall remove checkerboard content from a transient conduction solution.'
+    []
+    [transient_checkerboard_nostab]
+      type = 'CSVDiff'
+      input = 'thermal_transient_hg.i'
+      cli_args = 'Kernels/inactive=hg Outputs/file_base=thermal_transient_nostab_out'
+      csvdiff = 'thermal_transient_nostab_out.csv'
+      rel_err = 1.0E-8
+      requirement = 'Unstabilized one-point conduction shall exhibit the documented pathology: a checkerboard initial condition persists indefinitely (zero hourglass stiffness).'
+    []
+    [flux_pin_stab]
+      type = 'CSVDiff'
+      input = 'thermal_flux_pin.i'
+      cli_args = 'Outputs/file_base=thermal_flux_pin_out -pc_type lu'
+      csvdiff = 'thermal_flux_pin_out.csv'
+      abs_zero = 1.0E-10
+      requirement = 'Stabilized one-point conduction shall render the flux-driven single-pin problem well posed, matching full integration.'
+    []
+    [flux_pin_nostab_singular]
+      type = 'RunException'
+      input = 'thermal_flux_pin.i'
+      cli_args = 'Kernels/inactive=hg Outputs/file_base=fp_sing -pc_type lu'
+      expect_err = 'FACTOR_NUMERIC_ZEROPIVOT'
+      requirement = 'Unstabilized one-point conduction shall exhibit the documented steady pathology: with flux loading and a single pinned node the assembled operator is exactly singular (checkerboard null vector on the unanchored sublattice).'
+    []
+    [thermomech_coupled]
+      type = 'CSVDiff'
+      input = 'thermomech_coupled.i'
+      cli_args = 'Outputs/file_base=thermomech_coupled_out -pc_type lu'
+      csvdiff = 'thermomech_coupled_out.csv'
+      rel_err = 1.0E-8
+      abs_zero = 1.0E-11
+      requirement = 'Coupled thermomechanics at one-point quadrature shall converge with hourglass stabilization on all fields, including a temperature-dependent shear modulus in the mechanical stabilization coefficient.'
+    []
+    [thermomech_jacobian]
+      type = 'PetscJacobianTester'
+      input = 'thermomech_coupled.i'
+      cli_args = 'Outputs/csv=false'
+      ratio_tol = 1e-7
+      difference_tol = 1e60
+      run_sim = true
+      requirement = 'The coupled hourglass-stabilized tangent, including the off-diagonal d(mu)/dT block, shall match the finite-difference Jacobian.'
+    []
+    [hex_patch_rect]
+      type = 'CSVDiff'
+      input = 'hex_thermal_patch.i'
+      cli_args = 'Mesh/inactive=distort Outputs/file_base=hex_thermal_patch_rect_out'
+      csvdiff = 'hex_thermal_patch_rect_out.csv'
+      abs_zero = 1.0E-12
+      requirement = 'Stabilized one-point HEX8 conduction shall reproduce a linear temperature field on rectangular parallelepipeds to machine precision with vanishing stabilization energy and machine-precision gamma orthogonality.'
+    []
+    [hex_patch_distorted]
+      type = 'CSVDiff'
+      input = 'hex_thermal_patch.i'
+      csvdiff = 'hex_thermal_patch_out.csv'
+      rel_err = 1.0E-6
+      abs_zero = 1.0E-12
+      requirement = 'On distorted hexes the one-point BASE operator carries the documented O(distortion) consistency error of the center-gradient quadrature (the Flanagan-Belytschko mean-gradient motivation); the stabilization itself remains exactly consistent (gamma orthogonality at machine precision) and the error is regression-pinned.'
+    []
+    [kT_consistent_tangent]
+      type = 'CSVDiff'
+      input = 'thermal_kT_newton.i'
+      csvdiff = 'thermal_kT_newton_out.csv'
+      rel_err = 1.0E-8
+      abs_zero = 1.0E-12
+      requirement = 'Stabilized one-point conduction with temperature-dependent conductivity shall converge with the consistent d(eps)/dT tangent.'
+    []
+  []
 []
