@@ -440,6 +440,15 @@ public:
   virtual void initNullSpaceVectors(const InputParameters & parameters,
                                     std::vector<std::shared_ptr<NonlinearSystemBase>> & nl);
 
+  /**
+   * Allocate the ghosted near-null-space system vectors on every nonlinear system and record the
+   * subspace dimension. This may be called more than once (e.g. by multiple RigidBodyModes
+   * objects); a repeat call with the same dimension is a no-op, while a call with a different
+   * dimension after the near-null-space has already been allocated is an error.
+   * @param dimension The number of near-null-space modes to allocate
+   */
+  void initNearNullSpaceVectors(unsigned int dimension);
+
   virtual void init() override;
   virtual void solve(const unsigned int nl_sys_num);
 

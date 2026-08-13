@@ -24,6 +24,8 @@ system:
 - Optional: set up out-of-plane stress/strain consistently -- only the `StressDivergenceTensors` system
 - Optional: extract eigenstrain names from materials and apply them to the proper blocks -- both systems
 - Optional: set up cell-average homogenization constraints -- only the Lagrangian kernels
+- Optional: add a [RigidBodyModes](RigidBodyModes.md) user object to seed the near-null-space
+  when `rigid_body_near_null_space = true` -- both systems
 
 ### For the `StressDivergenceTensors` Kernels
 
@@ -50,6 +52,15 @@ system:
 | Add AuxVariables and AuxKernels for various tensor component and quantity outputs | Material Properties as well as [AuxVariables](/AuxVariables/index.md) and [RankTwoAux](/RankTwoAux.md) or [RankTwoScalarAux](/RankTwoScalarAux.md) or [RankFourAux](/RankFourAux.md) | `generate_output`: a string of the quantities to add |
 | Add Material Properties for various tensor component and quantity outputs |  | `generate_output`: a string of the quantities to add |
 | Add the optional homogenization constraints | Adds all objects required to impose the [homogenization constraints](Homogenization.md) | `constraint_types` : MooseEnum controlling whether `strain` or `stress` constraints and imposed, `targets` : Functions providing the time-dependent targets  |
+
+## Rigid Body Near-Null-Space id=rigid-body
+
+Setting `rigid_body_near_null_space = true` adds a [RigidBodyModes](RigidBodyModes.md) user
+object built from the action's `displacements`. When the action also sets a `temperature`,
+that field is forwarded as a constant near-null-space mode. The user object sizes the
+near-null-space automatically, so no `[Problem]` parameter is required. See
+[RigidBodyModes](RigidBodyModes.md) for the modes produced and the solver options (PETSc
+GAMG or hypre BoomerAMG) needed to consume them.
 
 ## Compatibility Mode Wiring id=compat-wiring
 

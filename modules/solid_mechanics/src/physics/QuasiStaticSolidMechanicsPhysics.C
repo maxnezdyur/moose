@@ -558,6 +558,22 @@ QuasiStaticSolidMechanicsPhysics::act()
       _problem->addKernel(ad_prepend + "WeakPlaneStress", wps_kernel_name, params);
     }
   }
+
+  // Optionally add the RigidBodyModes near-null-space user object. It self-registers the
+  // near-null-space subspace from its constructor, so no near_null_space_dimension is set here.
+  else if (_current_task == "add_user_object")
+  {
+    if (getParam<bool>("rigid_body_near_null_space"))
+    {
+      auto params = _factory.getValidParams("RigidBodyModes");
+      params.set<std::vector<VariableName>>("displacements") = _coupled_displacements;
+      if (isParamValid("temperature"))
+        params.set<std::vector<VariableName>>("constant_mode_variables") =
+            getParam<std::vector<VariableName>>("temperature");
+      params.set<ExecFlagEnum>("execute_on") = EXEC_INITIAL;
+      _problem->addUserObject("RigidBodyModes", name() + "_rigid_body_modes", params);
+    }
+  }
 }
 
 void
