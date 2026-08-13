@@ -1,0 +1,92 @@
+[Tests]
+  design = 'RigidBodyModes.md syntax/UserObjects/index.md'
+  issues = '#11277'
+  [amg]
+    requirement = 'The system shall populate the framework near-null-space vectors with the rigid '
+                  'body modes of the displacement field so that algebraic multigrid solves an '
+                  'under-constrained elastic solid mechanics problem in a reduced number of linear '
+                  'iterations'
+    [gamg_free_block]
+      type = CSVDiff
+      input = 'free_block.i'
+      cli_args = 'Outputs/file_base=gamg_free_block'
+      csvdiff = 'gamg_free_block.csv'
+      override_columns = 'num_linear_iterations'
+      override_rel_err = '0.3'
+      override_abs_zero = '1e-8'
+      min_parallel = 1
+      max_parallel = 1
+      recover = false
+      detail = 'using the PETSc GAMG preconditioner on a two-dimensional problem, and'
+    []
+    [gamg_free_block_3d]
+      type = CSVDiff
+      input = 'free_block_3d.i'
+      cli_args = 'Outputs/file_base=gamg_free_block_3d'
+      csvdiff = 'gamg_free_block_3d.csv'
+      override_columns = 'num_linear_iterations'
+      override_rel_err = '0.3'
+      override_abs_zero = '1e-8'
+      min_parallel = 1
+      max_parallel = 1
+      recover = false
+      detail = 'using the PETSc GAMG preconditioner on a three-dimensional problem with three '
+               'translational and three rotational modes.'
+    []
+  []
+  [thermomechanical]
+    requirement = 'The system shall populate the framework near-null-space vectors with rigid body '
+                  'modes plus one constant mode per coupled field so that algebraic multigrid solves '
+                  'an under-constrained coupled thermo-mechanical problem in a reduced number of '
+                  'linear iterations while keeping the rigid modes free of temperature degrees of '
+                  'freedom'
+    [free_thermal_block]
+      type = CSVDiff
+      input = 'free_thermal_block.i'
+      csvdiff = 'free_thermal_block_out.csv'
+      override_columns = 'num_linear_iterations'
+      override_rel_err = '0.3'
+      override_abs_zero = '1e-8'
+      min_parallel = 1
+      max_parallel = 1
+      recover = false
+      detail = 'when the user object is added directly, and'
+    []
+    [physics_action]
+      type = CSVDiff
+      input = 'physics_action.i'
+      csvdiff = 'physics_action_out.csv'
+      override_columns = 'num_linear_iterations'
+      override_rel_err = '0.3'
+      override_abs_zero = '1e-8'
+      min_parallel = 1
+      max_parallel = 1
+      recover = false
+      detail = 'when the user object is added through the quasi-static solid mechanics physics action.'
+    []
+  []
+  [errors]
+    requirement = 'The system shall report an error when the rigid body modes user object is configured with'
+    [error_bad_disp_count]
+      type = RunException
+      input = 'free_block.i'
+      cli_args = "UserObjects/rigid_body_modes/displacements='disp_x'"
+      expect_err = 'expected 2 or 3'
+      detail = 'a number of displacement variables other than two or three,'
+    []
+    [error_dim_conflict]
+      type = RunException
+      input = 'free_block.i'
+      cli_args = 'Problem/near_null_space_dimension=5'
+      expect_err = 'near-null-space dimension cannot be changed once allocated'
+      detail = 'a near-null-space dimension that conflicts with an already allocated dimension, and'
+    []
+    [error_const_overlaps_disp]
+      type = RunException
+      input = 'free_block.i'
+      cli_args = "UserObjects/rigid_body_modes/constant_mode_variables='disp_x'"
+      expect_err = "cannot appear in both 'displacements' and 'constant_mode_variables'"
+      detail = 'a constant-mode variable that is also a displacement variable.'
+    []
+  []
+[]

@@ -815,16 +815,39 @@ FEProblemBase::initNullSpaceVectors(const InputParameters & parameters,
       nl->addVector("TransposeNullSpace" + oss.str(), false, libMesh::GHOSTED);
   }
   _subspace_dim["TransposeNullSpace"] = dimTransposeNullSpace;
-  for (unsigned int i = 0; i < dimNearNullSpace; ++i)
+  initNearNullSpaceVectors(dimNearNullSpace);
+}
+
+void
+FEProblemBase::initNearNullSpaceVectors(unsigned int dimension)
+{
+  // A recorded dimension of 0 means only the default near_null_space_dimension path ran during
+  // problem construction (FEProblem ctor), before any user object could request a real dimension;
+  // no vectors were allocated, so it is treated as not yet allocated.
+  auto it = _subspace_dim.find("NearNullSpace");
+  if (it != _subspace_dim.end() && it->second != 0)
+  {
+    // Already allocated with a real dimension: same dimension is a no-op, a different dimension is
+    // a conflict
+    if (it->second == dimension)
+      return;
+    mooseError("The near-null-space was already allocated with dimension ",
+               it->second,
+               ", but initNearNullSpaceVectors() was called requesting dimension ",
+               dimension,
+               ". The near-null-space dimension cannot be changed once allocated.");
+  }
+
+  for (unsigned int i = 0; i < dimension; ++i)
   {
     std::ostringstream oss;
     oss << "_" << i;
     // do not project, since this will be recomputed, but make it ghosted, since the near-nullspace
     // builder might march over all semilocal nodes
-    for (auto & nl : nls)
+    for (auto & nl : _nl)
       nl->addVector("NearNullSpace" + oss.str(), false, libMesh::GHOSTED);
   }
-  _subspace_dim["NearNullSpace"] = dimNearNullSpace;
+  _subspace_dim["NearNullSpace"] = dimension;
 }
 
 FEProblemBase::~FEProblemBase()

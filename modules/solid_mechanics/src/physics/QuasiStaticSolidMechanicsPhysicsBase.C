@@ -141,6 +141,12 @@ QuasiStaticSolidMechanicsPhysicsBase::validParams()
   params.addRequiredParam<std::vector<VariableName>>(
       "displacements", "The nonlinear displacement variables for the problem");
   params.addParam<std::vector<VariableName>>("temperature", "The temperature");
+  params.addParam<bool>(
+      "rigid_body_near_null_space",
+      false,
+      "Add a RigidBodyModes user object that fills the near-null-space with the rigid body modes "
+      "of the displacement field (plus one constant mode per temperature/coupled field) to "
+      "accelerate algebraic multigrid on under-constrained (floating) solves.");
 
   MooseEnum strainType("SMALL FINITE", "SMALL");
   params.addParam<MooseEnum>("strain", strainType, "Strain formulation");
@@ -274,7 +280,8 @@ QuasiStaticSolidMechanicsPhysicsBase::validParams()
       "Volumetric part averaged by the F-bar volumetric locking correction in the Lagrangian "
       "strain calculator: the total (default) or incremental deformation gradient.");
 
-  params.addParamNamesToGroup("add_variables displacements temperature", "Variables");
+  params.addParamNamesToGroup("add_variables displacements temperature rigid_body_near_null_space",
+                              "Variables");
   params.addParamNamesToGroup("strain incremental use_finite_deform_jacobian eigenstrain_names "
                               "volumetric_locking_correction kinematic_approximation "
                               "generalized_midpoint_alpha volumetric_locking_correction_mode",
