@@ -70,6 +70,9 @@ L = 5
   solve_type = NEWTON
 []
 
+[AutoResidualTag]
+[]
+
 [VariableMappings]
   [rb_mapping]
     type = DEIMRBMapping

@@ -1,0 +1,28 @@
+[Tests]
+  design = '/ROMSetupAction.md'
+  issues = '#27101'
+
+  [equivalence]
+    requirement = 'The system shall build, from a single [ROM] block and a plain full-order '
+                  'sub-application input, a DEIM reduced-order model equivalent to the hand-wired '
+                  'multi-tag training pipeline, demonstrated by'
+    [create_mapping]
+      type = CheckFiles
+      input = create_mapping.i
+      check_files = 'create_mapping_rom_mapping_output_rom_mapping.rd/data create_mapping_rom_mapping_output_rom_mapping.rd/header'
+      max_parallel = 1
+      capabilities = 'petsc>=3.14'
+      detail = 'assembling the sampler-driven training pipeline and storing the trained '
+               'reduced-basis mapping, and'
+    []
+    [reconstruct]
+      type = Exodiff
+      input = main_rb.i
+      exodiff = 'main_rb_out.e'
+      prereq = 'equivalence/create_mapping'
+      max_parallel = 1
+      capabilities = 'petsc>=3.14'
+      detail = 'reconstructing the full solution field from the stored mapping.'
+    []
+  []
+[]

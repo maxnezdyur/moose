@@ -18,6 +18,7 @@
 #include "libmesh/elem.h"
 #include "libmesh/elem_range.h"
 #include "libmesh/id_types.h"
+#include <map>
 #include <memory>
 
 /**
@@ -49,7 +50,9 @@ protected:
   /// Link to the mapping object which provides the inverse mapping function
   DEIMRBMapping * _mapping;
 
-  std::vector<dof_id_type> _residual_inds;
+  /// Per-residual-component selection indices, keyed by residual component name (as returned by
+  /// DEIMRBMapping::getResidualComponents()). Each vector holds that component's selected DOFs.
+  std::map<VariableName, std::vector<dof_id_type>> _residual_inds;
 
   std::vector<std::pair<dof_id_type, dof_id_type>> _jacobian_matrix_inds;
 
@@ -95,11 +98,13 @@ private:
   std::vector<Real> getReducedJacValues(const SparseMatrix<Number> & jac);
 
   /**
-   * Retrieves the reduced residual values from the numeric vector.
-   * @param res Numeric residual vector
-   * @return Reduced residual values
+   * Reads each residual component's selected DOFs from the current assembly and gathers them across
+   * processors. The literal "residual" component reads the total residual (RHS); a "residual::<tag>"
+   * component reads that tag's assembled vector.
+   * @return The selected residual values for each residual component, keyed by component name; each
+   *         component's values follow the order of that component's selection indices.
    */
-  std::vector<Real> getReducedResValues(const NumericVector<Number> & res);
+  std::map<VariableName, std::vector<Real>> getReducedResValues();
 
   /**
    * Computes the reduced Jacobian matrix.
@@ -171,9 +176,6 @@ private:
 
   /// Current solution
   const NumericVector<Number> * _curr_sol;
-
-  /// Linear solver
-  libMesh::LinearSolver<Number> * _solver;
 
   DenseVector<Real> _reduced_sol;
 };

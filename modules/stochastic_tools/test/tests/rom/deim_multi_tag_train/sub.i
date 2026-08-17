@@ -5,12 +5,8 @@ L = 5
 [Mesh]
   type = GeneratedMesh
   dim = 1
-  nx = 50
+  nx = 10
   xmax = ${L}
-[]
-
-[Problem]
-  solve = false
 []
 
 [Variables]
@@ -54,38 +50,27 @@ L = 5
     variable = u
     boundary = left
     value = 0
-    preset = true
   []
   [right_u]
     type = DirichletBC
     variable = u
     boundary = right
     value = ${S}
-    preset = true
   []
+[]
+
+[AutoResidualTag]
 []
 
 [Executioner]
   type = Steady
   solve_type = NEWTON
+  petsc_options_iname = '-pc_type'
+  petsc_options_value = 'lu'
 []
 
-[VariableMappings]
-  [rb_mapping]
-    type = DEIMRBMapping
-    filename = 'create_mapping_mapping_rb_mapping.rd'
+[Controls]
+  [stochastic]
+    type = SamplerReceiver
   []
-[]
-
-[UserObjects]
-  [im]
-    type = InverseRB
-    mapping = rb_mapping
-    execute_on = TIMESTEP_END
-    max_iter = 1
-  []
-[]
-
-[Outputs]
-  exodus = true
 []

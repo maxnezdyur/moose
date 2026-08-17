@@ -70,6 +70,19 @@ POD::computePOD(const VariableName & vname,
   _communicator.sum(global_rows);
   _communicator.max(snapshot_size);
 
+  // The snapshot matrix is global_rows x snapshot_size, so its maximum attainable rank -- and the
+  // largest SVD subspace SLEPc will accept -- is the smaller of the two dimensions.
+  const dof_id_type max_rank = std::min(global_rows, snapshot_size);
+  if (max_rank == 0)
+  {
+    // No snapshots or zero-length snapshots: there is nothing to decompose. Return an empty basis
+    // so the caller drops this component.
+    left_basis_functions.clear();
+    right_basis_functions.clear();
+    singular_values.clear();
+    return;
+  }
+
   // Generally snapshot matrices are dense.
   LibmeshPetscCallA(
       _communicator.get(),
@@ -113,15 +126,46 @@ POD::computePOD(const VariableName & vname,
   LibmeshPetscCallA(_communicator.get(), MatAssemblyBegin(mat, MAT_FINAL_ASSEMBLY));
   LibmeshPetscCallA(_communicator.get(), MatAssemblyEnd(mat, MAT_FINAL_ASSEMBLY));
 
+  // A numerically degenerate (zero-rank) snapshot stream -- e.g. a residual tag that collects only
+  // preset Dirichlet BC contributions -- has a machine-zero norm and mis-sizes SLEPc's dense solver
+  // inside SVDSolve, before the nconv==0 guard in determineNumberOfModes can fire. Detect it from
+  // the assembled matrix's Frobenius norm and skip the solve, returning an empty basis so the caller
+  // drops the component.
+  PetscReal fro_norm;
+  LibmeshPetscCallA(_communicator.get(), MatNorm(mat, NORM_FROBENIUS, &fro_norm));
+
+  // Real streams are O(0.1-1) (matrix Frobenius norm well above 1); degenerate ones are
+  // ~machine-zero (~1e-16). The ~15-order gap makes 1e-12 a robust separator.
+  const PetscReal degenerate_norm_tol = 1e-12;
+  const bool degenerate = fro_norm <= degenerate_norm_tol;
+
+  if (degenerate)
+  {
+    mooseInfo("POD: snapshot matrix for '",
+              vname,
+              "' has Frobenius norm ",
+              fro_norm,
+              "; below tolerance, skipping SVD and returning an empty basis.");
+    LibmeshPetscCallA(_communicator.get(), MatDestroy(&mat));
+    left_basis_functions.clear();
+    right_basis_functions.clear();
+    singular_values.clear();
+    return;
+  }
+
   SVD svd;
   LibmeshPetscCallA(_communicator.get(), SVDCreate(_communicator.get(), &svd));
   // Now we set the operators for our SVD objects
   LibmeshPetscCallA(_communicator.get(), SVDSetOperators(svd, mat, NULL));
 
-  // Set the parallel operation mode to "DISTRIBUTED", default is "REDUNDANT"
+  // Only request the distributed dense solver when actually running on multiple ranks.
+  // DS_PARALLEL_DISTRIBUTED is only meaningful for a multi-rank dense solve and mis-sizes the DS on
+  // small serial snapshot matrices (SLEPc's DSSVDSetDimensions rejects it); on a single rank the
+  // default REDUNDANT mode computes identical singular values with nothing to distribute.
   DS ds;
   LibmeshPetscCallA(_communicator.get(), SVDGetDS(svd, &ds));
-  LibmeshPetscCallA(_communicator.get(), DSSetParallel(ds, DS_PARALLEL_DISTRIBUTED));
+  if (_communicator.size() > 1)
+    LibmeshPetscCallA(_communicator.get(), DSSetParallel(ds, DS_PARALLEL_DISTRIBUTED));
 
   // We want the Lanczos method, might give the choice to the user
   // at some point
@@ -134,14 +178,13 @@ POD::computePOD(const VariableName & vname,
   LibmeshPetscCallA(_communicator.get(),
                     PetscOptionsInsertString(NULL, _extra_slepc_options.c_str()));
 
-  // Set the subspace size for the Lanczos method, we take twice as many
-  // basis vectors as the requested number of POD modes. This guarantees in most of the case the
-  // convergence of the singular triplets.
-  LibmeshPetscCallA(_communicator.get(),
-                    SVDSetDimensions(svd,
-                                     num_modes,
-                                     std::min(2 * num_modes, global_rows),
-                                     std::min(2 * num_modes, global_rows)));
+  // Request nsv singular triplets, clamped to the matrix's maximum attainable rank because SLEPc
+  // rejects a request larger than min(#snapshots, snapshot length). Let SLEPc size the working
+  // subspace (ncv, mpd) via PETSC_DEFAULT: hand-forcing ncv = 2 * num_modes mis-sized the dense
+  // solver (DS) for small num_modes and made SVDSolve fail on small snapshot matrices.
+  LibmeshPetscCallA(
+      _communicator.get(),
+      SVDSetDimensions(svd, std::min(num_modes, max_rank), PETSC_DEFAULT, PETSC_DEFAULT));
 
   // Gives the user the ability to override any option set before the solve.
   LibmeshPetscCallA(_communicator.get(), SVDSetFromOptions(svd));
@@ -206,6 +249,13 @@ POD::determineNumberOfModes(const std::vector<Real> & singular_values,
                             const dof_id_type num_modes_compute,
                             const Real energy) const
 {
+  // No converged singular triplets means the snapshot matrix is zero-rank (e.g. an
+  // identically-zero residual tag from a strongly-enforced/preset Dirichlet BC). There is no basis
+  // to build, so request zero modes; computePOD then returns an empty basis and the caller skips
+  // this component instead of indexing SVDGetSingularTriplet out of range.
+  if (singular_values.empty())
+    return 0;
+
   dof_id_type num_modes = 0;
   // We either use the number of modes defined by the user or the maximum number of converged
   // modes. We don't want to use modes which are unconverged.

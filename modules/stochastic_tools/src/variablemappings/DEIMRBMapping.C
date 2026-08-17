@@ -19,6 +19,7 @@
 #include "VariableMappingBase.h"
 #include "libmesh/dense_matrix.h"
 #include "libmesh/dense_vector.h"
+#include "libmesh/utility.h"
 
 #include "libmesh/int_range.h"
 #include <petscdmda.h>
@@ -66,16 +67,20 @@ DEIMRBMapping::DEIMRBMapping(const InputParameters & parameters)
                    ? getParam<std::vector<dof_id_type>>("num_modes_to_compute")
                    : std::vector<dof_id_type>(_variable_names.size(), 1)),
     _energy_threshold(getParam<std::vector<Real>>("energy_threshold")),
+    _residual_components(declareModelData<std::vector<VariableName>>("residual_components")),
     _sol_basis(declareModelData<std::vector<DenseVector<Real>>>("solution_basis")),
     _residual_selection_inds(
-        declareModelData<std::vector<dof_id_type>>("residual_selection_indices")),
+        declareModelData<std::map<VariableName, std::vector<dof_id_type>>>(
+            "residual_selection_indices")),
     _jacobian_selection_inds(
         declareModelData<std::vector<dof_id_type>>("jacobian_selection_indices")),
     _jac_matrix_selection_inds(declareModelData<std::vector<std::pair<dof_id_type, dof_id_type>>>(
         "jacobian_matrix_selection_indices")),
-    _reduced_residual(declareModelData<std::vector<DenseVector<Real>>>("reduced_residual_basis")),
+    _reduced_residual(declareModelData<std::map<VariableName, std::vector<DenseVector<Real>>>>(
+        "reduced_residual_basis")),
     _reduced_jacobian(declareModelData<std::vector<DenseMatrix<Real>>>("reduced_jacobian_basis")),
-    _residual_selection_matrix(declareModelData<DenseMatrix<Real>>("residual_selection_matrix")),
+    _residual_selection_matrix(
+        declareModelData<std::map<VariableName, DenseMatrix<Real>>>("residual_selection_matrix")),
     _jacobian_selection_matrix(declareModelData<DenseMatrix<Real>>(("jacobian_selection_matrix"))),
     _parallel_storage(isParamValid("solution_storage")
                           ? &getUserObject<ParallelSolutionStorage>("solution_storage")
@@ -87,8 +92,42 @@ DEIMRBMapping::DEIMRBMapping(const InputParameters & parameters)
             ? &getReporterValue<std::vector<std::pair<dof_id_type, dof_id_type>>>("jac_index_name")
             : nullptr)
 {
+  // On the training path 'variables' is provided, so we categorize and validate the mapping
+  // components from it. On the loading path 'variables' may be omitted; the residual component
+  // structure and the per-component model data are then restored from the model data file, so this
+  // block is skipped.
   if (!isParamValid("filename"))
   {
+    // This mapping maps exactly one "solution" component, exactly one "jacobian" component, and one
+    // or more residual components. A residual component is either the single literal "residual"
+    // (N=1 legacy) or "residual::<tag>" (one per residual tag).
+    unsigned int num_solution = 0;
+    unsigned int num_jacobian = 0;
+    for (const auto & vname : _variable_names)
+    {
+      if (vname == "solution")
+        ++num_solution;
+      else if (vname == "jacobian")
+        ++num_jacobian;
+      else if (vname == "residual" || vname.rfind("residual::", 0) == 0)
+        _residual_components.push_back(vname);
+      else
+        paramError("variables",
+                   "Unrecognized mapping component '",
+                   vname,
+                   "'. Each component must be 'solution', 'jacobian', 'residual', or "
+                   "'residual::<tag>'.");
+    }
+
+    if (num_solution != 1)
+      paramError("variables", "Exactly one 'solution' component must be provided.");
+    if (num_jacobian != 1)
+      paramError("variables", "Exactly one 'jacobian' component must be provided.");
+    if (_residual_components.empty())
+      paramError("variables",
+                 "At least one residual component ('residual' or 'residual::<tag>') must be "
+                 "provided.");
+
     if (_num_modes.size() != _variable_names.size())
       paramError("num_modes_to_compute",
                  "The number of modes should be defined for each variable!");
@@ -113,19 +152,6 @@ DEIMRBMapping::DEIMRBMapping(const InputParameters & parameters)
 #if PETSC_VERSION_LESS_THAN(3, 14, 0)
     mooseError("DEIMRBMapping is not supported with PETSc version below 3.14!");
 #else
-    // This mapping will only map these three "variables"
-    std::vector<VariableName> rom_components({"solution", "residual", "jacobian"});
-    // Make a copy of _variable_names to sort. Don't want to change the original vector.
-    std::vector<VariableName> variable_names_sorted = _variable_names;
-
-    // Sort both vectors
-    std::sort(variable_names_sorted.begin(), variable_names_sorted.end());
-    std::sort(rom_components.begin(), rom_components.end());
-
-    if (rom_components != variable_names_sorted)
-      paramError("variables",
-                 "The variable name should only be in the set {solution, residual, jacobian}.");
-
     for (const auto & vname : _variable_names)
     {
       _mapping_ready_to_use.emplace(vname, false);
@@ -208,14 +234,32 @@ void
 DEIMRBMapping::buildComponentBases()
 {
   _sol_basis = computeBasis("solution");
-
-  _res_basis = computeBasis("residual");
-
   _jac_basis = computeBasis("jacobian");
 
-  for (const auto & basis : {_sol_basis, _res_basis, _jac_basis})
-    if (basis.size() == 0)
-      mooseError("Basis is empty. This will not work for DEIMRBMapping.");
+  if (_sol_basis.size() == 0 || _jac_basis.size() == 0)
+    mooseError("Basis is empty. This will not work for DEIMRBMapping.");
+
+  // Build a residual basis for each component. A residual tag with zero numerical rank -- for
+  // example one that collects only preset Dirichlet BC contributions, which vanish at convergence
+  // -- yields an empty POD basis. Such a tag contributes nothing to r = sum_t r_t, so drop it from
+  // the trained residual components rather than carry a degenerate basis. The solution and jacobian
+  // bases are required to be non-empty above; a missing one there is a real error, not a drop.
+  std::vector<VariableName> nondegenerate_components;
+  for (const auto & component : _residual_components)
+  {
+    auto basis = computeBasis(component);
+    if (basis.empty())
+      continue;
+
+    _res_basis[component] = std::move(basis);
+    nondegenerate_components.push_back(component);
+  }
+
+  if (nondegenerate_components.empty())
+    mooseError("Every residual component produced an empty basis. DEIMRBMapping requires at least "
+               "one residual component with a non-zero numerical rank.");
+
+  _residual_components = nondegenerate_components;
 }
 
 void
@@ -292,13 +336,17 @@ DEIMRBMapping::constructReducedBasis()
     }
   }
 
-  // * Residual Basis;
-  for (const auto & basis : _res_basis)
+  // * Residual Basis, projected onto the solution basis, one set per residual component
+  for (const auto & component : _residual_components)
   {
-    DenseVector<Real> red_resid;
-    real_dense_solution_basis.vector_mult_transpose(red_resid, basis);
+    auto & reduced_residual_component = _reduced_residual[component];
+    for (const auto & basis : libmesh_map_find(_res_basis, component))
+    {
+      DenseVector<Real> red_resid;
+      real_dense_solution_basis.vector_mult_transpose(red_resid, basis);
 
-    _reduced_residual.push_back(red_resid);
+      reduced_residual_component.push_back(red_resid);
+    }
   }
 }
 
@@ -310,9 +358,12 @@ DEIMRBMapping::computeDEIMSelectionIndices()
   QDEIM jac_qd(_jac_basis);
   jac_qd.computeSelection(_jacobian_selection_inds);
 
-  // QDEIM for residual
-  QDEIM res_qd(_res_basis);
-  res_qd.computeSelection(_residual_selection_inds);
+  // QDEIM for each residual component
+  for (const auto & component : _residual_components)
+  {
+    QDEIM res_qd(libmesh_map_find(_res_basis, component));
+    res_qd.computeSelection(_residual_selection_inds[component]);
+  }
 }
 
 void
@@ -330,19 +381,26 @@ DEIMRBMapping::storeSelectionMatrices()
       _jacobian_selection_matrix(i, col) = _jac_basis[col](selected_row);
   }
 
-  // save residual selection matrix
-  const auto num_res_sel = _residual_selection_inds.size();
-  _residual_selection_matrix.resize(num_res_sel,
-                                    _res_basis.size()); // Resize to the correct dimensions
-
-  for (MooseIndex(num_res_sel) selection = 0; selection < num_res_sel; ++selection)
+  // save residual selection matrix for each residual component
+  for (const auto & component : _residual_components)
   {
-    dof_id_type selected_row =
-        _residual_selection_inds[selection]; // Get the index of the selected row
-    for (MooseIndex(_res_basis) col = 0; col < _res_basis.size(); ++col)
+    const auto & residual_selection_inds = libmesh_map_find(_residual_selection_inds, component);
+    const auto & res_basis = libmesh_map_find(_res_basis, component);
+    auto & residual_selection_matrix = _residual_selection_matrix[component];
+
+    const auto num_res_sel = residual_selection_inds.size();
+    residual_selection_matrix.resize(num_res_sel,
+                                     res_basis.size()); // Resize to the correct dimensions
+
+    for (MooseIndex(num_res_sel) selection = 0; selection < num_res_sel; ++selection)
     {
-      // Assign the value from the selected row of each column in _res_basis
-      _residual_selection_matrix(selection, col) = _res_basis[col](selected_row);
+      dof_id_type selected_row =
+          residual_selection_inds[selection]; // Get the index of the selected row
+      for (MooseIndex(res_basis) col = 0; col < res_basis.size(); ++col)
+      {
+        // Assign the value from the selected row of each column in res_basis
+        residual_selection_matrix(selection, col) = res_basis[col](selected_row);
+      }
     }
   }
 }
@@ -408,21 +466,36 @@ DEIMRBMapping::compute_reduced_jac(const std::vector<Real> & red_jac_values)
 }
 
 DenseVector<Real>
-DEIMRBMapping::compute_reduced_res(const std::vector<Real> & red_res_values)
+DEIMRBMapping::compute_reduced_res(
+    const std::map<VariableName, std::vector<Real>> & red_res_values_per_component)
 {
-  // We assume the reduced values come in the same order as
-  // _residual_selection_inds
-  DenseVector<Real> res_theta;
+  // Affine sum of the reduced residual contributions over all residual components:
+  //   r_hat = sum_c (Phi^T U_c) (P_c^T U_c)^{-1} r_c|_{P_c}
+  // The reduced residual vectors all live in the solution latent space, so the accumulator has
+  // as many entries as there are solution modes.
+  DenseVector<Real> reduce_res(_sol_basis.size());
 
-  _residual_selection_matrix.lu_solve(red_res_values, res_theta);
+  for (const auto & component : _residual_components)
+  {
+    // We assume the selected residual values for this component come in the same order as its
+    // selection indices (_residual_selection_inds[component]).
+    const auto & red_res_values = libmesh_map_find(red_res_values_per_component, component);
 
-  // Now we can construct the reduced residual
-  DenseVector<Real> reduce_res(_reduced_residual[0].size());
+    DenseVector<Real> res_theta;
+    libmesh_map_find(_residual_selection_matrix, component).lu_solve(red_res_values, res_theta);
 
-  for (MooseIndex(res_theta) i = 0; i < res_theta.size(); i++)
-    reduce_res.add(res_theta(i), _reduced_residual[i]);
+    const auto & reduced_residual_component = libmesh_map_find(_reduced_residual, component);
+    for (const auto i : index_range(res_theta))
+      reduce_res.add(res_theta(i), reduced_residual_component[i]);
+  }
 
   return reduce_res;
+}
+
+const std::vector<dof_id_type> &
+DEIMRBMapping::getResidualSelectionIndices(const VariableName & component) const
+{
+  return libmesh_map_find(_residual_selection_inds, component);
 }
 
 void

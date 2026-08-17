@@ -23,6 +23,10 @@ Surrogate Models:
 - [examples/gaussian_process_surrogate.md]
 - [modules/stochastic_tools/examples/cross_validation.md]
 
+Reduced-Order Models:
+
+- [modules/stochastic_tools/examples/deim_rom.md]
+
 Bayesian UQ:
 
 - [modules/stochastic_tools/examples/bayesian_uq_1d_diff.md]

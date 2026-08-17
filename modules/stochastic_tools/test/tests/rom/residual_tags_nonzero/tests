@@ -1,0 +1,19 @@
+[Tests]
+  design = '/AutoResidualTagAction.md'
+  issues = '#27101'
+  [residual_tags_nonzero]
+    type = CSVDiff
+    input = 'residual_tags_nonzero.i'
+    csvdiff = 'residual_tags_nonzero_out.csv'
+    max_parallel = 1
+    recover = false
+    # The DirichletBC and total-residual columns are driven to solver roundoff at a
+    # converged solve; abs_zero masks them so only the per-Kernel norms (order 0.1) are
+    # compared. If auto-tagging fails to route the Kernels into distinct tags those norms
+    # go to zero and the diff fails.
+    abs_zero = 1e-8
+    requirement = 'The system shall route each Kernel residual contribution into its own residual '
+                  'vector tag so that the per-Kernel tagged residuals are non-zero at a converged '
+                  'steady solve while the total nonlinear residual is near zero.'
+  []
+[]

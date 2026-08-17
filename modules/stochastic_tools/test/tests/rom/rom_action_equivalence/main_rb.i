@@ -70,10 +70,13 @@ L = 5
   solve_type = NEWTON
 []
 
+[AutoResidualTag]
+[]
+
 [VariableMappings]
   [rb_mapping]
     type = DEIMRBMapping
-    filename = 'create_mapping_mapping_rb_mapping.rd'
+    filename = 'create_mapping_rom_mapping_output_rom_mapping.rd'
   []
 []
 

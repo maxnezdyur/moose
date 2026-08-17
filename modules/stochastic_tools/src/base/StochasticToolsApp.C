@@ -111,6 +111,26 @@ StochasticToolsApp::registerAll(Factory & f, ActionFactory & af, Syntax & syntax
 
   // Adds [ParameterStudy] block
   registerSyntax("ParameterStudyAction", "ParameterStudy");
+
+  // Adds [ROM] block: auto-wires the DEIM reduced-order-model training pipeline (sampler-driven
+  // sub-app, serialized snapshot and Jacobian-index transfers, snapshot storage, DEIM mapping, and
+  // mapping output). ROMSetupAction is registered against the individual pipeline tasks in its .C.
+  registerSyntax("ROMSetupAction", "ROM");
+
+  // Adds [AutoResidualTag] block: creates one residual tag per Kernel/BC and the DEIM snapshot
+  // containers. The tagging must run before add_variable and add_aux_variable so the tags are
+  // counted when each variable reserves its per-tag storage capacity, and before the residual
+  // objects are built so it can inject the per-object 'extra_vector_tags'; the containers are
+  // added on add_reporter.
+  registerTask("auto_residual_tag", /* is_required = */ false);
+  registerSyntaxTask("AutoResidualTagAction", "AutoResidualTag", "auto_residual_tag");
+  registerSyntaxTask("AutoResidualTagAction", "AutoResidualTag", "add_reporter");
+  addTaskDependency("auto_residual_tag", "create_problem");
+  addTaskDependency("add_variable", "auto_residual_tag");
+  addTaskDependency("add_aux_variable", "auto_residual_tag");
+  addTaskDependency("add_kernel", "auto_residual_tag");
+  addTaskDependency("add_bc", "auto_residual_tag");
+  addTaskDependency("add_reporter", "auto_residual_tag");
 }
 
 void

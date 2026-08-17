@@ -26,13 +26,17 @@
 #include <slepcsvd.h>
 #include "POD.h"
 
+#include <map>
+
 /**
  * Class for integrating Discrete Empirical Interpolation Method (DEIM) with
  * Proper Orthogonal Decomposition (POD)-based Reduced Basis (RB) mapping.
  * This class specializes in mapping between full-order model spaces and
  * reduced-order model spaces, leveraging POD for dimensionality
  * reduction and DEIM for efficient nonlinear approximation. This class assumes
- * that the parallel storage has a solution, residual, and jacobian variable name.
+ * that the parallel storage has a single solution component, a single jacobian
+ * component, and one or more residual components (either the single literal
+ * "residual" or one "residual::<tag>" per residual tag).
  */
 class DEIMRBMapping : public VariableMappingBase,
                       public UserObjectInterface,
@@ -94,23 +98,32 @@ public:
   DenseMatrix<Real> compute_reduced_jac(const std::vector<Real> & red_jac_values);
 
   /**
-   * Computes the reduced residual vector using the given residual values. This function
-   * assumes that the residual values are provided in a specific order corresponding to
-   * the problem's requirements or the arrangement of the system equations.
+   * Computes the reduced residual vector as the affine sum over all residual components:
+   *   r_hat = sum_c (Phi^T U_c) (P_c^T U_c)^{-1} r_c|_{P_c}
+   * For each component, the supplied selected residual values are assumed to be in the same
+   * order as that component's selection indices (getResidualSelectionIndices(component)).
    *
-   * @param red_res_values A vector of residual values used to compute the reduced residual.
+   * @param red_res_values_per_component The selected residual values for each residual component,
+   *        keyed by the residual component name (as returned by getResidualComponents()).
    * @return DenseVector<Real> The reduced residual vector.
    */
-  DenseVector<Real> compute_reduced_res(const std::vector<Real> & red_res_values);
+  DenseVector<Real>
+  compute_reduced_res(const std::map<VariableName, std::vector<Real>> & red_res_values_per_component);
 
   /**
-   * Gets the selection indices for the residual.
-   * @return A reference to the vector of DOF indices for the residual.
+   * Gets the ordered list of residual component names. These are either the single literal
+   * "residual" (N=1) or one "residual::<tag>" per residual tag.
+   * @return A reference to the ordered vector of residual component names.
    */
-  const std::vector<dof_id_type> getResidualSelectionIndices() const
-  {
-    return _residual_selection_inds;
-  }
+  const std::vector<VariableName> & getResidualComponents() const { return _residual_components; }
+
+  /**
+   * Gets the selection indices for a given residual component.
+   * @param component The residual component name (as returned by getResidualComponents())
+   * @return A reference to the vector of DOF indices for that residual component.
+   */
+  const std::vector<dof_id_type> &
+  getResidualSelectionIndices(const VariableName & component) const;
 
   /**
    * Gets the reduced DOFs needed during the online phase.
@@ -134,29 +147,39 @@ protected:
   /// The energy thresholds for truncation of the number of modes, defined by the user
   const std::vector<Real> & _energy_threshold;
 
+  /// Restartable ordered list of the trained residual component names (model data), so a loaded
+  /// mapping is self-describing even when 'variables' is omitted. Each entry is either the single
+  /// literal "residual" or one "residual::<tag>" per residual tag; zero-rank tags dropped during
+  /// training are not listed here.
+  std::vector<VariableName> & _residual_components;
+
   /// Restartable container holding the basis functions for the solution
   std::vector<DenseVector<Real>> & _sol_basis;
 
-  /// Restartable vector holding the selection indices for the residual
-  std::vector<dof_id_type> & _residual_selection_inds;
+  /// Restartable per-component selection indices for the residual (model data), keyed by residual
+  /// component name
+  std::map<VariableName, std::vector<dof_id_type>> & _residual_selection_inds;
 
   /// Restartable vector holding the selection indices for the jacobian
   std::vector<dof_id_type> & _jacobian_selection_inds;
   /// Restartable vector holding the reduced dofs that are need during online phase
   std::vector<std::pair<dof_id_type, dof_id_type>> & _jac_matrix_selection_inds;
 
-  /// Restartable vector holding the residual's reduced basis
-  std::vector<DenseVector<Real>> & _reduced_residual;
+  /// Restartable per-component reduced residual basis Phi^T U_c (model data), keyed by residual
+  /// component name
+  std::map<VariableName, std::vector<DenseVector<Real>>> & _reduced_residual;
   /// Restartable vector holding the reduced jacobian matrix basis
   std::vector<DenseMatrix<Real>> & _reduced_jacobian;
 
-  /// Restartable matrix holding the residual's reduced basis
-  DenseMatrix<Real> & _residual_selection_matrix;
+  /// Restartable per-component residual selection matrix P_c^T U_c (model data), keyed by residual
+  /// component name
+  std::map<VariableName, DenseMatrix<Real>> & _residual_selection_matrix;
   /// Restartable matrix holding the jacobian's reduced basis
   DenseMatrix<Real> & _jacobian_selection_matrix;
 
-  /// Residual basis needed for computing but should not be stored
-  std::vector<DenseVector<Real>> _res_basis;
+  /// Residual bases U_c per component needed for computing but should not be stored, keyed by
+  /// residual component name
+  std::map<VariableName, std::vector<DenseVector<Real>>> _res_basis;
   /// Jacobian basis needed for computing but should not be stored
   std::vector<DenseVector<Real>> _jac_basis;
 

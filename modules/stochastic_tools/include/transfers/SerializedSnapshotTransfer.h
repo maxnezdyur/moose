@@ -59,22 +59,58 @@ protected:
   std::vector<SnapshotContainerBase *> _jacobian_container;
 
 private:
-  /// Serialize on the root processor of the subapplication and transfer the result to the main application
+  /**
+   * Transfer the residual container's snapshots to the main application. A legacy single-tag
+   * (single-stream) container stores its stream under the key "residual"; a multi-stream
+   * container stores each tag's stream under the key "residual::<tag>".
+   * @param app_problem The subapplication's problem providing the communicator
+   * @param residual_container The residual snapshot container to transfer
+   * @param global_i The global sample index the snapshots belong to
+   */
+  void transferResidual(FEProblemBase & app_problem,
+                        const SnapshotContainerBase & residual_container,
+                        const dof_id_type global_i);
+
+  /**
+   * Transfer a single snapshot stream to the main application under the given storage key. Selects
+   * the serialize-on-root or the parallel-distribution path based on the serialize_on_root option.
+   * @param app_problem The subapplication's problem providing the communicator
+   * @param snapshots The snapshot stream to transfer
+   * @param global_i The global sample index the snapshots belong to
+   * @param snapshot_type The storage key under which the snapshots are stored on the main app
+   */
+  void transferStream(FEProblemBase & app_problem,
+                      const SnapshotContainerBase::Snapshots & snapshots,
+                      const dof_id_type global_i,
+                      const std::string & snapshot_type);
+
+  /**
+   * Serialize a snapshot stream on the root processor of the subapplication and transfer the
+   * result to the main application.
+   * @param app_problem Unused here; kept for parity with the parallel transfer path
+   * @param snapshots The snapshot stream to serialize and transfer
+   * @param global_i The global sample index the snapshots belong to
+   * @param snapshot_type The storage key under which the snapshots are stored on the main app
+   */
   void transferToSubAppRoot(FEProblemBase & app_problem,
-                            SnapshotContainerBase & snap_container,
+                            const SnapshotContainerBase::Snapshots & snapshots,
                             const dof_id_type global_i,
-                            const std::string snapshot_type);
+                            const std::string & snapshot_type);
 
   /**
    * Serialize on methodically determined rank of the subapp and transfer to the main application.
    * Example: Let's say we have 5 samples and 3 processors on a sub-application.
    * In this case, we will serialize the first two on rank 1, the second two on rank
    * 2 and the last one on rank 3.
+   * @param app_problem The subapplication's problem providing the communicator
+   * @param snapshots The snapshot stream to serialize and transfer
+   * @param global_i The global sample index the snapshots belong to
+   * @param snapshot_type The storage key under which the snapshots are stored on the main app
    */
   void transferInParallel(FEProblemBase & app_problem,
-                          SnapshotContainerBase & snap_container,
+                          const SnapshotContainerBase::Snapshots & snapshots,
                           const dof_id_type global_i,
-                          const std::string snapshot_type);
+                          const std::string & snapshot_type);
 
   /**
    * Initializes the solution container if the multiapp is run in normal mode. We need this because

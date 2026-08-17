@@ -1,0 +1,13 @@
+[Tests]
+  design = '/SerializedSnapshotTransfer.md'
+  issues = '#27101'
+  [multi_tag_snapshots]
+    type = JSONDiff
+    input = 'multi_tag_main.i'
+    jsondiff = 'multi_tag_main_out.json'
+    max_parallel = 1
+    requirement = 'The system shall serialize tagged residual snapshots from sub-applications into '
+                  'parallel solution storage as one distinct, non-empty snapshot stream per residual '
+                  'tag, keyed by residual::<tag>.'
+  []
+[]

@@ -112,21 +112,9 @@ SerializedSnapshotTransfer::execute()
       // Converting the local indexing to global sample indices
       const unsigned int local_i = i - _sampler_ptr->getLocalRowBegin();
 
-      // Here we have to branch out based on if only the root processors
-      // need to participate in the transfer or if we would like to distribute the
-      // data among every processor of the subapplication
-      if (_serialize_on_root)
-      {
-        transferToSubAppRoot(app_problem, *_solution_container[local_i], i, "solution");
-        transferToSubAppRoot(app_problem, *_residual_container[local_i], i, "residual");
-        transferToSubAppRoot(app_problem, *_jacobian_container[local_i], i, "jacobian");
-      }
-      else
-      {
-        transferInParallel(app_problem, *_solution_container[local_i], i, "solution");
-        transferInParallel(app_problem, *_residual_container[local_i], i, "residual");
-        transferInParallel(app_problem, *_jacobian_container[local_i], i, "jacobian");
-      }
+      transferStream(app_problem, _solution_container[local_i]->getSnapshots(), i, "solution");
+      transferResidual(app_problem, *_residual_container[local_i], i);
+      transferStream(app_problem, _jacobian_container[local_i]->getSnapshots(), i, "jacobian");
     }
   }
 }
@@ -140,29 +128,46 @@ SerializedSnapshotTransfer::executeFromMultiapp()
   {
     FEProblemBase & app_problem = getFromMultiApp()->appProblemBase(_app_index);
 
-    // Here we have to branch out based on if only the root processors
-    // need to participate in the transfer or if we would like to distribute the
-    // data among every processor of the subapplication
-    if (_serialize_on_root)
-    {
-      transferToSubAppRoot(app_problem, *_solution_container[0], _global_index, "solution");
-      transferToSubAppRoot(app_problem, *_residual_container[0], _global_index, "residual");
-      transferToSubAppRoot(app_problem, *_jacobian_container[0], _global_index, "jacobian");
-    }
-    else
-    {
-      transferInParallel(app_problem, *_solution_container[0], _global_index, "solution");
-      transferInParallel(app_problem, *_residual_container[0], _global_index, "residual");
-      transferInParallel(app_problem, *_jacobian_container[0], _global_index, "jacobian");
-    }
+    transferStream(app_problem, _solution_container[0]->getSnapshots(), _global_index, "solution");
+    transferResidual(app_problem, *_residual_container[0], _global_index);
+    transferStream(app_problem, _jacobian_container[0]->getSnapshots(), _global_index, "jacobian");
   }
 }
 
 void
+SerializedSnapshotTransfer::transferResidual(FEProblemBase & app_problem,
+                                             const SnapshotContainerBase & residual_container,
+                                             const dof_id_type global_i)
+{
+  const auto tags = residual_container.getSnapshotTags();
+
+  // Legacy single-tag containers keep the single "residual" stream; multi-tag containers store
+  // each tag's stream under its own key so the tags stay separable in the parallel storage.
+  if (tags.empty())
+    transferStream(app_problem, residual_container.getSnapshots(), global_i, "residual");
+  else
+    for (const auto & tag : tags)
+      transferStream(
+          app_problem, residual_container.getSnapshots(tag), global_i, "residual::" + tag);
+}
+
+void
+SerializedSnapshotTransfer::transferStream(FEProblemBase & app_problem,
+                                           const SnapshotContainerBase::Snapshots & snapshots,
+                                           const dof_id_type global_i,
+                                           const std::string & snapshot_type)
+{
+  if (_serialize_on_root)
+    transferToSubAppRoot(app_problem, snapshots, global_i, snapshot_type);
+  else
+    transferInParallel(app_problem, snapshots, global_i, snapshot_type);
+}
+
+void
 SerializedSnapshotTransfer::transferInParallel(FEProblemBase & app_problem,
-                                               SnapshotContainerBase & solution_container,
+                                               const SnapshotContainerBase::Snapshots & snapshots,
                                                const dof_id_type global_i,
-                                               const std::string snapshot_type)
+                                               const std::string & snapshot_type)
 {
   unsigned int local_app_index = global_i - _sampler_ptr->getLocalRowBegin();
 
@@ -186,7 +191,7 @@ SerializedSnapshotTransfer::transferInParallel(FEProblemBase & app_problem,
                                    new_local_entries_begin,
                                    new_local_entries_end);
 
-  for (const auto & snapshot : solution_container.getSnapshots())
+  for (const auto & snapshot : snapshots)
   {
     DenseVector<Real> serialized_solution;
 
@@ -210,12 +215,12 @@ SerializedSnapshotTransfer::transferInParallel(FEProblemBase & app_problem,
 
 void
 SerializedSnapshotTransfer::transferToSubAppRoot(FEProblemBase & /*app_problem*/,
-                                                 SnapshotContainerBase & solution_container,
+                                                 const SnapshotContainerBase::Snapshots & snapshots,
                                                  const dof_id_type global_i,
-                                                 const std::string snapshot_type)
+                                                 const std::string & snapshot_type)
 {
 
-  for (const auto & snapshot : solution_container.getSnapshots())
+  for (const auto & snapshot : snapshots)
   {
     DenseVector<Real> serialized_solution;
 

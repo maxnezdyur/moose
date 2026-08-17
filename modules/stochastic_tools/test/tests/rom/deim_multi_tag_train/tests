@@ -1,0 +1,14 @@
+[Tests]
+  design = '/DEIMRBMapping.md'
+  issues = '#27101'
+  [deim_multi_tag_train]
+    type = CheckFiles
+    input = 'train.i'
+    check_files = 'train_mapping_rb_mapping.rd/data train_mapping_rb_mapping.rd/header'
+    max_parallel = 1
+    capabilities = 'petsc>=3.14'
+    requirement = 'The system shall train and store a DEIM reduced-basis mapping that holds one '
+                  'residual basis and selection set per residual tag when the full-order-model '
+                  'residual is snapshotted per residual object.'
+  []
+[]

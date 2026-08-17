@@ -2,11 +2,23 @@
   issues = '#'
   design = ''
 
+  [create_mapping]
+    type = CheckFiles
+    requirement = 'The system shall be able to train and store a DEIM reduced-basis mapping from '
+                  'serialized solution, residual and jacobian snapshots.'
+    input = create_mapping.i
+    check_files = 'create_mapping_mapping_rb_mapping.rd/data create_mapping_mapping_rb_mapping.rd/header'
+    max_parallel = 1
+    capabilities = 'petsc>=3.14'
+  []
   [p]
     type = Exodiff
-    requirement = 'The system should be able to print serialized snapshots in a distributed fashion in a json format.'
+    requirement = 'The system shall be able to reconstruct a full solution field from a stored DEIM '
+                  'reduced-basis mapping using inverse reduced-basis mapping.'
     input = main_rb.i
     exodiff = 'main_rb_out.e'
-    max_parallel =1
+    max_parallel = 1
+    prereq = create_mapping
+    capabilities = 'petsc>=3.14'
   []
 []

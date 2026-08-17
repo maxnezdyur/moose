@@ -22,6 +22,10 @@ mapping object from the `VariableMappings` block. The variables which need to be
    trained mapping object and map a solution variable in a nonlinear system into the latent space and
    store the coordinates in this reporter.
 
+When [!param](/Reporters/MappingReporter/build_all_mappings_only) is set, this object only triggers the
+construction of every mapping component from the stored snapshots and skips the per-sample projection.
+The [ROM](syntax/ROM/index.md) training pipeline uses this mode to build a [DEIMRBMapping.md].
+
 
 ## Example Input File Syntax
 

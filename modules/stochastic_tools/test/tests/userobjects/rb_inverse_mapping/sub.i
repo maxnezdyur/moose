@@ -9,10 +9,6 @@ L = 5
   xmax = ${L}
 []
 
-[Problem]
-  solve = false
-[]
-
 [Variables]
   [u]
   []
@@ -68,22 +64,44 @@ L = 5
 [Executioner]
   type = Steady
   solve_type = NEWTON
+  petsc_options_iname = '-pc_type -pc_factor_shift_type -pc_factor_mat_solver_type'
+  petsc_options_value = 'lu       NONZERO               strumpack'
+  nl_abs_tol = 1e-8
+  nl_rel_tol = 1e-18
 []
 
-[VariableMappings]
-  [rb_mapping]
-    type = DEIMRBMapping
-    filename = 'create_mapping_mapping_rb_mapping.rd'
+[Controls]
+  [stochastic]
+    type = SamplerReceiver
   []
 []
 
-[UserObjects]
-  [im]
-    type = InverseRB
-    mapping = rb_mapping
-    execute_on = TIMESTEP_END
-    max_iter = 1
+[Reporters]
+  [solution_storage]
+    type = SolutionContainer
+    execute_on = 'FINAL'
   []
+  [residual_storage]
+    type = ResidualContainer
+    tag_name = total
+    execute_on = 'TIMESTEP_BEGIN'
+  []
+  [jacobian_storage]
+    type = JacobianContainer
+    tag_name = total
+    jac_indices_reporter_name = indices
+    execute_on = 'FINAL'
+  []
+[]
+
+[Problem]
+  extra_tag_vectors = 'total'
+  extra_tag_matrices = 'total'
+[]
+
+[GlobalParams]
+  extra_matrix_tags = 'total'
+  extra_vector_tags = 'total'
 []
 
 [Outputs]

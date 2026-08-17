@@ -1,0 +1,26 @@
+[Tests]
+  design = '/InverseRB.md'
+  issues = '#27101'
+
+  [create_mapping]
+    type = CheckFiles
+    input = create_mapping.i
+    check_files = 'create_mapping_mapping_rb_mapping.rd/data create_mapping_mapping_rb_mapping.rd/header'
+    max_parallel = 1
+    capabilities = 'petsc>=3.14'
+    requirement = 'The system shall train and store a DEIM reduced-basis mapping from serialized '
+                  'solution, Jacobian, and per-object residual-tag snapshots produced by automatic '
+                  'residual tagging.'
+  []
+  [reconstruct]
+    type = Exodiff
+    input = main_rb.i
+    exodiff = 'main_rb_out.e'
+    prereq = create_mapping
+    max_parallel = 1
+    capabilities = 'petsc>=3.14'
+    requirement = 'The system shall reconstruct a full solution field from a stored DEIM '
+                  'reduced-basis mapping by summing the reduced residual contributions of every '
+                  'per-object residual tag.'
+  []
+[]
