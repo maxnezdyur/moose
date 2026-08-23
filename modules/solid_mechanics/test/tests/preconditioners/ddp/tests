@@ -1,6 +1,6 @@
 [Tests]
   design = 'DomainDecompositionPreconditioner.md'
-  issues = '#TBD'
+  issues = 'ea7fb63f29'
 
   [elasticity]
     requirement = 'The system shall solve a three-dimensional linear elasticity problem with a '
@@ -31,7 +31,11 @@
       input = 'ddp_elasticity.i'
       exodiff = 'ddp_elasticity_fetidp.e'
       cli_args = 'Preconditioning/ddp/method=fetidp Outputs/file_base=ddp_elasticity_fetidp'
-      min_parallel = 2
+      # FETI-DP carries the decompositions the primal method cannot; four and eight subdomains are
+      # the counts the design page cites as verified, so run in that regime rather than at the two
+      # subdomains the bddc case is pinned to
+      min_parallel = 4
+      max_parallel = 8
       capabilities = 'petsc>=3.20.0'
       abs_zero = 1e-8
       # Check that PETSc built KSPFETIDP rather than falling back to the default Krylov solver
@@ -72,11 +76,44 @@
       exodiff = 'ddp_finite_strain_fetidp.e'
       cli_args = 'Preconditioning/ddp/method=fetidp Outputs/file_base=ddp_finite_strain_fetidp '
                  '-ksp_view'
-      min_parallel = 2
+      # FETI-DP carries the decompositions the primal method cannot; four and eight subdomains are
+      # the counts the design page cites as verified, so run in that regime rather than at the two
+      # subdomains the bddc case starts from
+      min_parallel = 4
+      max_parallel = 8
       capabilities = 'petsc>=3.20.0'
       abs_zero = 1e-8
       expect_out = "type:\s+fetidp"
       detail = 'the dual-primal finite element tearing and interconnecting method.'
+    []
+  []
+
+  [finite_strain_distributed]
+    requirement = 'The system shall solve the three-dimensional finite strain elasticity problem '
+                  'on a mesh built distributed from the start, keeping the generator grid '
+                  'partition, with the dual-primal method at'
+
+    [fetidp_np4]
+      type = RunApp
+      input = 'ddp_finite_strain_distributed.i'
+      cli_args = 'Outputs/exodus=false -ksp_view'
+      min_parallel = 4
+      max_parallel = 4
+      capabilities = 'petsc>=3.20.0'
+      # Check that PETSc built KSPFETIDP rather than falling back to the default Krylov solver
+      expect_out = "type:\s+fetidp"
+      detail = 'four subdomains, and'
+    []
+
+    [fetidp_np8]
+      type = RunApp
+      input = 'ddp_finite_strain_distributed.i'
+      cli_args = 'Outputs/exodus=false -ksp_view'
+      min_parallel = 8
+      max_parallel = 8
+      capabilities = 'petsc>=3.20.0'
+      expect_out = "type:\s+fetidp"
+      detail = 'eight subdomains.'
     []
   []
 []

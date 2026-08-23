@@ -1,10 +1,10 @@
 [Mesh]
   # built distributed from the start: each rank generates and owns only its piece, and MOOSE keeps
   # the generator's grid partition. FETI-DP with the DDP defaults is verified at 4 and 8 ranks on
-  # this setup and the solution matches the replicated mesh exactly. Known gap: REpartitioning a
-  # replicated-generated mesh (parallel_type = distributed on GeneratedMeshGenerator) fails at 4
-  # ranks - PCBDDC disqualifies the interface face candidates of that partition.
-  #   mpiexec -n 8 ./solid_mechanics-opt -i test/tests/preconditioners/ddp/ddp_finite_strain_distributed.i
+  # this setup (the fetidp_np4 and fetidp_np8 legs of the tests spec) and the solution matches the
+  # replicated mesh exactly. Known gap: REpartitioning a replicated-generated mesh
+  # (parallel_type = distributed on GeneratedMeshGenerator) fails at 4 ranks - PCBDDC disqualifies
+  # the interface face candidates of that partition.
   parallel_type = distributed
   [cube]
     type = DistributedRectilinearMeshGenerator

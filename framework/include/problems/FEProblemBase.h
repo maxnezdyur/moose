@@ -456,7 +456,7 @@ public:
    * @param nls The nonlinear systems to allocate the vectors on
    */
   void initNearNullSpaceVectors(unsigned int dimension,
-                                std::vector<std::shared_ptr<NonlinearSystemBase>> & nls);
+                                const std::vector<std::shared_ptr<NonlinearSystemBase>> & nls);
 
   virtual void init() override;
   virtual void solve(const unsigned int nl_sys_num);

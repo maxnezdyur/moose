@@ -6,9 +6,9 @@
   [cube]
     type = GeneratedMeshGenerator
     dim = 3
-    nx = 50
-    ny = 50
-    nz = 50
+    nx = 8
+    ny = 8
+    nz = 8
   []
   [corner_a]
     type = ExtraNodesetGenerator

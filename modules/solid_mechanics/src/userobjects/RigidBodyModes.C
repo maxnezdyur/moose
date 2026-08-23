@@ -55,15 +55,16 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
                _ndisp,
                ".");
 
-  // Resolved in the body rather than in the initializer list, which runs before the check above:
-  // getVar returns null when 'displacements' is supplied but empty
-  _nl_sys = &getVar("displacements", 0)->sys();
+  // Resolved in the body rather than in the initializer list, which runs before the check above.
+  // Every coupled entry is resolved through coupledFieldVariable(), which reports an error when
+  // the entry is a constant value rather than a variable name
+  _nl_sys = &coupledFieldVariable("displacements", 0).sys();
   _sys_num = _nl_sys->number();
 
   _disp_var_num.resize(_ndisp);
   for (const auto i : make_range(_ndisp))
   {
-    const auto & disp_var = *getVar("displacements", i);
+    const auto & disp_var = coupledFieldVariable("displacements", i);
     checkVariableSystem(disp_var, "displacements");
     _disp_var_num[i] = disp_var.number();
   }
@@ -75,19 +76,30 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
   _const_var_num.resize(_n_const);
   for (const auto k : make_range(_n_const))
   {
-    const auto cname = coupledName("constant_mode_variables", k);
-    if (std::find(disp_names.begin(), disp_names.end(), cname) != disp_names.end())
+    const auto & const_var = coupledFieldVariable("constant_mode_variables", k);
+    checkVariableSystem(const_var, "constant_mode_variables");
+    if (std::find(disp_names.begin(), disp_names.end(), const_var.name()) != disp_names.end())
       paramError("constant_mode_variables",
                  "The variable '",
-                 cname,
+                 const_var.name(),
                  "' cannot appear in both 'displacements' and 'constant_mode_variables'.");
-    const auto & const_var = *getVar("constant_mode_variables", k);
-    checkVariableSystem(const_var, "constant_mode_variables");
     _const_var_num[k] = const_var.number();
   }
 
   // Self-register the near-null-space subspace sized to the number of modes this object fills.
   _fe_problem.initNearNullSpaceVectors(_n_modes);
+}
+
+MooseVariableFieldBase &
+RigidBodyModes::coupledFieldVariable(const std::string & param, const unsigned int i)
+{
+  auto * const var = getVar(param, i);
+  if (!var)
+    paramError(param,
+               "Every entry must be a variable name, but entry ",
+               i,
+               " is a constant value. A constant cannot carry a near-null-space mode.");
+  return *var;
 }
 
 void

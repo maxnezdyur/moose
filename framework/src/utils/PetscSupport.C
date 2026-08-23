@@ -834,16 +834,20 @@ setConvergedReasonFlags(FEProblemBase & fe_problem, std::string prefix)
   auto & po = fe_problem.getPetscOptions();
 
   for (const auto & reason_flag : reason_flags)
-  {
-    const auto full_flag = prefix + reason_flag;
-    if (!po.flags.isValueSet(full_flag) && !po.dont_add_these_options.contains(full_flag) &&
-        (std::find_if(po.pairs.begin(),
-                      po.pairs.end(),
-                      [&full_flag](auto & pair)
-                      { return pair.first == (full_flag); }) == po.pairs.end()))
-      po.pairs.emplace_back(full_flag, "::failed");
-  }
+    addDefaultPetscOption(po, prefix + reason_flag, "::failed");
 #endif
+}
+
+void
+addDefaultPetscOption(PetscOptions & po, const std::string & name, const std::string & value)
+{
+  // The user reaches an option either as a flag through 'petsc_options' or as a pair through
+  // 'petsc_options_iname', and a pair is how they turn a default off, so both are consulted
+  if (po.flags.isValueSet(name) || po.dont_add_these_options.isValueSet(name) ||
+      MooseUtils::findPair(po.pairs, po.pairs.begin(), name, MooseUtils::Any) != po.pairs.end())
+    return;
+
+  po.pairs.emplace_back(name, value);
 }
 
 void

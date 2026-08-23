@@ -11,8 +11,8 @@ near-null-space vectors, so AMG builds a coarse space that represents them and c
 in fewer linear iterations.
 
 The object sizes the near-null-space itself from the number of modes it produces.
-Do not set `near_null_space_dimension` in the `[Problem]` block; setting it to a
-conflicting value is an error.
+Do not set [!param](/Problem/FEProblem/near_null_space_dimension) in the `[Problem]`
+block; setting it to a conflicting value is an error.
 
 List two displacement variables in 2D or three in 3D in
 [!param](/UserObjects/RigidBodyModes/displacements); any other count is an error.
@@ -42,6 +42,12 @@ about the coordinate axes through the origin,
 Each rigid body mode is nonzero only in the displacement degrees of freedom; every other
 degree of freedom stays zero.
 
+The modes are computed once, at the default `execute_on = INITIAL`, from the reference
+nodal coordinates, and are not recomputed as the body deforms; the shipped finite strain
+preconditioner test relies on them unchanged through a large-deformation solve. Mesh
+adaptivity is not supported: a refinement rebuilds the system vectors without
+re-executing this object, which leaves the near-null-space zero from that point on.
+
 ## Constant Modes for Coupled Fields id=constant-modes
 
 Multiphysics solves often couple the displacements to a diffusion-like field such as
@@ -52,7 +58,11 @@ convergence on that field would degrade.
 
 List each such field in [!param](/UserObjects/RigidBodyModes/constant_mode_variables).
 Each listed variable receives one additional near-null-space mode, equal to 1 on that
-variable's degrees of freedom and 0 elsewhere. The modes stay block-structured: rigid
+variable's degrees of freedom and 0 elsewhere. Every listed variable must belong to the
+same nonlinear system as the displacements, because its degrees of freedom are resolved
+against that system; an auxiliary variable cannot carry a constant mode, and coupling
+one is an error. A temperature held in an auxiliary variable must therefore be moved to
+the nonlinear system before it can receive a mode. The modes stay block-structured: rigid
 body modes occupy only the displacement degrees of freedom, and each constant mode
 occupies only its own variable's, so no mode mixes fields. A variable cannot appear in
 both [!param](/UserObjects/RigidBodyModes/displacements) and

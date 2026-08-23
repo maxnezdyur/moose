@@ -110,8 +110,9 @@ QuasiStaticSolidMechanicsPhysics::validParams()
       "rigid_body_near_null_space",
       false,
       "Add a RigidBodyModes user object that fills the near-null-space with the rigid body modes "
-      "of the displacement field, plus one constant mode for the 'temperature' variable when it is "
-      "set, to accelerate algebraic multigrid on under-constrained (floating) solves.");
+      "of the displacement field, plus one constant mode for each variable listed in "
+      "'temperature' when it is set, to accelerate algebraic multigrid on under-constrained "
+      "(floating) solves.");
 
   // Homogenization system input
   params.addParam<MultiMooseEnum>(

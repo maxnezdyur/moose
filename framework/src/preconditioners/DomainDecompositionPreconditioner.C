@@ -20,30 +20,6 @@
 
 registerMooseObjectAliased("MooseApp", DomainDecompositionPreconditioner, "DDP");
 
-namespace
-{
-/**
- * Store \p name with \p value in \p po unless \p po already holds \p name, which makes the setting
- * a default that anything the user wrote in the input file overrides.
- * @param po The problem's PETSc option storage
- * @param name The fully prefixed option name, leading dash included
- * @param value The value to store when the option is not already held
- */
-void
-addDefaultPetscOption(Moose::PetscSupport::PetscOptions & po,
-                      const std::string & name,
-                      const std::string & value)
-{
-  // The user reaches an option either as a flag through 'petsc_options' or as a pair through
-  // 'petsc_options_iname', and a pair is how they turn one of these off, so both are consulted
-  if (po.flags.isValueSet(name) || po.dont_add_these_options.isValueSet(name) ||
-      MooseUtils::findPair(po.pairs, po.pairs.begin(), name, MooseUtils::Any) != po.pairs.end())
-    return;
-
-  po.pairs.emplace_back(name, value);
-}
-}
-
 InputParameters
 DomainDecompositionPreconditioner::validParams()
 {
@@ -138,10 +114,12 @@ DomainDecompositionPreconditioner::initialSetup()
 
   // Without the change of basis a system of PDEs makes the local Neumann problems of floating
   // subdomains singular saddle point systems, which PETSc's unpivoted LU cannot factor
-  addDefaultPetscOption(petsc_options, bddc_prefix + "pc_bddc_use_change_of_basis", "true");
+  Moose::PetscSupport::addDefaultPetscOption(
+      petsc_options, bddc_prefix + "pc_bddc_use_change_of_basis", "true");
 
   // PETSc documents GMRES on the multiplier solve as the non-symmetric usage of KSPFETIDP, and the
   // operators assembled here are not guaranteed to be symmetric
   if (_method == "fetidp")
-    addDefaultPetscOption(petsc_options, prefix_with_dash + "fetidp_ksp_type", "gmres");
+    Moose::PetscSupport::addDefaultPetscOption(
+        petsc_options, prefix_with_dash + "fetidp_ksp_type", "gmres");
 }

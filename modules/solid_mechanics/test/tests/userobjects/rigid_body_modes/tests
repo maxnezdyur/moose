@@ -79,14 +79,21 @@
       input = 'free_block.i'
       cli_args = 'Problem/near_null_space_dimension=5'
       expect_err = 'near-null-space dimension cannot be changed once allocated'
-      detail = 'a near-null-space dimension that conflicts with an already allocated dimension, and'
+      detail = 'a near-null-space dimension that conflicts with an already allocated dimension,'
     []
     [error_const_overlaps_disp]
       type = RunException
       input = 'free_block.i'
       cli_args = "UserObjects/rigid_body_modes/constant_mode_variables='disp_x'"
       expect_err = "cannot appear in both 'displacements' and 'constant_mode_variables'"
-      detail = 'a constant-mode variable that is also a displacement variable.'
+      detail = 'a constant-mode variable that is also a displacement variable, and'
+    []
+    [error_constant_displacements]
+      type = RunException
+      input = 'free_block.i'
+      cli_args = "UserObjects/rigid_body_modes/displacements='0 0'"
+      expect_err = 'entry 0 is a constant value'
+      detail = 'a constant value supplied in place of a displacement variable name.'
     []
   []
 []

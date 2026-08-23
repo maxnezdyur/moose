@@ -105,6 +105,11 @@ public:
    *
    * \p diag_value reaches PETSc unchanged, and close() splits the diagonal of the zeroed rows
    * across the subdomains sharing them.
+   *
+   * No right hand side accompanies the call (the libMesh interface carries none) and none is
+   * needed for the solution of the system to be unchanged: MOOSE writes the boundary equation of
+   * a constrained dof into the residual itself, so the zeroed row with \p diag_value on the
+   * diagonal already produces the correct Newton update for that dof.
    */
   virtual void zero_rows(std::vector<libMesh::numeric_index_type> & rows,
                          libMesh::Number diag_value = 0.0) override;
@@ -193,11 +198,13 @@ private:
 
   /**
    * Build the scatter between the global vector layout and this rank's subdomain vector, along
-   * with the number of subdomains sharing each subdomain dof, and cache both.
+   * with the number of subdomains sharing each subdomain dof, and cache both. The work vectors of
+   * reconcileZeroedDiagonals() are built here too, because their layouts are fixed by the same
+   * mapping and close() runs several times per Jacobian assembly.
    *
-   * Called from init() rather than from close(): both depend only on the local-to-global mapping,
-   * which is fixed until the matrix is cleared, and VecScatterCreate is a collective that
-   * communicates to work the mapping out.
+   * Called from init() rather than from close(): everything built here depends only on the
+   * local-to-global mapping, which is fixed until the matrix is cleared, and VecScatterCreate is a
+   * collective that communicates to work the mapping out.
    */
   void buildSubdomainScatter();
 
@@ -226,6 +233,18 @@ private:
 
   /// The number of subdomains sharing each subdomain dof, in subdomain ordering
   libMesh::WrappedPetsc<Vec> _multiplicity;
+
+  /// Global-layout work vector of reconcileZeroedDiagonals(), built by buildSubdomainScatter()
+  libMesh::WrappedPetsc<Vec> _work_global;
+
+  /// Subdomain marker of the zeroed rows, rebuilt only when some rank's _zeroed_rows changed
+  libMesh::WrappedPetsc<Vec> _zeroed_marker;
+
+  /// Subdomain copy of the assembled diagonal, refreshed on every reconcileZeroedDiagonals()
+  libMesh::WrappedPetsc<Vec> _subdomain_diagonal;
+
+  /// Whether _zeroed_rows changed since _zeroed_marker was last rebuilt
+  bool _zeroed_marker_stale = true;
 };
 
 #endif // LIBMESH_HAVE_PETSC

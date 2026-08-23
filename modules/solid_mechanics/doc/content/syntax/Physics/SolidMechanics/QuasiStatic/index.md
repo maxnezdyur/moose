@@ -21,7 +21,6 @@ the action create the displacement variables at the order matching the mesh.
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/add_variables)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/temperature)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/scaling)
-- [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/rigid_body_near_null_space)
 
 ## Strain id=strain
 
@@ -81,7 +80,8 @@ Impose out-of-plane conditions for two-dimensional models.
 
 ## Advanced id=advanced
 
-Subdomain restriction, automatic differentiation, and residual/Jacobian output.
+Subdomain restriction, automatic differentiation, residual/Jacobian output, and solver
+acceleration.
 
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/block)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/base_name)
@@ -89,6 +89,11 @@ Subdomain restriction, automatic differentiation, and residual/Jacobian output.
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/global_strain)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/save_in)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/diag_save_in)
+- [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/rigid_body_near_null_space)
+  adds a [RigidBodyModes](RigidBodyModes.md) user object that fills the near-null-space with the
+  rigid body modes of the displacement field, which accelerates algebraic multigrid on
+  under-constrained (floating) solves. See
+  [QuasiStaticSolidMechanicsPhysics](QuasiStaticSolidMechanicsPhysics.md#rigid-body) for details.
 
 ## Example Input File Syntax id=examples
 

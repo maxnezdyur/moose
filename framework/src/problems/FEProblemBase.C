@@ -835,8 +835,8 @@ FEProblemBase::initNearNullSpaceVectors(unsigned int dimension)
 }
 
 void
-FEProblemBase::initNearNullSpaceVectors(unsigned int dimension,
-                                        std::vector<std::shared_ptr<NonlinearSystemBase>> & nls)
+FEProblemBase::initNearNullSpaceVectors(
+    unsigned int dimension, const std::vector<std::shared_ptr<NonlinearSystemBase>> & nls)
 {
   // A recorded dimension of 0 means only the default near_null_space_dimension path ran during
   // problem construction (FEProblem ctor), before any user object could request a real dimension;
@@ -853,8 +853,10 @@ FEProblemBase::initNearNullSpaceVectors(unsigned int dimension,
                ", but dimension ",
                dimension,
                " was then requested. The near-null-space dimension cannot be changed once "
-               "allocated. If 'near_null_space_dimension' is set in the Problem block, remove it "
-               "and let the object that fills the near-null-space size the subspace.");
+               "allocated. The conflicting requests come from 'near_null_space_dimension' in the "
+               "Problem block or from objects that size the near-null-space themselves; make "
+               "every request agree on one dimension, and when an object sizes the subspace "
+               "itself, do not set 'near_null_space_dimension'.");
   }
 
   for (const auto i : make_range(dimension))

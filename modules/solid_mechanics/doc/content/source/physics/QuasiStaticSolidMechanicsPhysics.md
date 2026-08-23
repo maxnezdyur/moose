@@ -58,9 +58,11 @@ system:
 Setting `rigid_body_near_null_space = true` adds a [RigidBodyModes](RigidBodyModes.md) user
 object built from the action's `displacements`. Every variable listed in the action's `temperature`
 parameter is forwarded as a constant near-null-space mode, so each one must be a solver variable on
-the nonlinear system. The user object sizes the near-null-space automatically, so no `[Problem]`
-parameter is required. See [RigidBodyModes](RigidBodyModes.md) for the modes produced and the
-solver options (PETSc GAMG or hypre BoomerAMG) needed to consume them.
+the nonlinear system. The user object sizes the near-null-space itself, so do not set
+[!param](/Problem/FEProblem/near_null_space_dimension) in the `[Problem]` block: setting it to a
+value that conflicts with the object's mode count is an error, not merely unnecessary. See
+[RigidBodyModes](RigidBodyModes.md) for the modes produced and the solver options (PETSc GAMG or
+hypre BoomerAMG) needed to consume them.
 
 ## Compatibility Mode Wiring id=compat-wiring
 

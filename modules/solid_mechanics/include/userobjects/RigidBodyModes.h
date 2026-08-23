@@ -44,7 +44,19 @@ public:
   virtual void threadJoin(const UserObject &) override {}
   virtual void finalize() override;
 
-protected:
+private:
+  /**
+   * Resolve the coupled entry \p i of \p param as a field variable.
+   *
+   * getVar returns null when the entry is a constant value rather than a variable name, which
+   * this turns into a paramError.
+   *
+   * @param param The coupled parameter to resolve an entry of
+   * @param i The index of the entry within \p param
+   * @return The resolved variable
+   */
+  MooseVariableFieldBase & coupledFieldVariable(const std::string & param, unsigned int i);
+
   /**
    * Check that \p var belongs to the system that owns the near-null-space vectors.
    *

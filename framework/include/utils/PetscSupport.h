@@ -169,6 +169,15 @@ void storePetscOptions(FEProblemBase & fe_problem,
 void setConvergedReasonFlags(FEProblemBase & fe_problem, std::string prefix);
 
 /**
+ * Store \p name with \p value in \p po unless \p po already holds \p name, which makes the setting
+ * a default that anything the user wrote in the input file overrides.
+ * @param po The problem's PETSc option storage
+ * @param name The fully prefixed option name, leading dash included
+ * @param value The value to store when the option is not already held
+ */
+void addDefaultPetscOption(PetscOptions & po, const std::string & name, const std::string & value);
+
+/**
  * Sets the FE problem's solve type from the input params.
  */
 void setSolveTypeFromParams(FEProblemBase & fe_problem, const InputParameters & params);

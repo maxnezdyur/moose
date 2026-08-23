@@ -37,6 +37,7 @@
 [Preconditioning]
   [ddp]
     type = DDP
+    method = bddc
     full = true
   []
 []

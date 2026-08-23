@@ -6,8 +6,8 @@
   [square]
     type = GeneratedMeshGenerator
     dim = 2
-    nx = 128
-    ny = 128
+    nx = 10
+    ny = 10
   []
   [pin_x]
     type = ExtraNodesetGenerator

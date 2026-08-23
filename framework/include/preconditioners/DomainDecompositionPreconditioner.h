@@ -33,11 +33,16 @@ public:
    * requested solver on this system.
    *
    * The options without which a system of PDEs cannot be solved at all are stored here as
-   * defaults: '-pc_bddc_use_change_of_basis', and '-fetidp_ksp_type gmres' for KSPFETIDP. They
-   * are stored after the options this object's own parameters carry, and only for names those
-   * options do not already hold, so naming one of them in 'petsc_options' or in
-   * 'petsc_options_iname'/'petsc_options_value' overrides the default. That includes turning one
-   * off, which is a pair such as '-pc_bddc_use_change_of_basis false'.
+   * defaults: '-pc_bddc_use_change_of_basis', and '-fetidp_ksp_type gmres' for KSPFETIDP. Each
+   * default is stored under its fully prefixed name: the nonlinear system prefix is prepended
+   * when the system carries one, and with 'method = fetidp' the change of basis becomes
+   * '-fetidp_bddc_pc_bddc_use_change_of_basis', because KSPFETIDP hands its inner PCBDDC the
+   * 'fetidp_bddc_' options prefix. The defaults are stored after the options this object's own
+   * parameters carry, and only for names those options do not already hold, so naming the fully
+   * prefixed option in 'petsc_options' or in 'petsc_options_iname'/'petsc_options_value'
+   * overrides the default. That includes turning one off, which is a pair such as
+   * '-pc_bddc_use_change_of_basis false' ('-fetidp_bddc_pc_bddc_use_change_of_basis false' for
+   * 'method = fetidp'); the unprefixed spelling does not match the stored default.
    */
   virtual void initialSetup() override;
 
