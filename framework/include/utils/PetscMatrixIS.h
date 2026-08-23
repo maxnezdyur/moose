@@ -104,7 +104,7 @@ public:
    * Zero the given rows, leaving \p diag_value on the diagonal.
    *
    * \p diag_value reaches PETSc unchanged, and close() splits the diagonal of the zeroed rows
-   * across the subdomains sharing them.
+   * across the subdomains sharing them (see reconcileSubdomainDiagonals()).
    *
    * No right hand side accompanies the call (the libMesh interface carries none) and none is
    * needed for the solution of the system to be unchanged: MOOSE writes the boundary equation of
@@ -199,7 +199,7 @@ private:
   /**
    * Build the scatter between the global vector layout and this rank's subdomain vector, along
    * with the number of subdomains sharing each subdomain dof, and cache both. The work vectors of
-   * reconcileZeroedDiagonals() are built here too, because their layouts are fixed by the same
+   * reconcileSubdomainDiagonals() are built here too, because their layouts are fixed by the same
    * mapping and close() runs several times per Jacobian assembly.
    *
    * Called from init() rather than from close(): everything built here depends only on the
@@ -209,18 +209,46 @@ private:
   void buildSubdomainScatter();
 
   /**
-   * Split the diagonal of every zeroed row evenly across the subdomains that share it.
+   * Whether the global dof \p dof lies inside this rank's subdomain, that is inside the
+   * local-to-global mapping of the Mat.
+   */
+  bool inSubdomain(PetscInt dof) const;
+
+  /**
+   * Error if the global dof \p dof lies outside this rank's subdomain.
    *
-   * MatZeroRows on a MATIS zeroes the row in every subdomain that shares it, but the
-   * diagonal MOOSE writes back afterwards only reaches the owning rank. Every other subdomain is
-   * left holding an identically zero row, which PCBDDC cannot factor even though the assembled
-   * global operator is correct. Writing v/count into all count subdomains, the owner included,
-   * makes each subdomain block nonsingular while the assembled diagonal stays exactly v.
+   * MatSetValues on a MATIS silently masks out global indices the local-to-global mapping does
+   * not cover, which would drop the entry without a trace. Failing here instead makes an
+   * insufficient ghosting radius diagnosable: couplings such as those of Constraint objects reach
+   * the subdomain only through the send list, and this is the check that keeps them honest.
+   */
+  void checkSubdomainCoverage(libMesh::numeric_index_type dof) const;
+
+  /**
+   * Error if any entry of \p dofs lies outside this rank's subdomain.
+   */
+  void checkSubdomainCoverage(const std::vector<libMesh::numeric_index_type> & dofs) const;
+
+  /**
+   * Split the diagonal of every zeroed or diagonal-deficient row evenly across the subdomains
+   * that share it.
+   *
+   * Two situations leave a subdomain holding a row whose diagonal is zero while the assembled
+   * global operator is correct, and PCBDDC cannot factor either one:
+   *
+   * - MatZeroRows on a MATIS zeroes the row in every subdomain that shares it, but the diagonal
+   *   MOOSE writes back afterwards only reaches the owning rank.
+   * - A dof that entered the subdomain through algebraic ghosting alone (for example the primary
+   *   side of a contact pair) has no local element support, so nothing writes its local diagonal
+   *   unless the coupling that pulled it in is active.
+   *
+   * Writing v/count into all count subdomains, the owner included, makes each subdomain block
+   * nonsingular while the assembled diagonal stays exactly v.
    *
    * That invariant also makes this idempotent: a second pass reads the same assembled v and writes
    * the same v/count. Assembly therefore does not need to know which close() is the last one.
    */
-  void reconcileZeroedDiagonals();
+  void reconcileSubdomainDiagonals();
 
   /// Serializes insertions, which MOOSE issues from several threads during Jacobian assembly
   std::mutex _petsc_matrix_mutex;
@@ -234,14 +262,17 @@ private:
   /// The number of subdomains sharing each subdomain dof, in subdomain ordering
   libMesh::WrappedPetsc<Vec> _multiplicity;
 
-  /// Global-layout work vector of reconcileZeroedDiagonals(), built by buildSubdomainScatter()
+  /// Global-layout work vector of reconcileSubdomainDiagonals(), built by buildSubdomainScatter()
   libMesh::WrappedPetsc<Vec> _work_global;
 
   /// Subdomain marker of the zeroed rows, rebuilt only when some rank's _zeroed_rows changed
   libMesh::WrappedPetsc<Vec> _zeroed_marker;
 
-  /// Subdomain copy of the assembled diagonal, refreshed on every reconcileZeroedDiagonals()
+  /// Subdomain copy of the assembled diagonal, refreshed on every reconcileSubdomainDiagonals()
   libMesh::WrappedPetsc<Vec> _subdomain_diagonal;
+
+  /// Work vector holding this subdomain's local diagonal, then the shared deficiency marker
+  libMesh::WrappedPetsc<Vec> _local_diagonal;
 
   /// Whether _zeroed_rows changed since _zeroed_marker was last rebuilt
   bool _zeroed_marker_stale = true;

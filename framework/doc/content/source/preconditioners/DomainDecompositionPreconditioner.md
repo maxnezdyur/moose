@@ -102,8 +102,15 @@ The solve type must assemble the Jacobian; this input uses `NEWTON`:
 - The solve type must be `NEWTON` or `LINEAR`. `JFNK` and `PJFNK` are rejected, because a matrix
   free operator supplies only the action of the Jacobian on a vector and never forms the assembled
   subdomain blocks that PCBDDC and KSPFETIDP factor.
-- Problems that hold [Constraints] objects are rejected. The constraint Jacobian path reaches the
-  system matrix through a downcast that the `MATIS` backed matrix does not satisfy.
+- [Constraints] objects, penalty and kinematic mechanical contact included, are supported when
+  every degree of freedom carries a nonzero assembled diagonal. The constraint couplings must stay
+  inside each rank's subdomain (the owned dofs plus the send list, which the constraint ghosting
+  populates); the `MATIS` backed matrix reports an error naming the dof on any insertion that
+  leaves the subdomain, instead of dropping the entry silently, and splits the assembled diagonal
+  across the subdomains sharing a dof whose local diagonal would otherwise be zero. Lagrange
+  multiplier enforcement is not supported: an active multiplier row has an exactly zero assembled
+  diagonal, which leaves the local subdomain problems singular, and the solve fails at
+  preconditioner setup.
 - `use_hash_table_matrix_assembly` and `restore_original_nonzero_pattern` in the
   [Problem](syntax/Problem/index.md) block must both be `false`. PETSc implements neither the
   assembled copy nor `MatResetPreallocation` for `MATIS`.

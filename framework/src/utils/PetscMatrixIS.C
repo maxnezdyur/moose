@@ -143,6 +143,25 @@ PetscMatrixIS::init(const libMesh::ParallelType libmesh_dbg_var(type))
 
   buildSubdomainScatter();
 
+  // Seed an explicit zero on the whole subdomain diagonal. A dof can enter the subdomain through
+  // algebraic ghosting alone (for example the primary side of a contact pair), so no element
+  // integral ever writes its local diagonal, and PCBDDC's local LU refuses to factor a matrix
+  // with a structurally missing diagonal entry. The zero keeps the slot in the pattern
+  // (MAT_KEEP_NONZERO_PATTERN above) without changing any assembled value.
+  {
+    ISLocalToGlobalMapping mapping;
+    LibmeshPetscCall(MatGetLocalToGlobalMapping(_mat, &mapping, nullptr));
+    PetscInt n_subdomain_dofs;
+    LibmeshPetscCall(ISLocalToGlobalMappingGetSize(mapping, &n_subdomain_dofs));
+    const PetscInt * subdomain_dofs;
+    LibmeshPetscCall(ISLocalToGlobalMappingGetIndices(mapping, &subdomain_dofs));
+    for (const auto i : libMesh::make_range(n_subdomain_dofs))
+      LibmeshPetscCall(MatSetValue(_mat, subdomain_dofs[i], subdomain_dofs[i], 0.0, ADD_VALUES));
+    LibmeshPetscCall(ISLocalToGlobalMappingRestoreIndices(mapping, &subdomain_dofs));
+    LibmeshPetscCall(MatAssemblyBegin(_mat, MAT_FINAL_ASSEMBLY));
+    LibmeshPetscCall(MatAssemblyEnd(_mat, MAT_FINAL_ASSEMBLY));
+  }
+
   _is_initialized = true;
 }
 
@@ -237,6 +256,15 @@ PetscMatrixIS::buildSubdomainScatter()
   LibmeshPetscCall(ISCreateGeneral(
       comm().get(), n_subdomain_dofs, subdomain_dofs, PETSC_COPY_VALUES, subdomain_is.get()));
 
+  // Prime the global-to-local table of the mapping here, on one thread: the coverage checks in
+  // set/add/add_matrix run under threaded assembly and PETSc builds the table lazily on first use
+  if (n_subdomain_dofs > 0)
+  {
+    PetscInt primed;
+    LibmeshPetscCall(
+        ISGlobalToLocalMappingApply(mapping, IS_GTOLM_MASK, 1, subdomain_dofs, nullptr, &primed));
+  }
+
   LibmeshPetscCall(ISLocalToGlobalMappingRestoreIndices(mapping, &subdomain_dofs));
 
   LibmeshPetscCall(MatCreateVecs(_mat, nullptr, _work_global.get()));
@@ -260,10 +288,11 @@ PetscMatrixIS::buildSubdomainScatter()
   LibmeshPetscCall(
       VecScatterEnd(_to_subdomain, _work_global, _multiplicity, INSERT_VALUES, SCATTER_FORWARD));
 
-  // The remaining reconcileZeroedDiagonals() work vectors, allocated once here because close()
+  // The remaining reconcileSubdomainDiagonals() work vectors, allocated once here because close()
   // runs several times per Jacobian assembly and their layouts are fixed by the mapping
   LibmeshPetscCall(VecDuplicate(subdomain, _zeroed_marker.get()));
   LibmeshPetscCall(VecDuplicate(subdomain, _subdomain_diagonal.get()));
+  LibmeshPetscCall(VecDuplicate(subdomain, _local_diagonal.get()));
   _zeroed_marker_stale = true;
 }
 
@@ -275,6 +304,7 @@ PetscMatrixIS::clear() noexcept
   _work_global.reset_to_zero();
   _zeroed_marker.reset_to_zero();
   _subdomain_diagonal.reset_to_zero();
+  _local_diagonal.reset_to_zero();
   _zeroed_rows.clear();
   _zeroed_marker_stale = true;
 
@@ -367,6 +397,36 @@ PetscMatrixIS::zero_rows(std::vector<libMesh::numeric_index_type> & rows,
   }
 }
 
+bool
+PetscMatrixIS::inSubdomain(const PetscInt dof) const
+{
+  ISLocalToGlobalMapping mapping;
+  LibmeshPetscCall(MatGetLocalToGlobalMapping(_mat, &mapping, nullptr));
+
+  PetscInt local;
+  LibmeshPetscCall(ISGlobalToLocalMappingApply(mapping, IS_GTOLM_MASK, 1, &dof, nullptr, &local));
+  return local >= 0;
+}
+
+void
+PetscMatrixIS::checkSubdomainCoverage(const libMesh::numeric_index_type dof) const
+{
+  if (!inSubdomain(libMesh::cast_int<PetscInt>(dof)))
+    mooseError("Global dof ",
+               dof,
+               " lies outside this rank's subdomain, so inserting into it would be silently "
+               "dropped by the MATIS matrix. The subdomain holds the locally owned dofs plus the "
+               "send list; add or widen the ghosting (RelationshipManager) that couples this dof "
+               "to this rank so that it enters the send list.");
+}
+
+void
+PetscMatrixIS::checkSubdomainCoverage(const std::vector<libMesh::numeric_index_type> & dofs) const
+{
+  for (const auto dof : dofs)
+    checkSubdomainCoverage(dof);
+}
+
 void
 PetscMatrixIS::set(const libMesh::numeric_index_type i,
                    const libMesh::numeric_index_type j,
@@ -378,6 +438,8 @@ PetscMatrixIS::set(const libMesh::numeric_index_type i,
   const PetscScalar petsc_value = libMesh::PS(value);
 
   std::scoped_lock lock(_petsc_matrix_mutex);
+  checkSubdomainCoverage(i);
+  checkSubdomainCoverage(j);
   LibmeshPetscCall(MatSetValues(_mat, 1, &i_val, 1, &j_val, &petsc_value, INSERT_VALUES));
 }
 
@@ -392,6 +454,8 @@ PetscMatrixIS::add(const libMesh::numeric_index_type i,
   const PetscScalar petsc_value = libMesh::PS(value);
 
   std::scoped_lock lock(_petsc_matrix_mutex);
+  checkSubdomainCoverage(i);
+  checkSubdomainCoverage(j);
   LibmeshPetscCall(MatSetValues(_mat, 1, &i_val, 1, &j_val, &petsc_value, ADD_VALUES));
 }
 
@@ -405,6 +469,8 @@ PetscMatrixIS::add_matrix(const libMesh::DenseMatrix<libMesh::Number> & dm,
               "The index vectors must match the shape of the element matrix");
 
   std::scoped_lock lock(_petsc_matrix_mutex);
+  checkSubdomainCoverage(rows);
+  checkSubdomainCoverage(cols);
   LibmeshPetscCall(MatSetValues(_mat,
                                 libMesh::cast_int<PetscInt>(dm.m()),
                                 libMesh::numeric_petsc_cast(rows.data()),
@@ -508,25 +574,58 @@ PetscMatrixIS::close()
 {
   libMesh::PetscMatrixBase<libMesh::Number>::close();
 
-  reconcileZeroedDiagonals();
+  reconcileSubdomainDiagonals();
 }
 
 void
-PetscMatrixIS::reconcileZeroedDiagonals()
+PetscMatrixIS::reconcileSubdomainDiagonals()
 {
-  // A rank carrying no Dirichlet boundary of its own still holds subdomain copies of rows another
-  // rank zeroed, so this decision has to be taken across the whole communicator or the collective
-  // calls below deadlock
-  bool any_zeroed_rows = !_zeroed_rows.empty();
-  comm().max(any_zeroed_rows);
-  if (!any_zeroed_rows)
-    return;
-
   mooseAssert(_to_subdomain && _multiplicity,
               "init() must have built the subdomain scatter before diagonals are reconciled");
 
+  Mat local_mat;
+  LibmeshPetscCall(MatISGetLocalMat(_mat, &local_mat));
+
   PetscInt n_subdomain_dofs;
   LibmeshPetscCall(VecGetLocalSize(_multiplicity, &n_subdomain_dofs));
+
+  // A zero on this subdomain's local diagonal marks the dof diagonal-deficient here; see the
+  // header for the two ways that happens. The values are turned into flags in place
+  LibmeshPetscCall(MatGetDiagonal(local_mat, _local_diagonal));
+  bool any_work = !_zeroed_rows.empty();
+  {
+    PetscScalar * local_diagonal_values;
+    LibmeshPetscCall(VecGetArray(_local_diagonal, &local_diagonal_values));
+    for (const auto i : libMesh::make_range(n_subdomain_dofs))
+    {
+      const bool deficient = local_diagonal_values[i] == PetscScalar(0.);
+      local_diagonal_values[i] = deficient ? 1.0 : 0.0;
+      any_work = any_work || deficient;
+    }
+    LibmeshPetscCall(VecRestoreArray(_local_diagonal, &local_diagonal_values));
+  }
+
+  // A rank with no zeroed or deficient rows of its own can still share such a row with another
+  // rank, so this decision has to be taken across the whole communicator or the collective calls
+  // below deadlock
+  comm().max(any_work);
+  if (!any_work)
+  {
+    LibmeshPetscCall(MatISRestoreLocalMat(_mat, &local_mat));
+    return;
+  }
+
+  // Every sharer has to repair a deficient dof together for the assembled diagonal to stay put,
+  // so the deficiency flags are summed across the subdomains and read back
+  LibmeshPetscCall(VecSet(_work_global, 0.0));
+  LibmeshPetscCall(
+      VecScatterBegin(_to_subdomain, _local_diagonal, _work_global, ADD_VALUES, SCATTER_REVERSE));
+  LibmeshPetscCall(
+      VecScatterEnd(_to_subdomain, _local_diagonal, _work_global, ADD_VALUES, SCATTER_REVERSE));
+  LibmeshPetscCall(VecScatterBegin(
+      _to_subdomain, _work_global, _local_diagonal, INSERT_VALUES, SCATTER_FORWARD));
+  LibmeshPetscCall(
+      VecScatterEnd(_to_subdomain, _work_global, _local_diagonal, INSERT_VALUES, SCATTER_FORWARD));
 
   // Marking the rows globally and reading them back is how a subdomain learns about rows that a
   // different rank owns and zeroed, which never appear in its own record. The marker depends only
@@ -558,24 +657,25 @@ PetscMatrixIS::reconcileZeroedDiagonals()
   LibmeshPetscCall(VecScatterEnd(
       _to_subdomain, _work_global, _subdomain_diagonal, INSERT_VALUES, SCATTER_FORWARD));
 
-  const PetscScalar *zeroed_values, *multiplicity_values, *diagonal_values;
+  const PetscScalar *zeroed_values, *deficient_values, *multiplicity_values, *diagonal_values;
   LibmeshPetscCall(VecGetArrayRead(_zeroed_marker, &zeroed_values));
+  LibmeshPetscCall(VecGetArrayRead(_local_diagonal, &deficient_values));
   LibmeshPetscCall(VecGetArrayRead(_multiplicity, &multiplicity_values));
   LibmeshPetscCall(VecGetArrayRead(_subdomain_diagonal, &diagonal_values));
 
-  Mat local_mat;
-  LibmeshPetscCall(MatISGetLocalMat(_mat, &local_mat));
   for (const auto i : libMesh::make_range(n_subdomain_dofs))
-    if (zeroed_values[i] != 0.)
+    if (zeroed_values[i] != 0. || deficient_values[i] != 0.)
       LibmeshPetscCall(
           MatSetValue(local_mat, i, i, diagonal_values[i] / multiplicity_values[i], INSERT_VALUES));
   LibmeshPetscCall(MatAssemblyBegin(local_mat, MAT_FINAL_ASSEMBLY));
   LibmeshPetscCall(MatAssemblyEnd(local_mat, MAT_FINAL_ASSEMBLY));
-  LibmeshPetscCall(MatISRestoreLocalMat(_mat, &local_mat));
 
   LibmeshPetscCall(VecRestoreArrayRead(_subdomain_diagonal, &diagonal_values));
   LibmeshPetscCall(VecRestoreArrayRead(_multiplicity, &multiplicity_values));
+  LibmeshPetscCall(VecRestoreArrayRead(_local_diagonal, &deficient_values));
   LibmeshPetscCall(VecRestoreArrayRead(_zeroed_marker, &zeroed_values));
+
+  LibmeshPetscCall(MatISRestoreLocalMat(_mat, &local_mat));
 }
 
 void

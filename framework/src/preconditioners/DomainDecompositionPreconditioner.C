@@ -82,17 +82,6 @@ DomainDecompositionPreconditioner::DomainDecompositionPreconditioner(const Input
 void
 DomainDecompositionPreconditioner::initialSetup()
 {
-  // Constraint objects are added after preconditioners are, so this cannot be checked in the
-  // constructor. The check spans every nonlinear system because the constraint Jacobian path is
-  // entered whenever the problem holds a Constraint, whichever system owns it.
-  for (const auto i : make_range(_fe_problem.numNonlinearSystems()))
-    if (_fe_problem.getNonlinearSystemBase(i).getConstraintWarehouse().hasObjects())
-      mooseError("Domain decomposition preconditioning does not yet support problems with "
-                 "Constraint objects. The system matrix it installs is a PETSc MATIS, and the "
-                 "constraint Jacobian path in NonlinearSystemBase reaches the system matrix "
-                 "through a downcast to libMesh::PetscMatrix, which the MATIS-backed matrix does "
-                 "not derive from.");
-
   // With a NEWTON or LINEAR solve the operator and the preconditioning matrix are both the MATIS
   // registered by the constructor, which satisfies PCBDDC's requirement that the preconditioning
   // matrix be MATIS as well as KSPFETIDP's requirement that the operator be MATIS

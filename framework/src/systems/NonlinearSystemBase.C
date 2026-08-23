@@ -2498,12 +2498,13 @@ NonlinearSystemBase::constraintJacobians(const SparseMatrix<Number> & jacobian_t
   auto & jacobian = getMatrix(systemMatrixTag());
 
   if (!_fe_problem.errorOnJacobianNonzeroReallocation())
-    LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
+    LibmeshPetscCall(MatSetOption(static_cast<PetscMatrixBase<Number> &>(jacobian).mat(),
                                   MAT_NEW_NONZERO_ALLOCATION_ERR,
                                   PETSC_FALSE));
   if (_fe_problem.ignoreZerosInJacobian())
-    LibmeshPetscCall(MatSetOption(
-        static_cast<PetscMatrix<Number> &>(jacobian).mat(), MAT_IGNORE_ZERO_ENTRIES, PETSC_TRUE));
+    LibmeshPetscCall(MatSetOption(static_cast<PetscMatrixBase<Number> &>(jacobian).mat(),
+                                  MAT_IGNORE_ZERO_ENTRIES,
+                                  PETSC_TRUE));
 
   std::vector<numeric_index_type> zero_rows;
 
@@ -2690,7 +2691,7 @@ NonlinearSystemBase::constraintJacobians(const SparseMatrix<Number> & jacobian_t
 
       if (constraints_applied)
       {
-        LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
+        LibmeshPetscCall(MatSetOption(static_cast<PetscMatrixBase<Number> &>(jacobian).mat(),
                                       MAT_KEEP_NONZERO_PATTERN, // This is changed in 3.1
                                       PETSC_TRUE));
 
@@ -2709,7 +2710,7 @@ NonlinearSystemBase::constraintJacobians(const SparseMatrix<Number> & jacobian_t
 
     if (constraints_applied)
     {
-      LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
+      LibmeshPetscCall(MatSetOption(static_cast<PetscMatrixBase<Number> &>(jacobian).mat(),
                                     MAT_KEEP_NONZERO_PATTERN, // This is changed in 3.1
                                     PETSC_TRUE));
 
@@ -2902,7 +2903,7 @@ NonlinearSystemBase::constraintJacobians(const SparseMatrix<Number> & jacobian_t
 
   if (constraints_applied)
   {
-    LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
+    LibmeshPetscCall(MatSetOption(static_cast<PetscMatrixBase<Number> &>(jacobian).mat(),
                                   MAT_KEEP_NONZERO_PATTERN, // This is changed in 3.1
                                   PETSC_TRUE));
 

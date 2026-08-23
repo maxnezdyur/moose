@@ -29,8 +29,7 @@ public:
   DomainDecompositionPreconditioner(const InputParameters & params);
 
   /**
-   * Reject problems that hold Constraint objects, then store the PETSc options that engage the
-   * requested solver on this system.
+   * Store the PETSc options that engage the requested solver on this system.
    *
    * The options without which a system of PDEs cannot be solved at all are stored here as
    * defaults: '-pc_bddc_use_change_of_basis', and '-fetidp_ksp_type gmres' for KSPFETIDP. Each
