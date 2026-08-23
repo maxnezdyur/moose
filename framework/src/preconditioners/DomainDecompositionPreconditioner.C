@@ -17,6 +17,12 @@
 #include "PetscSupport.h"
 
 #include "libmesh/implicit_system.h"
+#include "libmesh/petsc_nonlinear_solver.h"
+#include "libmesh/wrapped_petsc.h"
+
+#include <petscksp.h>
+
+#include <algorithm>
 
 registerMooseObjectAliased("MooseApp", DomainDecompositionPreconditioner, "DDP");
 
@@ -32,11 +38,21 @@ DomainDecompositionPreconditioner::validParams()
   params.addParam<MooseEnum>(
       "method", method, "The PETSc domain decomposition solver to precondition the system with.");
 
+  params.addParam<std::vector<NonlinearVariableName>>(
+      "saddle_point_variables",
+      {},
+      "Variables whose equations carry a zero diagonal when active, such as the Lagrange "
+      "multipliers of mortar contact. Their dofs are handed to KSPFETIDP's saddle point support "
+      "as the pressure field, so this requires 'method = fetidp'. The local subdomain problems "
+      "become indefinite, so the inner direct solvers default to MUMPS, which pivots.");
+
   return params;
 }
 
 DomainDecompositionPreconditioner::DomainDecompositionPreconditioner(const InputParameters & params)
-  : SingleMatrixPreconditioner(params), _method(getParam<MooseEnum>("method"))
+  : SingleMatrixPreconditioner(params),
+    _method(getParam<MooseEnum>("method")),
+    _saddle_point_vars(getParam<std::vector<NonlinearVariableName>>("saddle_point_variables"))
 {
   if (const auto solve_type = _fe_problem.solverParams(_nl.number())._type;
       solve_type != Moose::ST_NEWTON && solve_type != Moose::ST_LINEAR)
@@ -111,4 +127,72 @@ DomainDecompositionPreconditioner::initialSetup()
   if (_method == "fetidp")
     Moose::PetscSupport::addDefaultPetscOption(
         petsc_options, prefix_with_dash + "fetidp_ksp_type", "gmres");
+
+  if (!_saddle_point_vars.empty())
+  {
+    if (_method != "fetidp")
+      paramError("saddle_point_variables",
+                 "Saddle point support is provided by KSPFETIDP; set 'method = fetidp'.");
+
+    for (const auto & var_name : _saddle_point_vars)
+      if (!_nl.hasVariable(var_name))
+        paramError("saddle_point_variables",
+                   "The nonlinear system does not hold a variable named '",
+                   var_name,
+                   "'.");
+
+    // Engage KSPFETIDP's saddle point path. While the multipliers are all inactive the operator
+    // has no zero diagonals for it to detect, so the field preSolve() registers is what it falls
+    // back to; once multipliers activate, the zero diagonal detection narrows the set to them
+    const auto saddlepoint_flag = prefix_with_dash + "ksp_fetidp_saddlepoint";
+    if (!petsc_options.flags.isValueSet(saddlepoint_flag) &&
+        !petsc_options.dont_add_these_options.isValueSet(saddlepoint_flag))
+      petsc_options.flags.setAdditionalValue(saddlepoint_flag);
+
+    // The local subdomain problems and the coarse problem carry the saddle point structure, and
+    // PETSc's own LU does not pivot, so it fails on them with a zero pivot; MUMPS pivots. The
+    // coarse problem is solved through PCREDUNDANT, whose inner factorization reads the
+    // 'coarse_redundant_' prefix
+    for (const auto solver : {"dirichlet", "neumann", "coarse", "coarse_redundant"})
+      Moose::PetscSupport::addDefaultPetscOption(
+          petsc_options, bddc_prefix + "pc_bddc_" + solver + "_pc_factor_mat_solver_type", "mumps");
+  }
+}
+
+void
+DomainDecompositionPreconditioner::preSolve()
+{
+  if (_saddle_point_vars.empty())
+    return;
+
+  // The dofs of the saddle point variables, in a global IS for the inner PCBDDC. Rebuilt on
+  // every solve, because a system reinitialization renumbers dofs
+  std::vector<PetscInt> saddle_dofs;
+  for (const auto & var_name : _saddle_point_vars)
+  {
+    std::set<libMesh::dof_id_type> var_dofs;
+    _nl.system().local_dof_indices(_nl.system().variable_number(var_name), var_dofs);
+    for (const auto dof : var_dofs)
+      saddle_dofs.push_back(libMesh::cast_int<PetscInt>(dof));
+  }
+  std::sort(saddle_dofs.begin(), saddle_dofs.end());
+
+  // The inner PCBDDC only exists once the KSP is typed, so type it here; the later
+  // KSPSetFromOptions re-applies '-ksp_type fetidp', which is a no-op for a matching type and
+  // keeps the inner PCBDDC together with the field registered on it
+  auto * const petsc_solver =
+      libMesh::cast_ptr<libMesh::PetscNonlinearSolver<libMesh::Number> *>(_nl.nonlinearSolver());
+  KSP ksp;
+  LibmeshPetscCall(SNESGetKSP(petsc_solver->snes(), &ksp));
+  LibmeshPetscCall(KSPSetType(ksp, KSPFETIDP));
+  PC bddc_pc;
+  LibmeshPetscCall(KSPFETIDPGetInnerBDDC(ksp, &bddc_pc));
+
+  libMesh::WrappedPetsc<IS> saddle_is;
+  LibmeshPetscCall(ISCreateGeneral(comm().get(),
+                                   libMesh::cast_int<PetscInt>(saddle_dofs.size()),
+                                   saddle_dofs.data(),
+                                   PETSC_COPY_VALUES,
+                                   saddle_is.get()));
+  LibmeshPetscCall(PCBDDCSetDofsSplitting(bddc_pc, 1, saddle_is.get()));
 }

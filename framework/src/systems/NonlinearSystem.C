@@ -148,6 +148,12 @@ NonlinearSystem::solve()
       _fe_problem.needsPreviousNewtonIteration())
     _nl_implicit_sys.nonlinear_solver->postcheck = Moose::compute_postcheck;
 
+  // Runs before every solve rather than once, because a system reinitialization (for example a
+  // contact patch update changing the ghosting) rebuilds the PETSc solver objects and renumbers
+  // dofs, which discards anything a preconditioner placed on them earlier
+  if (_preconditioner)
+    _preconditioner->preSolve();
+
   if (shouldEvaluatePreSMOResidual())
   {
     TIME_SECTION("nlPreSMOResidual", 3, "Computing Pre-SMO Residual");

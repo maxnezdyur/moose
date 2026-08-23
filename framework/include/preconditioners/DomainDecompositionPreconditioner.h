@@ -45,7 +45,19 @@ public:
    */
   virtual void initialSetup() override;
 
+  /**
+   * Register the dofs of the saddle point variables on KSPFETIDP's inner PCBDDC.
+   *
+   * Runs before every solve rather than once: a system reinitialization (for example a contact
+   * patch update changing the ghosting) rebuilds the PETSc solver and renumbers dofs, which
+   * discards both the registered fields and KSPFETIDP's cached pressure set.
+   */
+  virtual void preSolve() override;
+
 private:
   /// The PETSc domain decomposition solver to engage, either 'bddc' or 'fetidp'
   const MooseEnum _method;
+
+  /// Variables whose dofs form KSPFETIDP's saddle point pressure field, e.g. contact multipliers
+  const std::vector<NonlinearVariableName> _saddle_point_vars;
 };

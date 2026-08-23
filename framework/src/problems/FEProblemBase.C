@@ -8446,6 +8446,15 @@ FEProblemBase::updateMortarMesh()
 
   FloatingPointExceptionGuard fpe_guard(_app);
 
+  // A trial iterate (from a line search, or a diverging linear solve) can be non-finite, and
+  // generating mortar segments on the correspondingly displaced mesh walks broken geometry and
+  // crashes; reject the iterate recoverably instead. The norm is a collective reduction and a NaN
+  // reaches every rank, so all ranks throw together
+  if (_current_nl_sys && _current_nl_sys->currentSolution() &&
+      _current_nl_sys->currentSolution()->initialized())
+    if (!std::isfinite(_current_nl_sys->currentSolution()->l2_norm()))
+      throw MooseException("The solution is not finite, so the mortar mesh cannot be updated");
+
   _mortar_data->update();
 }
 

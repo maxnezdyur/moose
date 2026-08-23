@@ -57,6 +57,14 @@ public:
    */
   virtual void initialSetup();
 
+  /**
+   * Called by the nonlinear system immediately before every solve.
+   *
+   * Unlike initialSetup(), this runs after any solver rebuild or dof renumbering (for example
+   * from a ghosting change), so state placed on the PETSc solver objects here survives them.
+   */
+  virtual void preSolve() {}
+
 protected:
   /// Setup the coupling matrix on the finite element problem
   void setCouplingMatrix(std::unique_ptr<libMesh::CouplingMatrix> cm);
