@@ -106,6 +106,13 @@ QuasiStaticSolidMechanicsPhysics::validParams()
                         "Collects all material eigenstrains and passes to required strain "
                         "calculator within TMA internally.");
 
+  params.addParam<bool>(
+      "rigid_body_near_null_space",
+      false,
+      "Add a RigidBodyModes user object that fills the near-null-space with the rigid body modes "
+      "of the displacement field, plus one constant mode for the 'temperature' variable when it is "
+      "set, to accelerate algebraic multigrid on under-constrained (floating) solves.");
+
   // Homogenization system input
   params.addParam<MultiMooseEnum>(
       "constraint_types",
@@ -119,7 +126,7 @@ QuasiStaticSolidMechanicsPhysics::validParams()
       true,
       "Whether to include the off-diagonal scalar contributions to the homogenized jacobian");
 
-  params.addParamNamesToGroup("scaling", "Variables");
+  params.addParamNamesToGroup("scaling rigid_body_near_null_space", "Variables");
   params.addParamNamesToGroup("strain_base_name automatic_eigenstrain_names", "Strain");
   params.addParamNamesToGroup(
       "cylindrical_axis_point1 cylindrical_axis_point2 spherical_center_point direction",
@@ -568,9 +575,20 @@ QuasiStaticSolidMechanicsPhysics::act()
       auto params = _factory.getValidParams("RigidBodyModes");
       params.set<std::vector<VariableName>>("displacements") = _coupled_displacements;
       if (isParamValid("temperature"))
-        params.set<std::vector<VariableName>>("constant_mode_variables") =
-            getParam<std::vector<VariableName>>("temperature");
-      params.set<ExecFlagEnum>("execute_on") = EXEC_INITIAL;
+      {
+        const auto & temperatures = getParam<std::vector<VariableName>>("temperature");
+        // A near-null-space mode is written to a degree of freedom of the nonlinear system, so an
+        // auxiliary temperature would resolve to a displacement degree of freedom instead
+        for (const auto & temperature : temperatures)
+          if (!_problem->hasSolverVariable(temperature))
+            paramError("temperature",
+                       "The variable '",
+                       temperature,
+                       "' is not a solver variable, so it cannot carry a near-null-space constant "
+                       "mode. Either couple a solver variable or set "
+                       "'rigid_body_near_null_space = false'.");
+        params.set<std::vector<VariableName>>("constant_mode_variables") = temperatures;
+      }
       _problem->addUserObject("RigidBodyModes", name() + "_rigid_body_modes", params);
     }
   }

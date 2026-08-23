@@ -56,11 +56,11 @@ system:
 ## Rigid Body Near-Null-Space id=rigid-body
 
 Setting `rigid_body_near_null_space = true` adds a [RigidBodyModes](RigidBodyModes.md) user
-object built from the action's `displacements`. When the action also sets a `temperature`,
-that field is forwarded as a constant near-null-space mode. The user object sizes the
-near-null-space automatically, so no `[Problem]` parameter is required. See
-[RigidBodyModes](RigidBodyModes.md) for the modes produced and the solver options (PETSc
-GAMG or hypre BoomerAMG) needed to consume them.
+object built from the action's `displacements`. Every variable listed in the action's `temperature`
+parameter is forwarded as a constant near-null-space mode, so each one must be a solver variable on
+the nonlinear system. The user object sizes the near-null-space automatically, so no `[Problem]`
+parameter is required. See [RigidBodyModes](RigidBodyModes.md) for the modes produced and the
+solver options (PETSc GAMG or hypre BoomerAMG) needed to consume them.
 
 ## Compatibility Mode Wiring id=compat-wiring
 

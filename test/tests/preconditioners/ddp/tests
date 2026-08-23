@@ -1,0 +1,33 @@
+[Tests]
+  design = 'DomainDecompositionPreconditioner.md'
+  issues = '#TBD'
+
+  [ddp]
+    requirement = 'The system shall precondition a finite element system with a non-overlapping '
+                  'domain decomposition of one subdomain per process using'
+
+    [bddc]
+      type = Exodiff
+      input = 'ddp_diffusion.i'
+      exodiff = 'ddp_diffusion_bddc.e'
+      cli_args = 'Preconditioning/ddp/method=bddc Outputs/file_base=ddp_diffusion_bddc'
+      min_parallel = 2
+      capabilities = 'petsc>=3.20.0'
+      # Check that PETSc built PCBDDC rather than falling back to the default preconditioner
+      expect_out = "type:\s+bddc"
+      detail = 'the balancing domain decomposition by constraints method and'
+    []
+
+    [fetidp]
+      type = Exodiff
+      input = 'ddp_diffusion.i'
+      exodiff = 'ddp_diffusion_fetidp.e'
+      cli_args = 'Preconditioning/ddp/method=fetidp Outputs/file_base=ddp_diffusion_fetidp'
+      min_parallel = 2
+      capabilities = 'petsc>=3.20.0'
+      # Check that PETSc built KSPFETIDP rather than falling back to the default Krylov solver
+      expect_out = "type:\s+fetidp"
+      detail = 'the dual-primal finite element tearing and interconnecting method.'
+    []
+  []
+[]

@@ -21,6 +21,7 @@ the action create the displacement variables at the order matching the mesh.
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/add_variables)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/temperature)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/scaling)
+- [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/rigid_body_near_null_space)
 
 ## Strain id=strain
 

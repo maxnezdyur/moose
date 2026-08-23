@@ -88,6 +88,7 @@
 #include "libmesh/quadrature_gauss.h"
 #include "libmesh/dense_vector.h"
 #include "libmesh/boundary_info.h"
+#include "libmesh/petsc_matrix_base.h"
 #include "libmesh/petsc_matrix.h"
 #include "libmesh/petsc_vector.h"
 #include "libmesh/petsc_nonlinear_solver.h"
@@ -1998,7 +1999,7 @@ NonlinearSystemBase::computeResidualAndJacobianInternal(const std::set<TagID> & 
 
     auto & jacobian = getMatrix(tag);
     // Necessary for speed
-    if (auto petsc_matrix = dynamic_cast<PetscMatrix<Number> *>(&jacobian))
+    if (auto petsc_matrix = dynamic_cast<PetscMatrixBase<Number> *>(&jacobian))
     {
       LibmeshPetscCall(MatSetOption(petsc_matrix->mat(),
                                     MAT_KEEP_NONZERO_PATTERN, // This is changed in 3.1
@@ -2007,9 +2008,7 @@ NonlinearSystemBase::computeResidualAndJacobianInternal(const std::set<TagID> & 
         LibmeshPetscCall(
             MatSetOption(petsc_matrix->mat(), MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
       if (_fe_problem.ignoreZerosInJacobian())
-        LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
-                                      MAT_IGNORE_ZERO_ENTRIES,
-                                      PETSC_TRUE));
+        LibmeshPetscCall(MatSetOption(petsc_matrix->mat(), MAT_IGNORE_ZERO_ENTRIES, PETSC_TRUE));
     }
   }
 
@@ -3017,7 +3016,7 @@ NonlinearSystemBase::computeJacobianInternal(const std::set<TagID> & tags)
 
     auto & jacobian = getMatrix(tag);
     // Necessary for speed
-    if (auto petsc_matrix = dynamic_cast<PetscMatrix<Number> *>(&jacobian))
+    if (auto petsc_matrix = dynamic_cast<PetscMatrixBase<Number> *>(&jacobian))
     {
       LibmeshPetscCall(MatSetOption(petsc_matrix->mat(),
                                     MAT_KEEP_NONZERO_PATTERN, // This is changed in 3.1
@@ -3026,9 +3025,7 @@ NonlinearSystemBase::computeJacobianInternal(const std::set<TagID> & tags)
         LibmeshPetscCall(
             MatSetOption(petsc_matrix->mat(), MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
       if (_fe_problem.ignoreZerosInJacobian())
-        LibmeshPetscCall(MatSetOption(static_cast<PetscMatrix<Number> &>(jacobian).mat(),
-                                      MAT_IGNORE_ZERO_ENTRIES,
-                                      PETSC_TRUE));
+        LibmeshPetscCall(MatSetOption(petsc_matrix->mat(), MAT_IGNORE_ZERO_ENTRIES, PETSC_TRUE));
     }
   }
 

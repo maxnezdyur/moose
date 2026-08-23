@@ -19,6 +19,8 @@
 #include "libmesh/numeric_vector.h"
 #include "libmesh/int_range.h"
 
+#include <array>
+
 /**
  * Fixture: the 3D fixture mesh carrying a coupled displacement field (disp_x,
  * disp_y, disp_z) plus a temperature field, with a RigidBodyModes user object
@@ -97,14 +99,14 @@ TEST_F(RigidBodyModesTest, rigidModesFillDisplacementsAndSkipConstantField)
 
     // Displacement components (disp_x, disp_y, disp_z) of the three translations followed by the
     // rotations about the x, y and z axes evaluated at the reference coordinates.
-    const Real expected[6][3] = {{1.0, 0.0, 0.0},
-                                 {0.0, 1.0, 0.0},
-                                 {0.0, 0.0, 1.0},
-                                 {0.0, -z, y},
-                                 {z, 0.0, -x},
-                                 {-y, x, 0.0}};
+    const std::array<std::array<Real, 3>, 6> expected = {{{1.0, 0.0, 0.0},
+                                                          {0.0, 1.0, 0.0},
+                                                          {0.0, 0.0, 1.0},
+                                                          {0.0, -z, y},
+                                                          {z, 0.0, -x},
+                                                          {-y, x, 0.0}}};
 
-    for (const auto m : make_range(6u))
+    for (const auto m : index_range(expected))
     {
       const auto & mode = _nl->getVector("NearNullSpace_" + std::to_string(m));
       EXPECT_DOUBLE_EQ(expected[m][0], mode(dof_x));

@@ -14,8 +14,8 @@ The object sizes the near-null-space itself from the number of modes it produces
 Do not set `near_null_space_dimension` in the `[Problem]` block; setting it to a
 conflicting value is an error.
 
-[!param](/UserObjects/RigidBodyModes/displacements) is required. List two displacement
-variables in 2D or three in 3D. Any other count is an error.
+List two displacement variables in 2D or three in 3D in
+[!param](/UserObjects/RigidBodyModes/displacements); any other count is an error.
 
 ### Modes Produced id=modes
 

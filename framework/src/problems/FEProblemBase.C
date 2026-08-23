@@ -825,11 +825,18 @@ FEProblemBase::initNullSpaceVectors(const InputParameters & parameters,
       nl->addVector("TransposeNullSpace" + oss.str(), false, libMesh::GHOSTED);
   }
   _subspace_dim["TransposeNullSpace"] = dimTransposeNullSpace;
-  initNearNullSpaceVectors(dimNearNullSpace);
+  initNearNullSpaceVectors(dimNearNullSpace, nls);
 }
 
 void
 FEProblemBase::initNearNullSpaceVectors(unsigned int dimension)
+{
+  initNearNullSpaceVectors(dimension, _nl);
+}
+
+void
+FEProblemBase::initNearNullSpaceVectors(unsigned int dimension,
+                                        std::vector<std::shared_ptr<NonlinearSystemBase>> & nls)
 {
   // A recorded dimension of 0 means only the default near_null_space_dimension path ran during
   // problem construction (FEProblem ctor), before any user object could request a real dimension;
@@ -843,18 +850,20 @@ FEProblemBase::initNearNullSpaceVectors(unsigned int dimension)
       return;
     mooseError("The near-null-space was already allocated with dimension ",
                it->second,
-               ", but initNearNullSpaceVectors() was called requesting dimension ",
+               ", but dimension ",
                dimension,
-               ". The near-null-space dimension cannot be changed once allocated.");
+               " was then requested. The near-null-space dimension cannot be changed once "
+               "allocated. If 'near_null_space_dimension' is set in the Problem block, remove it "
+               "and let the object that fills the near-null-space size the subspace.");
   }
 
-  for (unsigned int i = 0; i < dimension; ++i)
+  for (const auto i : make_range(dimension))
   {
     std::ostringstream oss;
     oss << "_" << i;
     // do not project, since this will be recomputed, but make it ghosted, since the near-nullspace
     // builder might march over all semilocal nodes
-    for (auto & nl : _nl)
+    for (auto & nl : nls)
       nl->addVector("NearNullSpace" + oss.str(), false, libMesh::GHOSTED);
   }
   _subspace_dim["NearNullSpace"] = dimension;

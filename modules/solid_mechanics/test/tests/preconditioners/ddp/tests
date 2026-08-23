@@ -1,0 +1,82 @@
+[Tests]
+  design = 'DomainDecompositionPreconditioner.md'
+  issues = '#TBD'
+
+  [elasticity]
+    requirement = 'The system shall solve a three-dimensional linear elasticity problem with a '
+                  'non-overlapping domain decomposition of one subdomain per process using'
+
+    [bddc]
+      type = Exodiff
+      input = 'ddp_elasticity.i'
+      exodiff = 'ddp_elasticity_out.e'
+      cli_args = 'Preconditioning/ddp/method=bddc'
+      # the decomposition places one subdomain on each rank, so it is only a decomposition at two
+      # ranks or more
+      min_parallel = 2
+      # the primal BDDC method remains stiffness-sensitive beyond 2 subdomains; FETI-DP is the
+      # validated route for more processes, see DomainDecompositionPreconditioner.md limitations
+      max_parallel = 2
+      capabilities = 'petsc>=3.20.0'
+      # stress_yy and stress_zz vanish analytically but carry roughly 5e-9 of solver noise, which
+      # the 1e-10 Exodiff default would report as a difference on other platforms and process counts
+      abs_zero = 1e-8
+      # Check that PETSc built PCBDDC rather than falling back to the default preconditioner
+      expect_out = "type:\s+bddc"
+      detail = 'the balancing domain decomposition by constraints method and'
+    []
+
+    [fetidp]
+      type = Exodiff
+      input = 'ddp_elasticity.i'
+      exodiff = 'ddp_elasticity_fetidp.e'
+      cli_args = 'Preconditioning/ddp/method=fetidp Outputs/file_base=ddp_elasticity_fetidp'
+      min_parallel = 2
+      capabilities = 'petsc>=3.20.0'
+      abs_zero = 1e-8
+      # Check that PETSc built KSPFETIDP rather than falling back to the default Krylov solver
+      expect_out = "type:\s+fetidp"
+      detail = 'the dual-primal finite element tearing and interconnecting method.'
+    []
+  []
+
+  [finite_strain]
+    requirement = 'The system shall solve a three-dimensional finite strain elasticity problem, '
+                  'reassembling the Jacobian on every nonlinear iteration of every time step, with '
+                  'a non-overlapping domain decomposition of one subdomain per process using'
+
+    [bddc]
+      type = Exodiff
+      input = 'ddp_finite_strain.i'
+      exodiff = 'ddp_finite_strain_bddc.e'
+      # the vector-problem coarse-space tuning the design page recommends: with the primal method at
+      # four subdomains the change-of-basis default alone is not sufficient, and the rigid body mode
+      # near-null-space is what lets PCBDDC control the floating subdomains
+      cli_args = 'Preconditioning/ddp/method=bddc Outputs/file_base=ddp_finite_strain_bddc '
+                 'Physics/SolidMechanics/QuasiStatic/all/rigid_body_near_null_space=true '
+                 '-pc_bddc_monolithic -pc_bddc_use_faces -ksp_view'
+      min_parallel = 2
+      # the primal BDDC method converges this problem at up to four subdomains and breaks down at
+      # eight; FETI-DP carries the larger decompositions, see the design page limitations
+      max_parallel = 4
+      capabilities = 'petsc>=3.20.0'
+      # the components that vanish by symmetry carry solver noise above the 1e-10 Exodiff default
+      abs_zero = 1e-8
+      expect_out = "type:\s+bddc"
+      detail = 'the balancing domain decomposition by constraints method and'
+    []
+
+    [fetidp]
+      type = Exodiff
+      input = 'ddp_finite_strain.i'
+      exodiff = 'ddp_finite_strain_fetidp.e'
+      cli_args = 'Preconditioning/ddp/method=fetidp Outputs/file_base=ddp_finite_strain_fetidp '
+                 '-ksp_view'
+      min_parallel = 2
+      capabilities = 'petsc>=3.20.0'
+      abs_zero = 1e-8
+      expect_out = "type:\s+fetidp"
+      detail = 'the dual-primal finite element tearing and interconnecting method.'
+    []
+  []
+[]

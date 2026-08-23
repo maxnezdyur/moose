@@ -45,8 +45,8 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
     _n_rbm(_ndisp == 2 ? 3 : 6),
     _n_const(coupledComponents("constant_mode_variables")),
     _n_modes(_n_rbm + _n_const),
-    _nl_sys(getVar("displacements", 0)->sys()),
-    _sys_num(_nl_sys.number())
+    _nl_sys(nullptr),
+    _sys_num(libMesh::invalid_uint)
 {
   if (_ndisp != 2 && _ndisp != 3)
     paramError("displacements",
@@ -55,9 +55,18 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
                _ndisp,
                ".");
 
+  // Resolved in the body rather than in the initializer list, which runs before the check above:
+  // getVar returns null when 'displacements' is supplied but empty
+  _nl_sys = &getVar("displacements", 0)->sys();
+  _sys_num = _nl_sys->number();
+
   _disp_var_num.resize(_ndisp);
   for (const auto i : make_range(_ndisp))
-    _disp_var_num[i] = getVar("displacements", i)->number();
+  {
+    const auto & disp_var = *getVar("displacements", i);
+    checkVariableSystem(disp_var, "displacements");
+    _disp_var_num[i] = disp_var.number();
+  }
 
   std::vector<VariableName> disp_names(_ndisp);
   for (const auto i : make_range(_ndisp))
@@ -72,7 +81,9 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
                  "The variable '",
                  cname,
                  "' cannot appear in both 'displacements' and 'constant_mode_variables'.");
-    _const_var_num[k] = getVar("constant_mode_variables", k)->number();
+    const auto & const_var = *getVar("constant_mode_variables", k);
+    checkVariableSystem(const_var, "constant_mode_variables");
+    _const_var_num[k] = const_var.number();
   }
 
   // Self-register the near-null-space subspace sized to the number of modes this object fills.
@@ -80,13 +91,32 @@ RigidBodyModes::RigidBodyModes(const InputParameters & parameters)
 }
 
 void
+RigidBodyModes::checkVariableSystem(const MooseVariableFieldBase & var,
+                                    const std::string & param) const
+{
+  if (var.sys().number() != _sys_num)
+    paramError(param,
+               "The variable '",
+               var.name(),
+               "' belongs to system '",
+               var.sys().name(),
+               "', but the near-null-space vectors are filled on system '",
+               _nl_sys->name(),
+               "'. Every variable coupled to this object must belong to that system, because its "
+               "variable number is resolved against that system when the modes are written. An "
+               "auxiliary variable cannot carry a near-null-space mode.");
+}
+
+void
 RigidBodyModes::initialize()
 {
+  // Resolved once here rather than by name on every node, because execute() runs per local node
+  _modes.resize(_n_modes);
   for (const auto m : make_range(_n_modes))
   {
-    auto & mode = _nl_sys.getVector("NearNullSpace_" + std::to_string(m));
-    mode.zero();
-    mode.close();
+    _modes[m] = &_nl_sys->getVector("NearNullSpace_" + std::to_string(m));
+    _modes[m]->zero();
+    _modes[m]->close();
   }
 }
 
@@ -117,34 +147,30 @@ RigidBodyModes::execute()
     const dof_id_type dy = node.dof_number(_sys_num, _disp_var_num[1], 0);
 
     // translations
-    _nl_sys.getVector("NearNullSpace_0").set(dx, 1.0);
-    _nl_sys.getVector("NearNullSpace_1").set(dy, 1.0);
+    _modes[0]->set(dx, 1.0);
+    _modes[1]->set(dy, 1.0);
 
     if (_ndisp == 2)
     {
       // rotation about z: (-y, x)
-      auto & rot_z = _nl_sys.getVector("NearNullSpace_2");
-      rot_z.set(dx, -y);
-      rot_z.set(dy, x);
+      _modes[2]->set(dx, -y);
+      _modes[2]->set(dy, x);
     }
     else
     {
       const dof_id_type dz = node.dof_number(_sys_num, _disp_var_num[2], 0);
-      _nl_sys.getVector("NearNullSpace_2").set(dz, 1.0);
+      _modes[2]->set(dz, 1.0);
 
       // rotations about the origin
       // rotation about x: (0, -z, y)
-      auto & rot_x = _nl_sys.getVector("NearNullSpace_3");
-      rot_x.set(dy, -z);
-      rot_x.set(dz, y);
+      _modes[3]->set(dy, -z);
+      _modes[3]->set(dz, y);
       // rotation about y: (z, 0, -x)
-      auto & rot_y = _nl_sys.getVector("NearNullSpace_4");
-      rot_y.set(dx, z);
-      rot_y.set(dz, -x);
+      _modes[4]->set(dx, z);
+      _modes[4]->set(dz, -x);
       // rotation about z: (-y, x, 0)
-      auto & rot_z = _nl_sys.getVector("NearNullSpace_5");
-      rot_z.set(dx, -y);
-      rot_z.set(dy, x);
+      _modes[5]->set(dx, -y);
+      _modes[5]->set(dy, x);
     }
   }
 
@@ -154,13 +180,13 @@ RigidBodyModes::execute()
     if (node.n_dofs(_sys_num, _const_var_num[k]) > 0)
     {
       const dof_id_type dc = node.dof_number(_sys_num, _const_var_num[k], 0);
-      _nl_sys.getVector("NearNullSpace_" + std::to_string(_n_rbm + k)).set(dc, 1.0);
+      _modes[_n_rbm + k]->set(dc, 1.0);
     }
 }
 
 void
 RigidBodyModes::finalize()
 {
-  for (const auto m : make_range(_n_modes))
-    _nl_sys.getVector("NearNullSpace_" + std::to_string(m)).close();
+  for (auto * const mode : _modes)
+    mode->close();
 }
