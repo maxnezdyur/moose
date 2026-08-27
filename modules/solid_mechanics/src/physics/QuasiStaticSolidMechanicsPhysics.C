@@ -20,6 +20,8 @@
 
 #include "HomogenizationInterface.h"
 #include "AddVariableAction.h"
+#include "SetupQuadratureAction.h"
+#include "HourglassStabilization.h"
 
 #include "libmesh/string_to_enum.h"
 #include <algorithm>
@@ -253,6 +255,39 @@ QuasiStaticSolidMechanicsPhysics::QuasiStaticSolidMechanicsPhysics(const InputPa
   // Error if volumetric locking correction is true for 1D problems
   if (_ndisp == 1 && getParam<bool>("volumetric_locking_correction"))
     mooseError("Volumetric locking correction should be set to false for 1D problems.");
+
+  // Consistency checks for reduced integration and its hourglass stabilization kernels
+  if (getParam<bool>("reduced_integration"))
+  {
+    if (_ndisp == 1)
+      paramError("reduced_integration",
+                 "'reduced_integration' does not apply to 1D problems. EDGE2 has a constant "
+                 "gradient over the element, so one-point quadrature leaves it fully integrated "
+                 "and there is no hourglass mode to control.");
+
+    if (getParam<bool>("volumetric_locking_correction"))
+      paramError("reduced_integration",
+                 "'reduced_integration' cannot be combined with 'volumetric_locking_correction'. "
+                 "Hourglass stabilization restores the rank of an element that one-point "
+                 "quadrature under-integrates, while the volumetric locking correction (B-bar) "
+                 "averages the volumetric strain of a fully integrated element; stacking B-bar on "
+                 "one-point quadrature is not a defined scheme. To reduce only the volumetric "
+                 "term, keep full quadrature and use 'volumetric_locking_correction' (or the "
+                 "Lagrangian F-bar stabilization) on its own.");
+
+    if (_use_ad)
+      paramError("reduced_integration",
+                 "'reduced_integration' cannot be combined with 'use_automatic_differentiation = "
+                 "true'. The hourglass stabilization kernel it generates has no AD variant.");
+
+    if (_lagrangian_kernels)
+      paramError("reduced_integration",
+                 "This action does not generate hourglass stabilization on the Lagrangian kernel "
+                 "path, so 'reduced_integration' cannot be combined with 'new_system = true' or "
+                 "'compatibility_mode = true'. HourglassStabilization itself is independent of "
+                 "the stress divergence kernels, so it can be added by hand in a [Kernels] block "
+                 "alongside the Lagrangian kernels.");
+  }
 
   if (!getParam<bool>("add_variables") && params.isParamSetByUser("scaling"))
     paramError("scaling",
@@ -547,6 +582,91 @@ QuasiStaticSolidMechanicsPhysics::act()
       }
 
       _problem->addKernel(ad_prepend + tensor_kernel_type, kernel_name, params);
+    }
+
+    if (getParam<bool>("reduced_integration"))
+    {
+      // Best-effort early diagnostic, not the enforcement point: the kernel counts the quadrature
+      // points of the rule it is actually given, once per element. Here only the requested order is
+      // visible, and AUTO is never resolved to a point count until libMesh builds the rule, so this
+      // rejects a request that is provably not single-point and stays silent otherwise.
+      const auto quadrature_actions = _awh.getActions<SetupQuadratureAction>();
+      if (quadrature_actions.size() == 1)
+      {
+        const InputParameters & q_params = quadrature_actions[0]->parameters();
+        // FEProblemBase::createQRules falls back to 'order' when 'element_order' is AUTO, so the
+        // effective element order is 'order' unless 'element_order' names one itself.
+        const std::string element_order = q_params.get<MooseEnum>("element_order");
+        const std::string global_order = q_params.get<MooseEnum>("order");
+        const bool element_order_governs =
+            q_params.isParamSetByUser("element_order") && element_order != "AUTO";
+        const std::string governing = element_order_governs ? "element_order" : "order";
+        const std::string effective_order = element_order_governs ? element_order : global_order;
+
+        // Per-block overrides can give these blocks an order of their own, which this check cannot
+        // attribute, so defer to the kernel whenever any are present.
+        if (q_params.get<std::vector<SubdomainID>>("custom_blocks").empty() &&
+            q_params.isParamSetByUser(governing) && effective_order != "CONSTANT" &&
+            effective_order != "FIRST" && effective_order != "AUTO")
+          paramError("reduced_integration",
+                     "Reduced integration requires single-point quadrature, but "
+                     "[Executioner][Quadrature] requests '",
+                     governing,
+                     " = ",
+                     effective_order,
+                     "'. Request one-point quadrature with\n\n",
+                     HourglassStabilization::quadratureRemediationSnippet());
+      }
+
+      const std::array<std::string, 3> dir{{"x", "y", "z"}};
+      for (const auto i : make_range(_ndisp))
+      {
+        // Skip the same components the stress divergence loop above skips: a planar formulation
+        // has no displacement variable to stabilize in the out-of-plane direction.
+        if (_out_of_plane_direction == OutOfPlaneDirection::x && i == 0)
+          continue;
+        else if (_out_of_plane_direction == OutOfPlaneDirection::y && i == 1)
+          continue;
+
+        auto params = _factory.getValidParams("HourglassStabilization");
+        // Both exclusions are load-bearing. suppressParameter marks 'use_displaced_mesh' private
+        // only on the kernel side, while applyParameter's guard is (!common_priv || !local_priv),
+        // so a blanket copy would overwrite the false the kernel pins. The save-in types match
+        // KernelBase's, so a blanket copy would attach all _ndisp of them to every kernel; they
+        // are re-set per component below instead.
+        params.applyParameters(parameters(), {"use_displaced_mesh", "save_in", "diag_save_in"});
+        params.set<Real>("penalty") = getParam<Real>("hourglass_penalty");
+        params.set<NonlinearVariableName>("variable") = _displacements[i];
+
+        // save_in is additive across every kernel acting on the variable, so the stabilization
+        // force has to land in the same aux variable as the stress divergence residual.
+        if (_save_in.size() == _ndisp)
+          params.set<std::vector<AuxVariableName>>("save_in") = {_save_in[i]};
+        if (_diag_save_in.size() == _ndisp)
+          params.set<std::vector<AuxVariableName>>("diag_save_in") = {_diag_save_in[i]};
+
+        _problem->addKernel(
+            "HourglassStabilization", "TM_" + name() + "_hourglass_" + dir[i], params);
+      }
+
+      // Deliberately NOT gated on 'verbose': one-point quadrature under-integrates every field on
+      // the block, so a coupled second-order field left unstabilized is silently wrong. This
+      // warning is the mitigation, so it must reach every user who enables the knob.
+      const std::string blocks = _subdomain_names.empty()
+                                     ? std::string("the whole mesh")
+                                     : "block(s) " + Moose::stringify(_subdomain_names);
+      mooseInfo("SolidMechanics Action '",
+                name(),
+                "': reduced_integration adds one HourglassStabilization kernel per displacement "
+                "variable on ",
+                blocks,
+                ".\nThe quadrature rule belongs to the block, not to a kernel, so one-point "
+                "quadrature under-integrates every field there. Any other second-order-operator "
+                "kernel on ",
+                blocks,
+                " -- heat conduction, for example -- is rank deficient in the same way and needs "
+                "its own HourglassStabilization on its variable, with "
+                "'stiffness_source = scalar_property'.");
     }
 
     if (_planar_formulation == PlanarFormulation::WeakPlaneStress)

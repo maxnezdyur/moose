@@ -1,0 +1,49 @@
+[Tests]
+  design = 'source/kernels/HourglassStabilization.md'
+  issues = '#0000'
+
+  [structured]
+    requirement = 'The solid mechanics module shall reproduce a spatially uniform stress state and '
+                  'generate no hourglass stabilization force under a prescribed affine '
+                  'displacement field with single-point quadrature'
+    [patch_quad4]
+      type = 'CSVDiff'
+      input = 'patch_quad4.i'
+      csvdiff = 'patch_quad4_out.csv'
+      # The hourglass force columns are exactly zero for an affine field, so they are compared
+      # against zero rather than relatively; 1e-8 sits ten decades below the force an
+      # unprojected mode vector would produce and well above solver round-off.
+      abs_zero = 1e-8
+      detail = 'on a structured grid of four-node quadrilaterals, and'
+    []
+    [patch_hex8]
+      type = 'CSVDiff'
+      input = 'patch_hex8.i'
+      csvdiff = 'patch_hex8_out.csv'
+      abs_zero = 1e-8
+      detail = 'on a structured grid of eight-node hexahedra.'
+    []
+  []
+
+  [distorted]
+    requirement = 'The solid mechanics module shall project the affine displacement space out of '
+                  'the hourglass mode vectors so that an affine displacement field generates no '
+                  'hourglass stabilization force on distorted elements'
+    [patch_quad4_distorted]
+      type = 'CSVDiff'
+      input = 'patch_quad4.i'
+      cli_args = 'Mesh/distort/constant_expressions=0.2 Outputs/file_base=patch_quad4_distorted_out'
+      csvdiff = 'patch_quad4_distorted_out.csv'
+      abs_zero = 1e-8
+      detail = 'that are non-parallelogram quadrilaterals, and'
+    []
+    [patch_hex8_distorted]
+      type = 'CSVDiff'
+      input = 'patch_hex8.i'
+      cli_args = 'Mesh/distort/constant_expressions=0.2 Outputs/file_base=patch_hex8_distorted_out'
+      csvdiff = 'patch_hex8_distorted_out.csv'
+      abs_zero = 1e-8
+      detail = 'that are non-parallelepiped hexahedra.'
+    []
+  []
+[]

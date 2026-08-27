@@ -1,0 +1,17 @@
+[Tests]
+  design = 'source/kernels/HourglassStabilization.md'
+  issues = '#0000'
+  [suppression_stabilized]
+    type = CSVDiff
+    input = 'suppression.i'
+    csvdiff = 'suppression_out.csv'
+    requirement = 'The mechanics system shall converge and reproduce the bending response of a coarse QUAD4 cantilever integrated with a single quadrature point, together with the nonzero hourglass stabilization force that resists the excited zero-energy mode, when hourglass stabilization is active.'
+  []
+  [suppression_unstabilized]
+    type = RunException
+    input = 'suppression.i'
+    cli_args = 'Kernels/hourglass_x/penalty=0 Kernels/hourglass_y/penalty=0 Outputs/file_base=suppression_unstabilized'
+    expect_err = 'Solve Did NOT Converge'
+    requirement = 'The mechanics system shall report a failed solve for a coarse QUAD4 cantilever integrated with a single quadrature point when the hourglass stabilization penalty is zero, because one-point quadrature leaves the assembled stiffness rank deficient against the bending mode the tip load excites.'
+  []
+[]

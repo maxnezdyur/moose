@@ -1,0 +1,167 @@
+[Tests]
+  issues = '#0000'
+  design = 'source/kernels/HourglassStabilization.md modules/solid_mechanics/reduced_integration.md'
+
+  # Every entry drives the reduced scheme through the 'reduced_integration' parameter of
+  # QuasiStaticSolidMechanicsPhysics rather than a hand written [Kernels] block, so this row is
+  # also the end to end test of that user facing path. The knob generates the stabilization
+  # kernels but does not set the quadrature rule, so each reduced entry also lowers
+  # Executioner/Quadrature/element_order to CONSTANT.
+  #
+  # 'reference_disp' is a mesh converged displacement hard coded in each input and reported as the
+  # 'normalized_disp' ratio, so the gold carries the locking measure directly. Both values come
+  # from Richardson extrapolation of a volumetric-locking-corrected refinement sweep of the same
+  # geometry (block 8x8 through 128x128; cantilever 6x4 through 240x48), where full and corrected
+  # quadrature agree to 0.01 percent at a Poisson ratio of 0.3. The nu = 0.499 value is supplied
+  # by cli_args because a single input cannot hold both.
+
+  [block_nu03]
+    requirement = 'The mechanics system shall reproduce the mesh converged characteristic '
+                  'displacement of a laterally confined block of four-node quadrilaterals under a '
+                  'graded surface pressure at a Poisson ratio of 0.3, where no locking pathology '
+                  'is active, when the block is integrated with'
+    [full]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Outputs/file_base=block_full_nu03_out'
+      csvdiff = 'block_full_nu03_out.csv'
+      detail = 'full quadrature,'
+    []
+    [bbar]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Physics/SolidMechanics/QuasiStatic/all/volumetric_locking_correction=true Outputs/file_base=block_bbar_nu03_out'
+      csvdiff = 'block_bbar_nu03_out.csv'
+      detail = 'full quadrature and the volumetric locking correction, and'
+    []
+    [reduced]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=block_reduced_nu03_out'
+      csvdiff = 'block_reduced_nu03_out.csv'
+      detail = 'one-point quadrature and hourglass stabilization.'
+    []
+  []
+
+  [block_nu0499]
+    requirement = 'The mechanics system shall reproduce the volumetric locking of a nearly '
+                  'incompressible laterally confined block of four-node quadrilaterals at a '
+                  'Poisson ratio of 0.499, and its cure, when the block is integrated with'
+    [full]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.0018521 Outputs/file_base=block_full_nu0499_out'
+      csvdiff = 'block_full_nu0499_out.csv'
+      detail = 'full quadrature, which locks and recovers half of the converged displacement,'
+    []
+    [bbar]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.0018521 Physics/SolidMechanics/QuasiStatic/all/volumetric_locking_correction=true Outputs/file_base=block_bbar_nu0499_out'
+      csvdiff = 'block_bbar_nu0499_out.csv'
+      detail = 'full quadrature and the volumetric locking correction, which recovers all of it, '
+               'and'
+    []
+    [reduced]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.0018521 Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=block_reduced_nu0499_out'
+      csvdiff = 'block_reduced_nu0499_out.csv'
+      detail = 'one-point quadrature and hourglass stabilization, which recovers all of it as well.'
+    []
+  []
+
+  [cantilever_nu03]
+    requirement = 'The mechanics system shall reproduce the shear locking of a bending dominated '
+                  'cantilever meshed with high aspect ratio four-node quadrilaterals at a Poisson '
+                  'ratio of 0.3, a pathology that the volumetric locking correction does not '
+                  'address, when the cantilever is integrated with'
+    [full]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Outputs/file_base=cantilever_full_nu03_out'
+      csvdiff = 'cantilever_full_nu03_out.csv'
+      detail = 'full quadrature, which recovers half of the converged tip deflection,'
+    []
+    [bbar]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Physics/SolidMechanics/QuasiStatic/all/volumetric_locking_correction=true Outputs/file_base=cantilever_bbar_nu03_out'
+      csvdiff = 'cantilever_bbar_nu03_out.csv'
+      detail = 'full quadrature and the volumetric locking correction, which leaves the shear '
+               'locking essentially in place, and'
+    []
+    [reduced]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=cantilever_reduced_nu03_out'
+      csvdiff = 'cantilever_reduced_nu03_out.csv'
+      detail = 'one-point quadrature and hourglass stabilization, which removes it.'
+    []
+  []
+
+  [cantilever_nu0499]
+    requirement = 'The mechanics system shall reproduce the combined shear and volumetric locking '
+                  'of a nearly incompressible bending dominated cantilever of four-node '
+                  'quadrilaterals at a Poisson ratio of 0.499 when the cantilever is integrated '
+                  'with'
+    [full]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.29927 Outputs/file_base=cantilever_full_nu0499_out'
+      csvdiff = 'cantilever_full_nu0499_out.csv'
+      detail = 'full quadrature, which recovers under a tenth of the converged tip deflection,'
+    []
+    [bbar]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.29927 Physics/SolidMechanics/QuasiStatic/all/volumetric_locking_correction=true Outputs/file_base=cantilever_bbar_nu0499_out'
+      csvdiff = 'cantilever_bbar_nu0499_out.csv'
+      detail = 'full quadrature and the volumetric locking correction, which recovers the '
+               'volumetric part of the locking only, and'
+    []
+    [reduced]
+      type = CSVDiff
+      input = 'cantilever.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.29927 Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=cantilever_reduced_nu0499_out'
+      csvdiff = 'cantilever_reduced_nu0499_out.csv'
+      detail = 'one-point quadrature and hourglass stabilization, which removes both.'
+    []
+  []
+
+  [block_agree]
+    requirement = 'The mechanics system shall compute the same displacement of a laterally '
+                  'confined block of four-node quadrilaterals with one-point quadrature and '
+                  'hourglass stabilization as with full quadrature and the volumetric locking '
+                  'correction, the two being independent cures for the one pathology this '
+                  'geometry carries, at a Poisson ratio of'
+
+    # These two entries run the reduced scheme but write the corresponding volumetric-locking
+    # corrected output name and diff against that gold, which is what turns the agreement claim
+    # into an assertion instead of prose. They therefore need a prereq on the entry that owns the
+    # file name. The measured spread between the two schemes is 0.24 percent at nu = 0.3 and 0.45
+    # percent at nu = 0.499; rel_err = 6e-3 admits both and still fails the 50 percent gap to the
+    # full quadrature answer by nearly two orders of magnitude, so a reduced run that quietly fell
+    # back to full quadrature, or one whose mode vectors lost their affine projection, breaks here
+    # first.
+
+    [nu03]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=block_bbar_nu03_out'
+      csvdiff = 'block_bbar_nu03_out.csv'
+      rel_err = 6e-3
+      prereq = 'block_nu03/bbar'
+      detail = '0.3, and'
+    []
+    [nu0499]
+      type = CSVDiff
+      input = 'block.i'
+      cli_args = 'Materials/elasticity/poissons_ratio=0.499 Postprocessors/reference_disp/value=-0.0018521 Physics/SolidMechanics/QuasiStatic/all/reduced_integration=true Executioner/Quadrature/element_order=CONSTANT Outputs/file_base=block_bbar_nu0499_out'
+      csvdiff = 'block_bbar_nu0499_out.csv'
+      rel_err = 6e-3
+      prereq = 'block_nu0499/bbar'
+      detail = '0.499.'
+    []
+  []
+[]

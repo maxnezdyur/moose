@@ -1,0 +1,135 @@
+[Tests]
+  design = 'source/kernels/HourglassStabilization.md modules/solid_mechanics/reduced_integration.md'
+  issues = '#0000'
+
+  # conduction.i carries no elasticity tensor, no mechanics material and no displacement variable.
+  # That is deliberate: with 'stiffness_source = scalar_property' the kernel declares no reference
+  # to an elasticity tensor at all, so wiring the stiffness scale back to the tensor would make
+  # every entry below fail on construction rather than on a number.
+
+  [affine]
+    requirement = 'The solid mechanics module shall reproduce a prescribed affine temperature field '
+                  'exactly, and hold the hourglass stabilization flux at zero so the stabilization '
+                  'adds no flux to a field it must leave alone, on a purely thermal problem '
+                  'integrated with a single quadrature point'
+
+    # temp_affine_nodal_error and hourglass_flux_norm are expected to be identically zero, so they
+    # are compared against an absolute floor; a relative tolerance on zero carries no information.
+    # 1e-8 sits five decades above the observed solver round-off (4e-13 on a 300 K field) and seven
+    # decades below the 1e-1 spurious flux that using the unprojected mode vectors produces on the
+    # distorted mesh.
+
+    [conduction_affine]
+      type = CSVDiff
+      input = 'conduction.i'
+      cli_args = 'Outputs/file_base=conduction_affine_out'
+      csvdiff = 'conduction_affine_out.csv'
+      abs_zero = 1e-8
+      detail = 'on a structured grid of four-node quadrilaterals, and'
+    []
+    [conduction_affine_distorted]
+      type = CSVDiff
+      input = 'conduction.i'
+      cli_args = 'Mesh/distort/constant_expressions=0.2 '
+                 'Outputs/file_base=conduction_affine_distorted_out'
+      csvdiff = 'conduction_affine_distorted_out.csv'
+      abs_zero = 1e-8
+      detail = 'on non-parallelogram four-node quadrilaterals, which is where projecting the affine '
+               'space out of the mode vectors is what keeps the amplitude at zero.'
+    []
+  []
+
+  [conduction_stabilized]
+    type = CSVDiff
+    input = 'conduction.i'
+    # center_rel_err_vs_reference measures the centre temperature against the value the same mesh
+    # and the same source give at full quadrature with no stabilization, 390.75892857143 K, measured
+    # once and hard-coded here so the suite needs no reference run. The measured agreement is
+    # 6.7e-3, which is the stated tolerance for this row.
+    cli_args = 'Functions/source/expression=6.0e3*(1.0+2.0*x*y) '
+               'Postprocessors/center_rel_err_vs_reference/constant_expressions=390.75892857143 '
+               'Outputs/file_base=conduction_stabilized_out'
+    csvdiff = 'conduction_stabilized_out.csv'
+    requirement = 'The solid mechanics module shall stabilize a temperature field on a block '
+                  'integrated with a single quadrature point closely enough that the centre '
+                  'temperature stays within one percent of the same problem solved at full '
+                  'quadrature.'
+  []
+
+  [rank_deficiency]
+    requirement = 'The solid mechanics module shall restore rank to a conduction operator '
+                  'integrated with a single quadrature point whose spurious checkerboard mode the '
+                  'prescribed temperatures leave unpinned'
+
+    # Prescribing the temperature along a whole boundary line always pins the checkerboard, because
+    # the pattern alternates from node to node along that line. These two entries therefore pin the
+    # temperature on the 'corners' nodeset instead: on a 4 x 4 grid the four corner nodes carry the
+    # same checkerboard sign, so the mode survives the constraint and the assembled one-point
+    # operator is exactly singular. The identical problem converges at full quadrature, so the
+    # failure below comes from underintegration and not from an inadequate boundary condition.
+
+    [conduction_unstabilized]
+      type = RunException
+      input = 'conduction.i'
+      cli_args = 'Functions/source/expression=6.0e3*(1.0+2.0*x*y) '
+                 'BCs/prescribed_temp/boundary=corners '
+                 'Kernels/hourglass_temp/penalty=0 '
+                 'Outputs/file_base=conduction_unstabilized_out'
+      # dtmin is pinned equal to dt in the input, so a failed solve cannot be retried at a smaller
+      # step and instead aborts through TimeStepper with a nonzero exit code.
+      expect_err = 'Solve failed and timestep already at or below dtmin'
+      detail = 'reporting a failed solve when the stabilization penalty is zero, and'
+    []
+    [conduction_rank_restored]
+      type = CSVDiff
+      input = 'conduction.i'
+      # Reference measured at full quadrature on this same corner-pinned problem: 632.5 K. The
+      # agreement is 6.9e-2 rather than the 6.7e-3 of conduction_stabilized because this problem is
+      # dominated by the mode the stabilization controls, so the answer depends on the penalty.
+      cli_args = 'Functions/source/expression=6.0e3*(1.0+2.0*x*y) '
+                 'BCs/prescribed_temp/boundary=corners '
+                 'Postprocessors/center_rel_err_vs_reference/constant_expressions=632.5 '
+                 'Outputs/file_base=conduction_rank_restored_out'
+      csvdiff = 'conduction_rank_restored_out.csv'
+      detail = 'converging on the identical problem, with a nonzero stabilization flux resisting '
+               'the mode, when the stabilization is active.'
+    []
+  []
+
+  [out_of_plane]
+    type = RunException
+    input = 'out_of_plane.i'
+    expect_err = 'must lie in a plane of constant z'
+    requirement = 'The solid mechanics module shall report an error when hourglass stabilization is '
+                  'requested for a two-dimensional element that does not lie in a plane of constant '
+                  'z, because the reference geometry matrix is built from the leading global '
+                  'coordinate components and that orientation would leave the projected modes '
+                  'orthogonal to neither the in-plane nor the out-of-plane affine field.'
+  []
+
+  [coupled]
+    requirement = 'The solid mechanics module shall solve displacements and a temperature together '
+                  'on one block integrated with a single quadrature point, and shall require a '
+                  'stabilization kernel on every field there that carries a second-order operator'
+
+    [thermomechanical]
+      type = CSVDiff
+      input = 'thermomechanical.i'
+      csvdiff = 'thermomechanical_out.csv'
+      detail = 'converging when the reduced_integration knob on the QuasiStatic action stabilizes '
+               'the three displacement components and a hand-added kernel stabilizes the '
+               'temperature, and'
+    []
+    [thermomechanical_unstabilized_temp]
+      type = RunException
+      input = 'thermomechanical.i'
+      cli_args = 'Kernels/hourglass_temp/penalty=0 '
+                 'Outputs/file_base=thermomechanical_unstabilized_temp_out'
+      expect_err = 'Solve failed and timestep already at or below dtmin'
+      detail = 'reporting a failed solve when the action has stabilized the displacements and the '
+               'temperature is left unstabilized, since the eight-node hexahedron carries four '
+               'spurious modes per field and the displacement kernels reach none of the thermal '
+               'ones.'
+    []
+  []
+[]

@@ -41,6 +41,7 @@ Set up a mechanics problem with the QuasiStatic Physics, and learn the underlyin
 - [Kinematics](solid_mechanics/Kinematics.md)
 - [Kinematic Approximations](solid_mechanics/KinematicApproximations.md)
 - [Stabilization](solid_mechanics/Stabilization.md)
+- [Reduced Integration with Hourglass Stabilization](solid_mechanics/reduced_integration.md)
 - [Balance of Linear Momentum](solid_mechanics/BalanceOfLinearMomentum.md)
 
   - [Total Lagrangian](TotalLagrangianStressDivergence.md)

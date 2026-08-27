@@ -21,6 +21,8 @@ system:
 - Set `use_displaced_mesh` correctly -- both systems
 - Optional: set up the displacement variables at the correct order -- both systems
 - Optional: add AuxVariables and AuxKernels for tensor-component and scalar outputs -- both systems
+- Optional: add hourglass stabilization kernels for one-point quadrature -- only the
+  `StressDivergenceTensors` system
 - Optional: set up out-of-plane stress/strain consistently -- only the `StressDivergenceTensors` system
 - Optional: extract eigenstrain names from materials and apply them to the proper blocks -- both systems
 - Optional: set up cell-average homogenization constraints -- only the Lagrangian kernels
@@ -31,6 +33,7 @@ system:
 | Functionality     | Constructed Classes   | Associated Parameters   |
 |-------------------|--------------------|-------------------------|
 | Calculate stress divergence equilibrium for the given coordinate system | [StressDivergenceTensors](/StressDivergenceTensors.md) and optionally [WeakPlaneStress](/WeakPlaneStress.md) or [StressDivergenceRZTensors](/StressDivergenceRZTensors.md) or [StressDivergenceRSphericalTensors](/StressDivergenceRSphericalTensors.md) | `displacements` : a string of the displacement field variables |
+| Restore the rank of an element integrated at one quadrature point | [HourglassStabilization](/HourglassStabilization.md) | `reduced_integration` : boolean, `hourglass_penalty` : the dimensionless coefficient forwarded to each generated kernel |
 | Add the displacement variables | [Variables](syntax/Variables/index.md) | `add_variables`: boolean |
 | Calculation of strain for the given coordinate system | [ComputeFiniteStrain](/ComputeFiniteStrain.md) or [ComputePlaneFiniteStrain](/ComputePlaneFiniteStrain.md) or [ComputeAxisymmetric1DFiniteStrain](/ComputeAxisymmetric1DFiniteStrain.md) or [ComputeAxisymmetricRZFiniteStrain](/ComputeAxisymmetricRZFiniteStrain.md) | `strain`: MooseEnum to select finite or strain formulations |
 |   | [ComputeSmallStrain](/ComputeSmallStrain.md) or [ComputePlaneSmallStrain](/ComputePlaneSmallStrain.md) or [ComputeAxisymmetric1DSmallStrain](/ComputeAxisymmetric1DSmallStrain.md) or [ComputeAxisymmetricRZSmallStrain](/ComputeAxisymmetricRZSmallStrain.md) |   |
@@ -50,6 +53,46 @@ system:
 | Add AuxVariables and AuxKernels for various tensor component and quantity outputs | Material Properties as well as [AuxVariables](/AuxVariables/index.md) and [RankTwoAux](/RankTwoAux.md) or [RankTwoScalarAux](/RankTwoScalarAux.md) or [RankFourAux](/RankFourAux.md) | `generate_output`: a string of the quantities to add |
 | Add Material Properties for various tensor component and quantity outputs |  | `generate_output`: a string of the quantities to add |
 | Add the optional homogenization constraints | Adds all objects required to impose the [homogenization constraints](Homogenization.md) | `constraint_types` : MooseEnum controlling whether `strain` or `stress` constraints and imposed, `targets` : Functions providing the time-dependent targets  |
+
+## Reduced Integration id=reduced-integration
+
+[!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/reduced_integration)
+adds one [HourglassStabilization](/HourglassStabilization.md) kernel per displacement variable, on
+the same blocks and with the same
+[!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/base_name) as the
+stress divergence kernels, and forwards
+[!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/hourglass_penalty) to
+the `penalty` of each one.  A planar formulation contributes no kernel in the out-of-plane
+direction, matching the stress divergence loop.  Any `save_in` and `diag_save_in` aux variables
+receive the stabilization force additively, alongside the stress divergence residual.
+
+The flag generates kernels only; it does not set the quadrature rule.  MOOSE's object-level
+quadrature API can only raise the order of a rule and never lower it, so one-point quadrature is
+requested through `[Executioner][Quadrature]` as described on the
+[reduced integration](solid_mechanics/reduced_integration.md) page.  The action rejects a
+`[Executioner][Quadrature]` block it can prove is not single-point, but the binding check is in the
+kernel, which counts the points of the rule it is handed once per element.
+
+Three combinations are refused:
+
+- with `volumetric_locking_correction`, because B-bar averages the volumetric strain of a fully
+  integrated element while hourglass stabilization restores the rank of an under-integrated one;
+  stacking the two is not a defined scheme.  To reduce only the volumetric term, keep full
+  quadrature and use `volumetric_locking_correction`, or the Lagrangian
+  [F-bar stabilization](solid_mechanics/Stabilization.md), on its own.
+- with `use_automatic_differentiation`, because the generated kernel has no AD variant.
+- with `new_system` or `compatibility_mode`, because the action does not generate stabilization on
+  the Lagrangian kernel path.  [HourglassStabilization](/HourglassStabilization.md) is itself
+  independent of the stress divergence kernels, so it can be added by hand in a [Kernels] block
+  alongside the Lagrangian kernels.
+
+Setting the flag also emits an informational message that is deliberately not gated on `verbose`:
+one-point quadrature under-integrates every field on the block, so any other
+second-order-operator kernel there needs its own stabilization on its own variable.  See
+[coupled fields](solid_mechanics/reduced_integration.md#coupled).
+
+!listing modules/solid_mechanics/test/tests/reduced_integration/conduction/thermomechanical.i
+         block=Physics
 
 ## Compatibility Mode Wiring id=compat-wiring
 

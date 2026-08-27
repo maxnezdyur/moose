@@ -1,0 +1,26 @@
+[Tests]
+  issues = '#0000'
+  design = 'source/kernels/HourglassStabilization.md'
+  [jacobian_quad4]
+    type = PetscJacobianTester
+    input = 'jactest_quad4.i'
+    ratio_tol = 1E-7
+    difference_tol = 1E10
+    requirement = 'The system shall compute a hand-coded hourglass stabilization Jacobian on QUAD4 '
+                  'elements under one-point quadrature that matches the finite-differenced Jacobian '
+                  'to a relative Frobenius norm ratio below 1e-7. A random initial displacement '
+                  'field makes the single QUAD4 hourglass mode amplitude nonzero, so the '
+                  'stabilization contribution is present in the matrix rather than zero.'
+  []
+  [jacobian_hex8]
+    type = PetscJacobianTester
+    input = 'jactest_hex8.i'
+    ratio_tol = 1E-7
+    difference_tol = 1E10
+    requirement = 'The system shall compute a hand-coded hourglass stabilization Jacobian on HEX8 '
+                  'elements under one-point quadrature that matches the finite-differenced Jacobian '
+                  'to a relative Frobenius norm ratio below 1e-7. A random initial displacement '
+                  'field makes all four HEX8 hourglass mode amplitudes nonzero, so the tangent must '
+                  'sum over every mode to match.'
+  []
+[]

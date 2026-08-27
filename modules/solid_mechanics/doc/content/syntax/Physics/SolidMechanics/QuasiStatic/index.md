@@ -33,10 +33,15 @@ integrated.  See [Kinematics](solid_mechanics/Kinematics.md),
 [Kinematic Approximations](solid_mechanics/KinematicApproximations.md),
 [Stabilization](solid_mechanics/Stabilization.md), and
 [Generalized Midpoint Rule](solid_mechanics/GeneralizedMidpointRule.md).
+`reduced_integration` generates hourglass stabilization kernels for one-point quadrature, which
+cures shear locking as well as volumetric locking but changes the quadrature rule for the whole
+block -- see [Reduced Integration](solid_mechanics/reduced_integration.md).
 
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/strain)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/volumetric_locking_correction)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/volumetric_locking_correction_mode)
+- [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/reduced_integration)
+- [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/hourglass_penalty)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/kinematic_approximation)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/generalized_midpoint_alpha)
 - [!param](/Physics/SolidMechanics/QuasiStatic/QuasiStaticSolidMechanicsPhysics/eigenstrain_names)

@@ -1,0 +1,4 @@
+time,center_rel_err_vs_reference,hourglass_flux_norm,temp_affine_nodal_error,temp_center,temp_max,temp_min
+0,0,0,0,0,0,0
+1,0,3.9353595261181e-13,1.1368683772162e-13,332.5,367.1,300
+2,0,3.9353595261181e-13,1.1368683772162e-13,332.5,367.1,300

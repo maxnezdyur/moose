@@ -1,0 +1,46 @@
+[Tests]
+  design = 'source/kernels/HourglassStabilization.md'
+  issues = '#0000'
+  [rotation]
+    requirement = 'The system shall compute zero stress and zero hourglass stabilization force when '
+                  'a deliberately distorted mesh under one-point quadrature is carried through a '
+                  'finite rigid body rotation from an unstressed state, a rotation being an affine '
+                  'displacement field that the projected hourglass mode vectors annihilate exactly,'
+
+    # Both meshes are distorted by a non-affine node map on purpose. On a regular (or any affine)
+    # grid the linear part of each classical mode vector already vanishes, so the affine projection
+    # is a no-op there and this row would not discriminate; a non-affine element is what makes the
+    # projection load-bearing. Dropping the projection produces an O(1e-2) spurious stabilization
+    # force on these meshes.
+    #
+    # The stress and hourglass force columns are expected to be identically zero, so they are
+    # compared against an absolute floor - a relative tolerance on zero carries no information.
+    # 1e-8 sits roughly five orders above the solver-tolerance-limited noise (nl_abs_tol = 1e-13 on
+    # a unit Young's modulus) and roughly six orders below that spurious force.
+    #
+    # The disp_l2_* columns are the guard against a vacuous pass: all-zero displacements would also
+    # give zero stress and zero stabilization force, so those columns pin that the finite rotation
+    # was actually applied and that the free interior nodes converged to the exact rigid motion.
+    #
+    # This row asserts only the zero-force property, which holds regardless of configuration. The
+    # kernel measures its geometry in the reference configuration by design, so the stabilization
+    # is scaled by the undeformed element and does not track large deformation; no claim about
+    # large-rotation scaling is made here.
+
+    [rotation_quad4]
+      type = CSVDiff
+      input = 'rotation.i'
+      csvdiff = 'rotation_out.csv'
+      abs_zero = 1e-8
+      detail = 'on QUAD4 elements, which carry a single hourglass mode, and'
+    []
+    [rotation_hex8]
+      type = CSVDiff
+      input = 'rotation_hex8.i'
+      csvdiff = 'rotation_hex8_out.csv'
+      abs_zero = 1e-8
+      detail = 'on HEX8 elements, which carry four, rotated about a general axis so that every '
+               'mode is exercised.'
+    []
+  []
+[]
