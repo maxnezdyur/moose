@@ -70,6 +70,25 @@ blocks, and skips any option name those blocks already carry. To change a defaul
 selected method: with `method = fetidp` only `-fetidp_bddc_pc_bddc_use_change_of_basis` matches the
 stored default, and the unprefixed name does not.
 
+### Saddle Point Systems id=saddle-point
+
+[!param](/Preconditioning/DDP/saddle_point_variables) names the variables whose equations carry an
+exactly zero diagonal when active, such as the Lagrange multipliers of mortar contact. Their dofs
+are handed to KSPFETIDP's saddle point support as the pressure field, so the parameter requires
+[!param](/Preconditioning/DDP/method) set to `fetidp`; the primal `bddc` method has no equivalent
+and `DDP` reports an error.
+
+`DDP` sets `-ksp_fetidp_saddlepoint` itself when the parameter is non-empty. The local subdomain
+problems become indefinite, so the inner direct solvers default to MUMPS, which pivots. While every
+multiplier is still inactive the operator carries no zero diagonal for PETSc to detect, so the field
+registered at `preSolve()` is what the solver falls back to; once multipliers activate, PETSc's zero
+diagonal detection narrows the set to them.
+
+The contact line search is required, and Eisenstat-Walker (`-snes_ksp_ew`) must stay off: its loose
+early linear tolerances break the semismooth active set iteration.
+
+!listing modules/contact/test/tests/pdass_problems/ironing_ddp.i block=Preconditioning
+
 ### Recommended Tuning
 
 Two further options improve the coarse space of vector valued problems such as elasticity. `DDP`
@@ -102,15 +121,31 @@ The solve type must assemble the Jacobian; this input uses `NEWTON`:
 - The solve type must be `NEWTON` or `LINEAR`. `JFNK` and `PJFNK` are rejected, because a matrix
   free operator supplies only the action of the Jacobian on a vector and never forms the assembled
   subdomain blocks that PCBDDC and KSPFETIDP factor.
-- [Constraints] objects, penalty and kinematic mechanical contact included, are supported when
-  every degree of freedom carries a nonzero assembled diagonal. The constraint couplings must stay
-  inside each rank's subdomain (the owned dofs plus the send list, which the constraint ghosting
-  populates); the `MATIS` backed matrix reports an error naming the dof on any insertion that
-  leaves the subdomain, instead of dropping the entry silently, and splits the assembled diagonal
-  across the subdomains sharing a dof whose local diagonal would otherwise be zero. Lagrange
-  multiplier enforcement is not supported: an active multiplier row has an exactly zero assembled
-  diagonal, which leaves the local subdomain problems singular, and the solve fails at
-  preconditioner setup.
+- [Constraints] objects are supported when every degree of freedom carries a nonzero assembled
+  diagonal, and when the constraint assembles the Jacobian without ever reading an entry back out
+  of it. The constraint couplings must stay inside each rank's subdomain (the owned dofs plus the
+  send list, which the constraint ghosting populates); the `MATIS` backed matrix reports an error
+  naming the dof on any insertion that leaves the subdomain, instead of dropping the entry
+  silently, and splits the assembled diagonal across the subdomains sharing a dof whose local
+  diagonal would otherwise be zero.
+
+  A `MATIS` is stored in globally unassembled form, so a single global entry cannot be read back at
+  all, and any constraint that reads one fails outright. This restricts node-face mechanical
+  contact ([Contact](syntax/Contact/index.md)) to one configuration:
+
+  | `formulation` | `model` | Reads a matrix entry | Works with `DDP` |
+  | - | - | - | - |
+  | `penalty` | `frictionless` | no | yes |
+  | `penalty` | `coulomb` | yes, whenever a node is sticking | no |
+  | `kinematic` | any | yes, unconditionally | no |
+  | `tangential_penalty`, `glued` | any | yes | no |
+
+  `penalty` with `coulomb` fails on the very first nonlinear iteration, because a node at zero
+  penetration has zero frictional capacity and is therefore classified as sticking.
+
+- Lagrange multiplier enforcement needs [!param](/Preconditioning/DDP/saddle_point_variables); see
+  [#saddle-point]. Without it an active multiplier row has an exactly zero assembled diagonal,
+  which leaves the local subdomain problems singular, and the solve fails at preconditioner setup.
 - `use_hash_table_matrix_assembly` and `restore_original_nonzero_pattern` in the
   [Problem](syntax/Problem/index.md) block must both be `false`. PETSc implements neither the
   assembled copy nor `MatResetPreallocation` for `MATIS`.
