@@ -38,6 +38,22 @@
                    between two blocks with a combination of normal and tangential motion using
                    a kinematic enforcement with the Constraint system."
   [../]
+  [./glued_kinematic_ddp]
+    type = 'Exodiff'
+    input = 'glued_kinematic_ddp.i'
+    exodiff = 'glued_kinematic_out.e'
+    cli_args = 'Outputs/file_base=glued_kinematic_out'
+    prereq = glued_kinematic
+    # one subdomain per process; FETI-DP needs the vertices that four subdomains of this
+    # two-dimensional mesh provide
+    min_parallel = 4
+    max_parallel = 4
+    capabilities = 'petsc>=3.20.0'
+    design = 'DomainDecompositionPreconditioner.md'
+    requirement = "The contact system shall enforce a glued mechanical contact condition with a
+                   kinematic formulation, which reads entries of the closed Jacobian, when the
+                   system is preconditioned by a non-overlapping domain decomposition."
+  [../]
   [./glued_penalty]
     type = 'Exodiff'
     input = 'glued_penalty.i'

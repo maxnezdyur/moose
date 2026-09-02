@@ -13,6 +13,7 @@
 #include "FEProblem.h"
 #include "MooseVariableFE.h"
 #include "MooseVariableScalar.h"
+#include "PetscMatrixIS.h"
 #include "PetscSupport.h"
 #include "Factory.h"
 #include "ParallelUniqueId.h"
@@ -3208,21 +3209,28 @@ NonlinearSystemBase::computeJacobianInternal(const std::set<TagID> & tags)
       // Some constraints need to be able to read values from the Jacobian, which requires that it
       // be closed/assembled
       auto & system_matrix = getMatrix(systemMatrixTag());
-      std::unique_ptr<SparseMatrix<Number>> hash_copy;
+      std::unique_ptr<SparseMatrix<Number>> readable_copy;
       const SparseMatrix<Number> * view_jac_ptr;
       auto make_readable_jacobian = [&]()
       {
 #if PETSC_RELEASE_GREATER_EQUALS(3, 23, 0)
         if (system_matrix.use_hash_table())
         {
-          hash_copy = libMesh::cast_ref<PetscMatrix<Number> &>(system_matrix).copy_from_hash();
-          view_jac_ptr = hash_copy.get();
+          readable_copy = libMesh::cast_ref<PetscMatrix<Number> &>(system_matrix).copy_from_hash();
+          view_jac_ptr = readable_copy.get();
         }
         else
-          view_jac_ptr = &system_matrix;
-#else
-        view_jac_ptr = &system_matrix;
 #endif
+          // A MATIS holds unassembled subdomain blocks and cannot serve a single entry, so the
+          // constraints read from an assembled copy, made once here on every rank
+          if (const auto * const matrix_is = dynamic_cast<const PetscMatrixIS *>(&system_matrix))
+          {
+            system_matrix.close();
+            readable_copy = matrix_is->assembled();
+            view_jac_ptr = readable_copy.get();
+          }
+          else
+            view_jac_ptr = &system_matrix;
         if (view_jac_ptr == &system_matrix)
           system_matrix.close();
       };

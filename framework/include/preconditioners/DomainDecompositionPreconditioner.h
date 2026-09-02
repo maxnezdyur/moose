@@ -70,6 +70,13 @@ private:
    */
   void registerSaddlePointDofs();
 
+  /**
+   * Add to \p dofs the dofs of the geometric search couplings (node-face contact) of the
+   * undisplaced and displaced problems, which the nonlinear system writes into the matrix without
+   * any coupling functor announcing them.
+   */
+  void addGeometricCouplingDofs(std::set<libMesh::dof_id_type> & dofs);
+
   /// The PETSc domain decomposition solver to engage, either 'bddc' or 'fetidp'
   const MooseEnum _method;
 

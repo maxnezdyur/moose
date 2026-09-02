@@ -10,7 +10,9 @@
 #include "DomainDecompositionPreconditioner.h"
 
 // MOOSE includes
+#include "DisplacedProblem.h"
 #include "FEProblem.h"
+#include "GeometricSearchData.h"
 #include "MooseUtils.h"
 #include "NonlinearSystemBase.h"
 #include "PetscMatrixIS.h"
@@ -93,6 +95,8 @@ DomainDecompositionPreconditioner::DomainDecompositionPreconditioner(const Input
   // This runs before the system is initialized, so ImplicitSystem::add_matrices() finds this
   // matrix under the name it would otherwise build a default matrix for and adopts it
   auto matrix = std::make_unique<PetscMatrixIS>(sys.comm(), sys.get_mesh());
+  matrix->setExtraCouplingProvider([this](std::set<libMesh::dof_id_type> & dofs)
+                                   { addGeometricCouplingDofs(dofs); });
   matrix->setSubdomainRemapCallback([this]() { resetSolver(); });
   sys.add_matrix("System Matrix", std::move(matrix), libMesh::PARALLEL);
 }
@@ -209,6 +213,21 @@ DomainDecompositionPreconditioner::resetSolver()
   LibmeshPetscCall(SNESGetKSP(snes, &ksp));
   LibmeshPetscCall(KSPSetFromOptions(ksp));
   registerSaddlePointDofs();
+}
+
+void
+DomainDecompositionPreconditioner::addGeometricCouplingDofs(std::set<libMesh::dof_id_type> & dofs)
+{
+  std::unordered_map<libMesh::dof_id_type, std::vector<libMesh::dof_id_type>> graph;
+  _nl.findImplicitGeometricCouplingEntries(_fe_problem.geomSearchData(), graph);
+  if (const auto displaced = _fe_problem.getDisplacedProblem())
+    _nl.findImplicitGeometricCouplingEntries(displaced->geomSearchData(), graph);
+
+  for (const auto & [dof, coupled] : graph)
+  {
+    dofs.insert(dof);
+    dofs.insert(coupled.begin(), coupled.end());
+  }
 }
 
 void

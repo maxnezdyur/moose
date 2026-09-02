@@ -14,9 +14,12 @@
 #ifdef LIBMESH_HAVE_PETSC
 
 #include "libmesh/petsc_matrix_base.h"
+#include "libmesh/petsc_matrix.h"
 
 #include <functional>
+#include <memory>
 #include <mutex>
+#include <set>
 
 namespace libMesh
 {
@@ -37,7 +40,8 @@ class MeshBase;
  * but this is not a drop-in replacement for libMesh::PetscMatrix: close() is overridden and
  * reconciles the diagonal of every zeroed row across the subdomains that share it. Operations that
  * read entries back out (a single entry, a row, a matrix norm) have no PETSc implementation for
- * MATIS and report an error instead of a wrong answer.
+ * MATIS and report an error instead of a wrong answer; assembled() provides a copy that supports
+ * them.
  *
  * All overridden virtual functions are documented in libMesh's sparse_matrix.h.
  */
@@ -185,6 +189,27 @@ public:
   virtual void close() override;
 
   /**
+   * An assembled (AIJ) copy of the closed matrix, for reading entries back out: the sum over the
+   * subdomains that MATIS itself never forms. Objects such as the node-face contact constraints
+   * read entries of the closed Jacobian while they assemble their own, and this is the matrix
+   * they are handed.
+   *
+   * Collective, and a full copy of the matrix: call it once per assembly, at a point every rank
+   * reaches, rather than per entry.
+   */
+  std::unique_ptr<libMesh::PetscMatrix<libMesh::Number>> assembled() const;
+
+  /**
+   * Register a function that adds to the subdomain the dofs this rank assembles into through
+   * couplings no coupling functor announces: the geometric search couplings of node-face
+   * contact, which MOOSE writes straight into the matrix.
+   */
+  void setExtraCouplingProvider(std::function<void(std::set<libMesh::dof_id_type> &)> provider)
+  {
+    _extra_coupling_provider = std::move(provider);
+  }
+
+  /**
    * Register a function to run after the subdomain has been remapped in place (see
    * rebuildIfSubdomainChanged()). A preconditioner that caches per-subdomain data on the Mat, as
    * PCBDDC does, has to be reset there.
@@ -330,6 +355,9 @@ private:
 
   /// Runs after every in-place remapping of the subdomain
   std::function<void()> _on_subdomain_remap;
+
+  /// Adds the dofs of couplings that no coupling functor announces, see setExtraCouplingProvider()
+  std::function<void(std::set<libMesh::dof_id_type> &)> _extra_coupling_provider;
 };
 
 #endif // LIBMESH_HAVE_PETSC

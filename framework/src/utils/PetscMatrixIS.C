@@ -225,6 +225,8 @@ PetscMatrixIS::subdomainDofs() const
       coupled_dofs.insert(elem_dofs.begin(), elem_dofs.end());
     }
   }
+  if (_extra_coupling_provider)
+    _extra_coupling_provider(coupled_dofs);
 
   std::vector<PetscInt> subdomain_dofs;
   subdomain_dofs.reserve((end_dof - first_dof) + coupled_dofs.size());
@@ -679,6 +681,18 @@ PetscMatrixIS::close()
   libMesh::PetscMatrixBase<libMesh::Number>::close();
 
   reconcileSubdomainDiagonals();
+}
+
+std::unique_ptr<libMesh::PetscMatrix<libMesh::Number>>
+PetscMatrixIS::assembled() const
+{
+  if (!closed())
+    mooseError("A PetscMatrixIS must be closed before it can be assembled");
+
+  Mat aij;
+  LibmeshPetscCall(MatConvert(_mat, MATAIJ, MAT_INITIAL_MATRIX, &aij));
+
+  return std::make_unique<libMesh::PetscMatrix<libMesh::Number>>(aij, comm(), /*destroy=*/true);
 }
 
 void

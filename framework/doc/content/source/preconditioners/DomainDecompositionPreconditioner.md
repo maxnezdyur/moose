@@ -137,19 +137,12 @@ The solve type must assemble the Jacobian; this input uses `NEWTON`:
   dropping the entry silently. It also splits the assembled diagonal across the
   subdomains sharing a dof whose local diagonal would otherwise be zero.
 
-  A `MATIS` is stored in globally unassembled form, so a single global entry cannot be read back at
-  all, and any constraint that reads one fails outright. This restricts node-face mechanical
-  contact ([Contact](syntax/Contact/index.md)) to one configuration:
-
-  | `formulation` | `model` | Reads a matrix entry | Works with `DDP` |
-  | - | - | - | - |
-  | `penalty` | `frictionless` | no | yes |
-  | `penalty` | `coulomb` | yes, whenever a node is sticking | no |
-  | `kinematic` | any | yes, unconditionally | no |
-  | `tangential_penalty`, `glued` | any | yes | no |
-
-  `penalty` with `coulomb` fails on the very first nonlinear iteration, because a node at zero
-  penetration has zero frictional capacity and is therefore classified as sticking.
+  A `MATIS` is stored in globally unassembled form, so a single global entry cannot be read back
+  out of it. Constraints that read entries of the closed Jacobian while assembling their own, which
+  node-face mechanical contact ([Contact](syntax/Contact/index.md)) does with the `kinematic`,
+  `tangential_penalty` and `glued` formulations and with the `coulomb` model, are therefore handed
+  an assembled copy of the matrix, made once per Jacobian evaluation when the problem holds
+  constraints.
 
 - Lagrange multiplier enforcement needs [!param](/Preconditioning/DDP/saddle_point_variables); see
   [#saddle-point]. Without it an active multiplier row has an exactly zero assembled diagonal,

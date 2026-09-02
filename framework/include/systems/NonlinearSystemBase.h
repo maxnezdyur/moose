@@ -365,6 +365,13 @@ public:
   void addImplicitGeometricCouplingEntries(GeometricSearchData & geom_search_data);
 
   /**
+   * Finds the implicit sparsity graph between geometrically related dofs.
+   */
+  void findImplicitGeometricCouplingEntries(
+      GeometricSearchData & geom_search_data,
+      std::unordered_map<dof_id_type, std::vector<dof_id_type>> & graph);
+
+  /**
    * Add jacobian contributions from Constraints
    *
    * @param jacobian reference to a read-only view of the Jacobian matrix
@@ -1088,13 +1095,6 @@ private:
    * runtime side-casts in TheWarehouse.
    */
   std::vector<SetupInterface *> getFVSetupObjects(THREAD_ID tid);
-
-  /**
-   * Finds the implicit sparsity graph between geometrically related dofs.
-   */
-  void findImplicitGeometricCouplingEntries(
-      GeometricSearchData & geom_search_data,
-      std::unordered_map<dof_id_type, std::vector<dof_id_type>> & graph);
 
   /**
    * Setup group scaling containers
