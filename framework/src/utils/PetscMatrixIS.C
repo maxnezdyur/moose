@@ -158,8 +158,13 @@ PetscMatrixIS::init(const libMesh::ParallelType libmesh_dbg_var(type))
     for (const auto i : libMesh::make_range(n_subdomain_dofs))
       LibmeshPetscCall(MatSetValue(_mat, subdomain_dofs[i], subdomain_dofs[i], 0.0, ADD_VALUES));
     LibmeshPetscCall(ISLocalToGlobalMappingRestoreIndices(mapping, &subdomain_dofs));
-    LibmeshPetscCall(MatAssemblyBegin(_mat, MAT_FINAL_ASSEMBLY));
-    LibmeshPetscCall(MatAssemblyEnd(_mat, MAT_FINAL_ASSEMBLY));
+    // A flush rather than a final assembly: a final assembly compacts every unused preallocated
+    // slot out of the subdomain matrix (MAT_KEEP_NONZERO_PATTERN does not prevent that), so the
+    // first Jacobian would then grow each row a few entries at a time, reallocating and copying
+    // the whole matrix on every growth step. The flush only resets the insert mode, which is all
+    // zero() needs before the first assembly, and leaves the preallocation in place
+    LibmeshPetscCall(MatAssemblyBegin(_mat, MAT_FLUSH_ASSEMBLY));
+    LibmeshPetscCall(MatAssemblyEnd(_mat, MAT_FLUSH_ASSEMBLY));
   }
 
   _is_initialized = true;

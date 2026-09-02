@@ -30,4 +30,17 @@
       detail = 'the dual-primal finite element tearing and interconnecting method.'
     []
   []
+
+  [preallocation]
+    type = RunApp
+    input = 'ddp_diffusion.i'
+    cli_args = 'Outputs/exodus=false -info :mat'
+    min_parallel = 2
+    capabilities = 'petsc>=3.20.0'
+    # PETSc reports the reallocations of every assembly through -info; a subdomain matrix that
+    # kept its preallocation is never grown during insertion
+    absent_out = 'Number of mallocs during MatSetValues\(\) is [1-9]'
+    requirement = 'The system shall preallocate the subdomain matrix of the domain decomposition '
+                  'preconditioner so that no assembly reallocates it.'
+  []
 []
