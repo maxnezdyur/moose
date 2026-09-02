@@ -55,6 +55,21 @@ public:
   virtual void preSolve() override;
 
 private:
+  /**
+   * Replace the linear solver after the subdomain matrix was remapped in place. PCBDDC caches
+   * index sets sized for the subdomain it first saw and does not survive a reset on a resized one,
+   * so the SNES is given a new KSP carrying the prefix, tolerances, norm type and convergence test
+   * of the old one; its options are read again and the saddle point dofs are registered again on
+   * the new inner PCBDDC.
+   */
+  void resetSolver();
+
+  /**
+   * Register the dofs of the saddle point variables on KSPFETIDP's inner PCBDDC, when there are
+   * saddle point variables.
+   */
+  void registerSaddlePointDofs();
+
   /// The PETSc domain decomposition solver to engage, either 'bddc' or 'fetidp'
   const MooseEnum _method;
 

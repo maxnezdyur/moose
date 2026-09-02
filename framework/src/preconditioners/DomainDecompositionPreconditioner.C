@@ -92,7 +92,9 @@ DomainDecompositionPreconditioner::DomainDecompositionPreconditioner(const Input
 
   // This runs before the system is initialized, so ImplicitSystem::add_matrices() finds this
   // matrix under the name it would otherwise build a default matrix for and adopts it
-  sys.add_matrix("System Matrix", std::make_unique<PetscMatrixIS>(sys.comm()), libMesh::PARALLEL);
+  auto matrix = std::make_unique<PetscMatrixIS>(sys.comm(), sys.get_mesh());
+  matrix->setSubdomainRemapCallback([this]() { resetSolver(); });
+  sys.add_matrix("System Matrix", std::move(matrix), libMesh::PARALLEL);
 }
 
 void
@@ -167,6 +169,50 @@ DomainDecompositionPreconditioner::initialSetup()
 
 void
 DomainDecompositionPreconditioner::preSolve()
+{
+  registerSaddlePointDofs();
+}
+
+void
+DomainDecompositionPreconditioner::resetSolver()
+{
+  auto * const petsc_solver =
+      libMesh::cast_ptr<libMesh::PetscNonlinearSolver<libMesh::Number> *>(_nl.nonlinearSolver());
+  SNES snes = petsc_solver->snes();
+
+  // A fresh KSP rather than KSPReset: PCBDDC does not survive a reset on a MATIS whose local size
+  // changed. The prefix and tolerances are what the nonlinear solver placed on the old KSP; the
+  // options are read again below, which also restores KSPFETIDP's saddle point flag
+  KSP old_ksp;
+  LibmeshPetscCall(SNESGetKSP(snes, &old_ksp));
+  const char * prefix;
+  LibmeshPetscCall(KSPGetOptionsPrefix(old_ksp, &prefix));
+  PetscReal rtol, abstol, dtol;
+  PetscInt maxits;
+  LibmeshPetscCall(KSPGetTolerances(old_ksp, &rtol, &abstol, &dtol, &maxits));
+  KSPNormType norm_type;
+  LibmeshPetscCall(KSPGetNormType(old_ksp, &norm_type));
+  // MOOSE's linear convergence test carries the problem as its context and no destroy routine
+  PetscErrorCode (*converged)(KSP, PetscInt, PetscReal, KSPConvergedReason *, void *);
+  void * converged_context;
+  LibmeshPetscCall(KSPGetConvergenceTest(old_ksp, &converged, &converged_context, nullptr));
+
+  KSP ksp;
+  LibmeshPetscCall(KSPCreate(comm().get(), &ksp));
+  LibmeshPetscCall(KSPSetOptionsPrefix(ksp, prefix));
+  LibmeshPetscCall(KSPSetTolerances(ksp, rtol, abstol, dtol, maxits));
+  LibmeshPetscCall(KSPSetNormType(ksp, norm_type));
+  LibmeshPetscCall(KSPSetConvergenceTest(ksp, converged, converged_context, nullptr));
+  // The SNES takes its own reference and releases the old KSP
+  LibmeshPetscCall(SNESSetKSP(snes, ksp));
+  LibmeshPetscCall(KSPDestroy(&ksp));
+  LibmeshPetscCall(SNESGetKSP(snes, &ksp));
+  LibmeshPetscCall(KSPSetFromOptions(ksp));
+  registerSaddlePointDofs();
+}
+
+void
+DomainDecompositionPreconditioner::registerSaddlePointDofs()
 {
   if (_saddle_point_vars.empty())
     return;

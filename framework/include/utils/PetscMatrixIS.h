@@ -15,16 +15,23 @@
 
 #include "libmesh/petsc_matrix_base.h"
 
+#include <functional>
 #include <mutex>
+
+namespace libMesh
+{
+class MeshBase;
+}
 
 /**
  * A system matrix stored as a PETSc MATIS, the globally unassembled format that PCBDDC and
  * KSPFETIDP operate on.
  *
  * The decomposition is non-overlapping with exactly one subdomain per MPI rank. The subdomain is
- * defined by the local-to-global mapping that init() builds from the attached DofMap: the dof range
- * the rank owns, unioned with the DofMap send list. The Mat is created as MATIS from the start
- * rather than converted from an assembled AIJ matrix.
+ * defined by the local-to-global mapping that init() builds from the attached DofMap and the mesh:
+ * the dofs of the elements the rank owns, unioned with the dofs of the elements the DofMap's
+ * coupling functors pair them with. The Mat is created as MATIS from the start rather than
+ * converted from an assembled AIJ matrix.
  *
  * Element matrices are added with global indices and MATIS maps them into the subdomain matrix,
  * but this is not a drop-in replacement for libMesh::PetscMatrix: close() is overridden and
@@ -43,8 +50,9 @@ public:
    * Attach a DofMap with attach_dof_map() and then call init() before using the matrix.
    *
    * @param comm_in The communicator of the system that owns this matrix
+   * @param mesh The mesh of that system, whose local elements define this rank's subdomain
    */
-  explicit PetscMatrixIS(const libMesh::Parallel::Communicator & comm_in);
+  PetscMatrixIS(const libMesh::Parallel::Communicator & comm_in, const libMesh::MeshBase & mesh);
 
   /**
    * Constructor which wraps an existing Mat.
@@ -177,6 +185,16 @@ public:
   virtual void close() override;
 
   /**
+   * Register a function to run after the subdomain has been remapped in place (see
+   * rebuildIfSubdomainChanged()). A preconditioner that caches per-subdomain data on the Mat, as
+   * PCBDDC does, has to be reset there.
+   */
+  void setSubdomainRemapCallback(std::function<void()> callback)
+  {
+    _on_subdomain_remap = std::move(callback);
+  }
+
+  /**
    * Release the cached subdomain scatter along with the Mat.
    *
    * The scatter and the subdomain multiplicity are built from the local-to-global mapping of the
@@ -185,6 +203,32 @@ public:
   virtual void clear() noexcept override;
 
 private:
+  /**
+   * The dofs of this rank's subdomain in global numbering: the owned range first, then the dofs
+   * of other ranks that the local elements and the DofMap's coupling functors reach, in increasing
+   * order.
+   */
+  std::vector<PetscInt> subdomainDofs() const;
+
+  /**
+   * Attach the subdomain mapping to the Mat, preallocate the subdomain matrix from the sparsity
+   * pattern, build the scatter and seed the diagonal. Everything past the creation of the Mat in
+   * init(), so that a remapping can run it again on the same Mat.
+   */
+  void setupSubdomain();
+
+  /**
+   * Remap the Mat in place if the set of dofs this rank assembles into moved since the mapping
+   * was built, which happens as a mortar pairing slides and the DofMap's coupling functors report
+   * new partners. The Mat the solver holds stays the same object; PETSc replaces the subdomain
+   * matrix behind it and raises its nonzero state at the next assembly, so the preconditioner
+   * rebuilds its topology.
+   *
+   * Collective: one rank's change remaps every rank. Called from zero(), which opens every
+   * Jacobian assembly right after the residual evaluation that brought the pairing up to date.
+   */
+  void rebuildIfSubdomainChanged();
+
   /**
    * Build the local-to-global mapping that defines this rank's subdomain and attach it to the Mat.
    *
@@ -219,8 +263,11 @@ private:
    *
    * MatSetValues on a MATIS silently masks out global indices the local-to-global mapping does
    * not cover, which would drop the entry without a trace. Failing here instead makes an
-   * insufficient ghosting radius diagnosable: couplings such as those of Constraint objects reach
-   * the subdomain only through the send list, and this is the check that keeps them honest.
+   * insufficient coupling radius diagnosable: couplings such as those of Constraint objects reach
+   * the subdomain only through the DofMap's coupling functors, and this is the check that keeps
+   * them honest. The subdomain is rebuilt before every Jacobian assembly
+   * (rebuildIfSubdomainChanged()), so a failure here means a coupling that no coupling functor
+   * announced.
    */
   void checkSubdomainCoverage(libMesh::numeric_index_type dof) const;
 
@@ -276,6 +323,13 @@ private:
 
   /// Whether _zeroed_rows changed since _zeroed_marker was last rebuilt
   bool _zeroed_marker_stale = true;
+
+  /// The mesh whose local elements define the subdomain; null for a wrapped Mat, whose mapping
+  /// is already attached
+  const libMesh::MeshBase * const _mesh = nullptr;
+
+  /// Runs after every in-place remapping of the subdomain
+  std::function<void()> _on_subdomain_remap;
 };
 
 #endif // LIBMESH_HAVE_PETSC

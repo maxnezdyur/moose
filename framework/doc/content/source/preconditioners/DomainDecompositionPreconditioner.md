@@ -130,11 +130,12 @@ The solve type must assemble the Jacobian; this input uses `NEWTON`:
   subdomain blocks that PCBDDC and KSPFETIDP factor.
 - [Constraints] objects are supported when every degree of freedom carries a nonzero assembled
   diagonal, and when the constraint assembles the Jacobian without ever reading an entry back out
-  of it. The constraint couplings must stay inside each rank's subdomain (the owned dofs plus the
-  send list, which the constraint ghosting populates); the `MATIS` backed matrix reports an error
-  naming the dof on any insertion that leaves the subdomain, instead of dropping the entry
-  silently, and splits the assembled diagonal across the subdomains sharing a dof whose local
-  diagonal would otherwise be zero.
+  of it. The constraint couplings must stay inside each rank's subdomain: the dofs of the elements
+  the rank owns plus those of the elements the constraint's coupling functor pairs them with. The
+  subdomain is rebuilt before every Jacobian assembly as that pairing moves, and the `MATIS` backed
+  matrix reports an error naming the dof on any insertion that leaves the subdomain, instead of
+  dropping the entry silently. It also splits the assembled diagonal across the
+  subdomains sharing a dof whose local diagonal would otherwise be zero.
 
   A `MATIS` is stored in globally unassembled form, so a single global entry cannot be read back at
   all, and any constraint that reads one fails outright. This restricts node-face mechanical

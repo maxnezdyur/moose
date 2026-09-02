@@ -15,12 +15,17 @@
 
 #include "libmesh/dense_matrix.h"
 #include "libmesh/dof_map.h"
+#include "libmesh/elem.h"
+#include "libmesh/ghosting_functor.h"
 #include "libmesh/int_range.h"
+#include "libmesh/mesh_base.h"
 #include "libmesh/petsc_vector.h"
+#include "libmesh/remote_elem.h"
 #include "libmesh/sparsity_pattern.h"
 
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 namespace
 {
@@ -53,8 +58,9 @@ isBlockAligned(const std::vector<PetscInt> & dofs, const PetscInt bs)
 }
 }
 
-PetscMatrixIS::PetscMatrixIS(const libMesh::Parallel::Communicator & comm_in)
-  : libMesh::PetscMatrixBase<libMesh::Number>(comm_in)
+PetscMatrixIS::PetscMatrixIS(const libMesh::Parallel::Communicator & comm_in,
+                             const libMesh::MeshBase & mesh)
+  : libMesh::PetscMatrixBase<libMesh::Number>(comm_in), _mesh(&mesh)
 {
 }
 
@@ -116,6 +122,14 @@ PetscMatrixIS::init(const libMesh::ParallelType libmesh_dbg_var(type))
   // SparseMatrix through PetscMatrixBase::get_context and dereference it without a null check
   set_context();
 
+  setupSubdomain();
+
+  _is_initialized = true;
+}
+
+void
+PetscMatrixIS::setupSubdomain()
+{
   setSubdomainMapping();
 
   const std::vector<libMesh::numeric_index_type> & n_nz = _sp->get_n_nz();
@@ -166,31 +180,110 @@ PetscMatrixIS::init(const libMesh::ParallelType libmesh_dbg_var(type))
     LibmeshPetscCall(MatAssemblyBegin(_mat, MAT_FLUSH_ASSEMBLY));
     LibmeshPetscCall(MatAssemblyEnd(_mat, MAT_FLUSH_ASSEMBLY));
   }
+}
 
-  _is_initialized = true;
+std::vector<PetscInt>
+PetscMatrixIS::subdomainDofs() const
+{
+  mooseAssert(_mesh, "The subdomain can only be built from a mesh");
+
+  const libMesh::dof_id_type first_dof = _dof_map->first_dof();
+  const libMesh::dof_id_type end_dof = _dof_map->end_dof();
+
+  // The subdomain must contain every dof this rank inserts into, because MatSetValues on a MATIS
+  // masks out global indices the mapping does not cover. That set is the dofs of the elements this
+  // rank owns, plus the dofs of the elements the DofMap's coupling functors pair them with, which
+  // is the pairing the sparsity pattern is built from as well (for mortar contact, the elements
+  // across the current mortar segments). The send list is deliberately not used even though it is
+  // a superset: with a displaced mesh, mortar ghosts the entire contact interface to every rank so
+  // that the pairing can move without a reinit, and a dof that is ghosted here but coupled to
+  // nothing local reaches PCBDDC as an isolated interface node, which it turns into a primal
+  // vertex. On the ironing problem that made 811 of the 1062 interface dofs primal.
+  std::set<libMesh::dof_id_type> coupled_dofs;
+  std::vector<libMesh::dof_id_type> elem_dofs;
+  for (const auto * const elem : _mesh->active_local_element_ptr_range())
+  {
+    _dof_map->dof_indices(elem, elem_dofs);
+    coupled_dofs.insert(elem_dofs.begin(), elem_dofs.end());
+  }
+  for (auto functor_it = _dof_map->coupling_functors_begin();
+       functor_it != _dof_map->coupling_functors_end();
+       ++functor_it)
+  {
+    libMesh::GhostingFunctor::map_type coupled_elems;
+    (**functor_it)(_mesh->active_local_elements_begin(),
+                   _mesh->active_local_elements_end(),
+                   _mesh->processor_id(),
+                   coupled_elems);
+    for (const auto & [elem, _] : coupled_elems)
+    {
+      libmesh_ignore(_);
+      // A coupling functor may name an element this rank does not hold, which cannot carry dofs
+      if (elem == libMesh::remote_elem)
+        continue;
+      _dof_map->dof_indices(elem, elem_dofs);
+      coupled_dofs.insert(elem_dofs.begin(), elem_dofs.end());
+    }
+  }
+
+  std::vector<PetscInt> subdomain_dofs;
+  subdomain_dofs.reserve((end_dof - first_dof) + coupled_dofs.size());
+  for (const auto dof : libMesh::make_range(first_dof, end_dof))
+    subdomain_dofs.push_back(libMesh::cast_int<PetscInt>(dof));
+  // The set is sorted, so the dofs of other ranks follow the owned range in increasing order
+  for (const auto dof : coupled_dofs)
+    if (dof < first_dof || dof >= end_dof)
+      subdomain_dofs.push_back(libMesh::cast_int<PetscInt>(dof));
+
+  return subdomain_dofs;
+}
+
+void
+PetscMatrixIS::rebuildIfSubdomainChanged()
+{
+  mooseAssert(initialized(), "The matrix must be initialized before its subdomain can be checked");
+
+  const std::vector<PetscInt> subdomain_dofs = subdomainDofs();
+
+  // The mapping hands back one index per scalar dof whatever its block size, in the order
+  // subdomainDofs() produced them
+  ISLocalToGlobalMapping mapping;
+  LibmeshPetscCall(MatGetLocalToGlobalMapping(_mat, &mapping, nullptr));
+  PetscInt n_subdomain_dofs;
+  LibmeshPetscCall(ISLocalToGlobalMappingGetSize(mapping, &n_subdomain_dofs));
+  const PetscInt * mapping_dofs;
+  LibmeshPetscCall(ISLocalToGlobalMappingGetIndices(mapping, &mapping_dofs));
+  bool changed = n_subdomain_dofs != libMesh::cast_int<PetscInt>(subdomain_dofs.size()) ||
+                 !std::equal(subdomain_dofs.begin(), subdomain_dofs.end(), mapping_dofs);
+  LibmeshPetscCall(ISLocalToGlobalMappingRestoreIndices(mapping, &mapping_dofs));
+
+  // The remapping is collective, so every rank has to take it together
+  comm().max(changed);
+  if (!changed)
+    return;
+
+  // Setting a new mapping on a MATIS replaces the subdomain matrix and its scatters behind the Mat
+  // the solver holds. The scatter and work vectors built here belong to the old mapping and go
+  // first; setupSubdomain() rebuilds them along with the preallocation and the seeded diagonal
+  _to_subdomain.reset_to_zero();
+  _multiplicity.reset_to_zero();
+  _work_global.reset_to_zero();
+  _zeroed_marker.reset_to_zero();
+  _subdomain_diagonal.reset_to_zero();
+  _local_diagonal.reset_to_zero();
+  _zeroed_rows.clear();
+  _zeroed_marker_stale = true;
+
+  setupSubdomain();
+
+  if (_on_subdomain_remap)
+    _on_subdomain_remap();
 }
 
 void
 PetscMatrixIS::setSubdomainMapping()
 {
-  const libMesh::dof_id_type first_dof = _dof_map->first_dof();
-  const libMesh::dof_id_type end_dof = _dof_map->end_dof();
-  const std::vector<libMesh::dof_id_type> & send_list = _dof_map->get_send_list();
-
-  // The subdomain must contain every dof this rank inserts into, because MatSetValues on a MATIS
-  // masks out global indices the mapping does not cover. That set is the owned dof range plus the
-  // send list, which the DofMap builds from the same coupling functors that generate the sparsity
-  // pattern and which already carries the constraint masters. The sparsity pattern columns are not
-  // unioned in as well: PetscMatrixBase reports need_full_sparsity_pattern() == false, so the
-  // DofMap keeps only the n_nz and n_oz counts and discards the column graph.
-  std::vector<PetscInt> subdomain_dofs;
-  subdomain_dofs.reserve((end_dof - first_dof) + send_list.size());
-  for (const auto dof : libMesh::make_range(first_dof, end_dof))
-    subdomain_dofs.push_back(libMesh::cast_int<PetscInt>(dof));
-  // The send list is sorted and unique but may repeat dofs this rank owns
-  for (const auto dof : send_list)
-    if (dof < first_dof || dof >= end_dof)
-      subdomain_dofs.push_back(libMesh::cast_int<PetscInt>(dof));
+  const std::vector<PetscInt> subdomain_dofs = subdomainDofs();
 
   // PCBDDC decides whether a dof is a corner, an edge, or a face dof from the set of subdomains
   // sharing it. A mapping of block size one hands it every component of a node separately, and for
@@ -335,6 +428,10 @@ PetscMatrixIS::zero()
 {
   mooseAssert(initialized(), "The matrix must be initialized before it can be zeroed");
 
+  // Every Jacobian assembly opens with this call, right after the residual evaluation that brought
+  // the mortar pairing up to date, so this is where the subdomain follows the pairing
+  rebuildIfSubdomainChanged();
+
   _zeroed_rows.clear();
   _zeroed_marker_stale = true;
 
@@ -420,9 +517,11 @@ PetscMatrixIS::checkSubdomainCoverage(const libMesh::numeric_index_type dof) con
     mooseError("Global dof ",
                dof,
                " lies outside this rank's subdomain, so inserting into it would be silently "
-               "dropped by the MATIS matrix. The subdomain holds the locally owned dofs plus the "
-               "send list; add or widen the ghosting (RelationshipManager) that couples this dof "
-               "to this rank so that it enters the send list.");
+               "dropped by the MATIS matrix. The subdomain holds the dofs of the elements this "
+               "rank owns plus those of the elements the DofMap's coupling functors pair them "
+               "with, and it is rebuilt before every solve; a coupling that appears within one "
+               "solve has to be announced by a coupling functor (RelationshipManager) so that "
+               "the dof enters the subdomain.");
 }
 
 void
