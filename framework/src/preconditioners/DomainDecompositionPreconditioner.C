@@ -128,6 +128,12 @@ DomainDecompositionPreconditioner::initialSetup()
     Moose::PetscSupport::addDefaultPetscOption(
         petsc_options, prefix_with_dash + "fetidp_ksp_type", "gmres");
 
+#ifdef LIBMESH_PETSC_HAVE_MUMPS
+  for (const auto solver : {"dirichlet", "neumann"})
+    Moose::PetscSupport::addDefaultPetscOption(
+        petsc_options, bddc_prefix + "pc_bddc_" + solver + "_pc_factor_mat_solver_type", "mumps");
+#endif
+
   if (!_saddle_point_vars.empty())
   {
     if (_method != "fetidp")

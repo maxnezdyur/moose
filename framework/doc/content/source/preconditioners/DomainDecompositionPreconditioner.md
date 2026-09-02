@@ -54,14 +54,21 @@ either one only under that prefix.
 
 ### Defaults Applied By DDP
 
-`DDP` applies the two options below itself. Each is a correctness requirement rather than a tuning
-choice, so a solve that needs one and lacks it fails outright instead of converging slowly:
+`DDP` applies the options below itself. The first two are correctness requirements rather than
+tuning choices, so a solve that needs one and lacks it fails outright instead of converging slowly:
 
 - `-pc_bddc_use_change_of_basis`, spelled `-fetidp_bddc_pc_bddc_use_change_of_basis` for
   `method = fetidp`. Without it the local Neumann problems of floating subdomains are singular
   saddle point systems, and PETSc's unpivoted LU fails on them.
 - `-fetidp_ksp_type gmres`, for `method = fetidp` only. GMRES admits the unsymmetric operators MOOSE
   assembles, which is the usage PETSc documents for the non-symmetric case.
+- `-pc_bddc_dirichlet_pc_factor_mat_solver_type mumps` and
+  `-pc_bddc_neumann_pc_factor_mat_solver_type mumps`, with the `-fetidp_bddc_` prefix for
+  `method = fetidp`, when PETSc is built with MUMPS. This one is a performance default: the local
+  Dirichlet and Neumann problems are factored again on every Jacobian, and PETSc's own LU handles
+  three dimensional fill poorly. On a 20^3 hex finite strain block at four processes MUMPS factors
+  the same subdomain blocks about seven times faster, which takes the setup from 11.5 s to 2.2 s
+  and brings the method level with GAMG.
 
 `DDP` stores each default after the options supplied by the `[Executioner]` and `[Preconditioning]`
 blocks, and skips any option name those blocks already carry. To change a default, name it in
