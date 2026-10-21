@@ -4,4 +4,33 @@
     input = 'circle_thermal_expansion_stress.i'
     check_input = True
   [../]
+  [moosify_uel]
+    issues = '#33821'
+    design = 'source/constraints/EqualValueBoundaryConstraint.md '
+             'source/materials/abaqus/AbaqusUMATStress.md'
+    requirement = 'The system shall provide a coupled thermomechanical two-block example in which '
+                  'a UMAT computes the stress and degree of freedom constraint rows keep each '
+                  'plane-remains-plane face planar'
+    [moosify_uel_check]
+      type = RunApp
+      input = 'moosify_uel.i'
+      check_input = True
+      recover = false
+      capabilities = 'library_mode=dynamic & installation_type=in_tree'
+      valgrind = 'NONE'
+      detail = 'with every object constructed from the input,'
+    []
+    [moosify_uel_prp_tie]
+      type = CSVDiff
+      input = 'moosify_uel.i'
+      csvdiff = 'moosify_uel_short.csv'
+      cli_args = 'Executioner/end_time=1000 Executioner/dt=250 Outputs/file_base=moosify_uel_short'
+      # The ties are exact: the spreads must be 0 to 1e-12 m, below the 1e-10 default
+      abs_zero = 1e-12
+      capabilities = 'library_mode=dynamic & installation_type=in_tree'
+      valgrind = 'NONE'
+      detail = 'with the normal displacement of each plane-remains-plane face uniform while the '
+               'heat source ramps up.'
+    []
+  []
 []
